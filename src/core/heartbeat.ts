@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import type { MCPServer } from '@openai/agents';
 import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
-import { loadHeartbeatState, addHeartbeatResult } from '../store/heartbeatStore';
+import { loadHeartbeatState, addHeartbeatResult, updateLastChecked } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -146,6 +146,8 @@ export class HeartbeatEngine {
       }
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
+      // エラー時も lastChecked を更新して即リトライを防止
+      await updateLastChecked(Date.now()).catch(() => {});
     } finally {
       this.isExecuting = false;
     }

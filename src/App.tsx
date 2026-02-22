@@ -10,6 +10,8 @@ import { saveMessage } from './store/conversationStore';
 import type { HeartbeatNotification } from './core/heartbeat';
 import type { ChatMessage } from './types';
 
+const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
+
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -29,12 +31,14 @@ export default function App() {
     }
   }, [setMessages]);
 
+  const [heartbeatEnabled, setHeartbeatEnabled] = useState(
+    () => getConfig().heartbeat?.enabled ?? false,
+  );
+
   const { syncHeartbeatConfig } = useHeartbeat({
     isStreaming,
     onNotification: handleHeartbeatNotification,
   });
-
-  const heartbeatEnabled = getConfig().heartbeat?.enabled ?? false;
 
   useEffect(() => {
     loadMessages().then((saved) => {
@@ -70,6 +74,26 @@ export default function App() {
   const handleSettingsClose = () => {
     setSettingsOpen(false);
     syncHeartbeatConfig();
+    setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
+
+    // 初回設定完了時に heartbeat の案内を表示
+    const config = getConfig();
+    if (
+      config.openaiApiKey &&
+      !config.heartbeat?.enabled &&
+      !localStorage.getItem(HEARTBEAT_HINT_KEY)
+    ) {
+      localStorage.setItem(HEARTBEAT_HINT_KEY, '1');
+      const hintMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'Heartbeat 機能を使うと、カレンダーの予定や天気の変化を定期的にチェックして自動で通知できます。設定画面の「Heartbeat」セクションから有効にできます。',
+        timestamp: Date.now(),
+        source: 'heartbeat',
+      };
+      setMessages((prev) => [...prev, hintMsg]);
+      saveMessage(hintMsg);
+    }
   };
 
   return (

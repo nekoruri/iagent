@@ -14,7 +14,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     id: 'weather-check',
     name: '天気チェック',
     description: '現在地の天気を確認し、急な天候変化があれば通知します。',
-    enabled: true,
+    enabled: false,
     type: 'builtin',
   },
 ];
