@@ -58,6 +58,7 @@ export interface HeartbeatConfig {
   quietHoursStart: number;
   quietHoursEnd: number;
   tasks: HeartbeatTask[];
+  desktopNotification: boolean;
 }
 
 export interface AppConfig {

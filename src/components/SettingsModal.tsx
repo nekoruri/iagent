@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
+import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask } from '../types';
 
 interface Props {
@@ -214,6 +215,38 @@ export function SettingsModal({ open, onClose }: Props) {
             </label>
           </div>
           <p className="mcp-hint">定期的にバックグラウンドチェックを実行し、変化があればチャットに通知します。</p>
+
+          {(() => {
+            const permission = getNotificationPermission();
+            return (
+              <div className="hb-notification-row">
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={heartbeat.desktopNotification}
+                    disabled={permission === 'denied' || permission === 'unsupported'}
+                    onChange={async (e) => {
+                      if (e.target.checked) {
+                        const result = await requestNotificationPermission();
+                        if (result === 'granted') {
+                          updateHeartbeat({ desktopNotification: true });
+                        }
+                      } else {
+                        updateHeartbeat({ desktopNotification: false });
+                      }
+                    }}
+                  />
+                  デスクトップ通知
+                </label>
+                {permission === 'denied' && (
+                  <p className="hb-notification-denied">通知がブロックされています。ブラウザの設定から許可してください。</p>
+                )}
+                {permission === 'unsupported' && (
+                  <p className="hb-notification-denied">このブラウザは通知をサポートしていません。</p>
+                )}
+              </div>
+            );
+          })()}
 
           <label className="hb-range-label">
             チェック間隔: {heartbeat.intervalMinutes}分

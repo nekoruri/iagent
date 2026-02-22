@@ -32,6 +32,7 @@ describe('getDefaultHeartbeatConfig', () => {
     expect(config.intervalMinutes).toBe(30);
     expect(config.quietHoursStart).toBe(0);
     expect(config.quietHoursEnd).toBe(6);
+    expect(config.desktopNotification).toBe(false);
     expect(config.tasks).toHaveLength(BUILTIN_HEARTBEAT_TASKS.length);
   });
 
@@ -79,6 +80,24 @@ describe('getConfig / saveConfig', () => {
     expect(config.braveApiKey).toBe('');
     expect(config.mcpServers).toEqual([]);
     expect(config.heartbeat).toEqual(getDefaultHeartbeatConfig());
+  });
+
+  it('既存の heartbeat に desktopNotification が無い場合デフォルト値でマージする', () => {
+    const oldHeartbeat = {
+      enabled: true,
+      intervalMinutes: 15,
+      quietHoursStart: 23,
+      quietHoursEnd: 7,
+      tasks: [],
+    };
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: oldHeartbeat,
+    }));
+    const config = getConfig();
+    expect(config.heartbeat!.enabled).toBe(true);
+    expect(config.heartbeat!.intervalMinutes).toBe(15);
+    expect(config.heartbeat!.desktopNotification).toBe(false);
   });
 });
 

@@ -745,6 +745,19 @@ body {
   border-color: var(--accent);
 }
 
+/* Heartbeat notification settings */
+.hb-notification-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hb-notification-denied {
+  font-size: 11px;
+  color: #f87171;
+  line-height: 1.3;
+}
+
 /* Heartbeat message badge */
 .message-heartbeat .message-bubble {
   border-left: 3px solid #4ade80;
