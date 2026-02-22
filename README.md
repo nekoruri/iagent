@@ -1,73 +1,117 @@
-# React + TypeScript + Vite
+# iAgent
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ブラウザ上で動作するパーソナルAIアシスタント。OpenAI Agents SDK を活用し、リアルタイムストリーミング、バックグラウンドチェック（Heartbeat）、MCP サーバー連携をサポートする PWA アプリケーション。
 
-Currently, two official plugins are available:
+## 技術スタック
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **フロントエンド**: React 19 + TypeScript
+- **ビルド**: Vite 7
+- **AI**: OpenAI Agents SDK (`gpt-5-mini` / `gpt-5-nano`)
+- **プロトコル**: Model Context Protocol (MCP)
+- **永続化**: IndexedDB (`idb`)
+- **テスト**: Vitest + jsdom
+- **PWA**: vite-plugin-pwa (Workbox)
 
-## React Compiler
+## 主要機能
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### チャット
+- OpenAI Agents SDK によるリアルタイムストリーミング応答
+- Markdown レンダリング（marked + DOMPurify）
+- IndexedDB による会話履歴の永続化
+- ストリーム停止ボタン
 
-## Expanding the ESLint configuration
+### ビルトインツール
+- **カレンダー** — 予定の作成・検索・リマインダー（IndexedDB ベース）
+- **Web 検索** — Brave Search API 経由（上位 5 件）
+- **デバイス情報** — バッテリー残量、位置情報、天気
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### MCP サーバー連携
+- 任意の MCP サーバー URL を設定画面から登録
+- ブラウザベースの StreamableHTTP クライアント実装
+- 接続状態のリアルタイム表示
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Heartbeat（バックグラウンドチェック）
+- 設定間隔（デフォルト 30 分）で定期実行
+- ビルトインタスク: カレンダーチェック、天気チェック
+- カスタムタスクの定義が可能
+- 深夜スキップ機能（デフォルト 0〜6 時）
+- 差分検知（変化なしは通知しない）
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### PWA
+- インストール可能なウェブアプリ
+- Service Worker による自動キャッシュ
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## セットアップ
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+ブラウザで設定画面（⚙）を開き、以下の API キーを入力:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| キー | 必須 | 用途 |
+|------|------|------|
+| OpenAI API Key | ✅ | チャット・Heartbeat |
+| Brave Search API Key | — | Web 検索ツール |
+| OpenWeatherMap API Key | — | 天気ツール |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## スクリプト
+
+```bash
+npm run dev            # 開発サーバー（HMR）
+npm run build          # 本番ビルド
+npm test               # テスト実行
+npm run test:watch     # テスト監視モード
+npm run test:coverage  # カバレッジ測定
+npm run lint           # ESLint
+npm run preview        # ビルド結果プレビュー
 ```
+
+## プロジェクト構成
+
+```
+src/
+├── components/        # React コンポーネント
+│   ├── ChatView.tsx         チャット画面
+│   ├── InputBar.tsx         入力バー
+│   ├── MessageBubble.tsx    メッセージ表示（Markdown）
+│   ├── SettingsModal.tsx    設定モーダル
+│   └── ToolIndicator.tsx    ツール実行状態表示
+├── core/              # ビジネスロジック
+│   ├── agent.ts             Agent 定義（メイン & Heartbeat）
+│   ├── config.ts            設定管理（localStorage）
+│   ├── heartbeat.ts         Heartbeat エンジン
+│   ├── mcpClient.ts         MCP クライアント
+│   └── mcpManager.ts        MCP 接続管理
+├── hooks/             # カスタムフック
+│   ├── useAgentChat.ts      チャット送受信 & ストリーミング
+│   └── useHeartbeat.ts      Heartbeat ライフサイクル
+├── store/             # IndexedDB ストア
+│   ├── db.ts                DB 初期化
+│   ├── conversationStore.ts 会話履歴
+│   ├── calendarStore.ts     カレンダーイベント
+│   └── heartbeatStore.ts    Heartbeat 結果
+├── tools/             # エージェント用ツール
+│   ├── calendarTool.ts
+│   ├── webSearchTool.ts
+│   └── deviceInfoTool.ts
+└── types/
+    └── index.ts
+```
+
+## テスト用 MCP サーバー
+
+`test-mcp-server/` に開発・テスト用の MCP サーバーを同梱。
+
+```bash
+cd test-mcp-server
+npm install
+npm start              # localhost:3001 で起動
+```
+
+echo / get_time / roll_dice の 3 ツールを提供。
+
+## CI
+
+GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push / PR 時にテストとビルドを自動実行（Node.js 22）。
