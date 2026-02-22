@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { HeartbeatEngine, type HeartbeatNotification } from '../core/heartbeat';
 import { getConfig } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
+import { sendHeartbeatNotifications } from '../core/notifier';
 
 interface UseHeartbeatOptions {
   isStreaming: boolean;
@@ -18,6 +19,14 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
 
     const unsub = engine.subscribe(onNotification);
 
+    // デスクトップ通知用リスナー
+    const unsubNotify = engine.subscribe((notification) => {
+      const cfg = getConfig().heartbeat;
+      if (cfg?.desktopNotification) {
+        sendHeartbeatNotifications(notification.results);
+      }
+    });
+
     const config = getConfig().heartbeat;
     if (config?.enabled) {
       engine.start();
@@ -25,6 +34,7 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
 
     return () => {
       unsub();
+      unsubNotify();
       engine.stop();
       engineRef.current = null;
     };
@@ -44,7 +54,11 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       if (!engine) return;
 
       if (document.hidden) {
-        engine.stop();
+        // デスクトップ通知が有効ならバックグラウンドでも Heartbeat を継続
+        const config = getConfig().heartbeat;
+        if (!config?.desktopNotification) {
+          engine.stop();
+        }
       } else {
         const config = getConfig().heartbeat;
         if (config?.enabled) {

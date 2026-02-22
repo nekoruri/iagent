@@ -26,6 +26,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
     quietHoursStart: 0,
     quietHoursEnd: 6,
     tasks: BUILTIN_HEARTBEAT_TASKS.map((t) => ({ ...t })),
+    desktopNotification: false,
   };
 }
 
@@ -40,7 +41,9 @@ export function getConfig(): AppConfig {
     braveApiKey: parsed.braveApiKey ?? '',
     openWeatherMapApiKey: parsed.openWeatherMapApiKey ?? '',
     mcpServers: parsed.mcpServers ?? [],
-    heartbeat: parsed.heartbeat ?? getDefaultHeartbeatConfig(),
+    heartbeat: parsed.heartbeat
+      ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
+      : getDefaultHeartbeatConfig(),
   };
 }
 
