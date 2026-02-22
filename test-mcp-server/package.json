@@ -1,0 +1,16 @@
+{
+  "name": "test-mcp-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "@types/node": "^24.10.1"
+  }
+}

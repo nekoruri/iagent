@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { ChatView } from './components/ChatView';
 import { SettingsModal } from './components/SettingsModal';
 import { useAgentChat } from './hooks/useAgentChat';
-import { isConfigured } from './core/config';
+import { isConfigured, getConfig } from './core/config';
+import { mcpManager } from './core/mcpManager';
 import { loadMessages, clearMessages } from './store/conversationStore';
 
 export default function App() {
@@ -24,6 +25,17 @@ export default function App() {
       setSettingsOpen(true);
     }
   }, [loaded]);
+
+  // 起動時にMCPサーバーに接続
+  useEffect(() => {
+    const config = getConfig();
+    if (config.mcpServers.length > 0) {
+      mcpManager.syncWithConfig(config.mcpServers);
+    }
+    return () => {
+      mcpManager.disconnectAll();
+    };
+  }, []);
 
   const handleClearChat = async () => {
     clearChat();

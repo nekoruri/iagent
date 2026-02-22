@@ -24,10 +24,19 @@ export interface CalendarEvent {
   createdAt: number;
 }
 
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+}
+
 export interface AppConfig {
   openaiApiKey: string;
   braveApiKey: string;
   openWeatherMapApiKey: string;
+  mcpServers: MCPServerConfig[];
 }
 
-export type ConfigKey = keyof AppConfig;
+/** getConfigValue() で文字列として取得可能なキー */
+export type ConfigKey = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';

@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import type { AgentInputItem, RunStreamEvent } from '@openai/agents';
 import { createAgent } from '../core/agent';
 import { getConfigValue } from '../core/config';
+import { mcpManager } from '../core/mcpManager';
 import { saveMessage } from '../store/conversationStore';
 import type { ChatMessage, ToolCallInfo } from '../types';
 
@@ -58,7 +59,8 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
     abortRef.current = false;
 
     try {
-      const agent = createAgent();
+      const mcpServers = mcpManager.getActiveServers();
+      const agent = createAgent(mcpServers);
       historyRef.current.push(user(text));
 
       const result = await run(agent, historyRef.current, {
