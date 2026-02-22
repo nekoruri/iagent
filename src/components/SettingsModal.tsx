@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
-import type { AppConfig, MCPServerConfig } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask } from '../types';
 
 interface Props {
   open: boolean;
@@ -35,6 +35,36 @@ export function SettingsModal({ open, onClose }: Props) {
   useEffect(() => {
     if (open) setConfig(getConfig());
   }, [open]);
+
+  const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
+
+  const updateHeartbeat = (patch: Partial<HeartbeatConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      heartbeat: { ...heartbeat, ...patch },
+    }));
+  };
+
+  const updateHeartbeatTask = (taskId: string, patch: Partial<HeartbeatTask>) => {
+    updateHeartbeat({
+      tasks: heartbeat.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)),
+    });
+  };
+
+  const addCustomTask = () => {
+    const newTask: HeartbeatTask = {
+      id: crypto.randomUUID(),
+      name: '',
+      description: '',
+      enabled: true,
+      type: 'custom',
+    };
+    updateHeartbeat({ tasks: [...heartbeat.tasks, newTask] });
+  };
+
+  const removeCustomTask = (taskId: string) => {
+    updateHeartbeat({ tasks: heartbeat.tasks.filter((t) => t.id !== taskId) });
+  };
 
   const handleSave = useCallback(async () => {
     saveConfig(config);
@@ -74,6 +104,9 @@ export function SettingsModal({ open, onClose }: Props) {
   };
 
   if (!open) return null;
+
+  const builtinTasks = heartbeat.tasks.filter((t) => t.type === 'builtin');
+  const customTasks = heartbeat.tasks.filter((t) => t.type === 'custom');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -165,6 +198,122 @@ export function SettingsModal({ open, onClose }: Props) {
               </div>
             );
           })}
+        </div>
+
+        {/* Heartbeat 設定 */}
+        <div className="mcp-section">
+          <div className="mcp-header">
+            <h3>Heartbeat</h3>
+            <label className="hb-toggle-label">
+              <input
+                type="checkbox"
+                checked={heartbeat.enabled}
+                onChange={(e) => updateHeartbeat({ enabled: e.target.checked })}
+              />
+              有効
+            </label>
+          </div>
+          <p className="mcp-hint">定期的にバックグラウンドチェックを実行し、変化があればチャットに通知します。</p>
+
+          <label className="hb-range-label">
+            チェック間隔: {heartbeat.intervalMinutes}分
+            <input
+              type="range"
+              min={10}
+              max={120}
+              step={5}
+              value={heartbeat.intervalMinutes}
+              onChange={(e) => updateHeartbeat({ intervalMinutes: Number(e.target.value) })}
+            />
+          </label>
+
+          <div className="hb-quiet-hours">
+            <span className="hb-quiet-label">深夜スキップ:</span>
+            <select
+              value={heartbeat.quietHoursStart}
+              onChange={(e) => updateHeartbeat({ quietHoursStart: Number(e.target.value) })}
+            >
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{i}:00</option>
+              ))}
+            </select>
+            <span>〜</span>
+            <select
+              value={heartbeat.quietHoursEnd}
+              onChange={(e) => updateHeartbeat({ quietHoursEnd: Number(e.target.value) })}
+            >
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{i}:00</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="hb-tasks-section">
+            <h4>ビルトインタスク</h4>
+            {builtinTasks.map((task) => {
+              const builtinDef = BUILTIN_HEARTBEAT_TASKS.find((b) => b.id === task.id);
+              return (
+                <div className="hb-task-card" key={task.id}>
+                  <label className="mcp-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={task.enabled}
+                      onChange={(e) => updateHeartbeatTask(task.id, { enabled: e.target.checked })}
+                    />
+                    {builtinDef?.name ?? task.name}
+                  </label>
+                  <p className="mcp-hint">{builtinDef?.description ?? task.description}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hb-tasks-section">
+            <div className="mcp-header">
+              <h4>カスタムタスク</h4>
+              <button className="btn-secondary btn-small" onClick={addCustomTask}>+ 追加</button>
+            </div>
+            {customTasks.length === 0 && (
+              <p className="mcp-empty">カスタムタスクなし</p>
+            )}
+            {customTasks.map((task) => (
+              <div className="mcp-server-card" key={task.id}>
+                <div className="mcp-server-row">
+                  <input
+                    className="mcp-server-name"
+                    type="text"
+                    value={task.name}
+                    onChange={(e) => updateHeartbeatTask(task.id, { name: e.target.value })}
+                    placeholder="タスク名"
+                  />
+                  <label className="mcp-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={task.enabled}
+                      onChange={(e) => updateHeartbeatTask(task.id, { enabled: e.target.checked })}
+                    />
+                    有効
+                  </label>
+                </div>
+                <textarea
+                  className="hb-task-description"
+                  value={task.description}
+                  onChange={(e) => updateHeartbeatTask(task.id, { description: e.target.value })}
+                  placeholder="タスクの説明（エージェントへの指示）"
+                  rows={2}
+                />
+                <div className="mcp-server-actions">
+                  <div />
+                  <button
+                    className="btn-danger btn-small"
+                    onClick={() => removeCustomTask(task.id)}
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="modal-actions">

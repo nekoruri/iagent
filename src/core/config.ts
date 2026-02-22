@@ -1,11 +1,38 @@
-import type { AppConfig, ConfigKey } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask } from '../types';
 
 const STORAGE_KEY = 'iagent-config';
+
+export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
+  {
+    id: 'calendar-check',
+    name: 'カレンダーチェック',
+    description: '1時間以内に予定があれば通知します。',
+    enabled: true,
+    type: 'builtin',
+  },
+  {
+    id: 'weather-check',
+    name: '天気チェック',
+    description: '現在地の天気を確認し、急な天候変化があれば通知します。',
+    enabled: true,
+    type: 'builtin',
+  },
+];
+
+export function getDefaultHeartbeatConfig(): HeartbeatConfig {
+  return {
+    enabled: false,
+    intervalMinutes: 30,
+    quietHoursStart: 0,
+    quietHoursEnd: 6,
+    tasks: BUILTIN_HEARTBEAT_TASKS.map((t) => ({ ...t })),
+  };
+}
 
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [] };
+    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig() };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
   return {
@@ -13,6 +40,7 @@ export function getConfig(): AppConfig {
     braveApiKey: parsed.braveApiKey ?? '',
     openWeatherMapApiKey: parsed.openWeatherMapApiKey ?? '',
     mcpServers: parsed.mcpServers ?? [],
+    heartbeat: parsed.heartbeat ?? getDefaultHeartbeatConfig(),
   };
 }
 

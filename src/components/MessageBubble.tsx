@@ -26,8 +26,10 @@ export function MessageBubble({ message }: Props) {
     return renderMarkdown(message.content);
   }, [isUser, message.content]);
 
+  const isHeartbeat = message.source === 'heartbeat';
+
   return (
-    <div className={`message ${isUser ? 'message-user' : 'message-assistant'}`}>
+    <div className={`message ${isUser ? 'message-user' : 'message-assistant'}${isHeartbeat ? ' message-heartbeat' : ''}`}>
       <div className="message-bubble">
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="tool-calls">

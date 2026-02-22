@@ -1,25 +1,7 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { getDB } from './db';
 import type { CalendarEvent } from '../types';
 
-const DB_NAME = 'iagent-db';
 const STORE_NAME = 'calendar';
-const DB_VERSION = 1;
-
-let dbPromise: Promise<IDBPDatabase> | null = null;
-
-function getDB(): Promise<IDBPDatabase> {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          store.createIndex('date', 'date', { unique: false });
-        }
-      },
-    });
-  }
-  return dbPromise;
-}
 
 export async function listEvents(date?: string): Promise<CalendarEvent[]> {
   const db = await getDB();

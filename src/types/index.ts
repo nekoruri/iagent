@@ -4,6 +4,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   toolCalls?: ToolCallInfo[];
+  source?: 'chat' | 'heartbeat';
 }
 
 export interface ToolCallInfo {
@@ -31,11 +32,40 @@ export interface MCPServerConfig {
   enabled: boolean;
 }
 
+export interface HeartbeatTask {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  type: 'builtin' | 'custom';
+}
+
+export interface HeartbeatResult {
+  taskId: string;
+  timestamp: number;
+  hasChanges: boolean;
+  summary: string;
+}
+
+export interface HeartbeatState {
+  lastChecked: number;
+  recentResults: HeartbeatResult[];
+}
+
+export interface HeartbeatConfig {
+  enabled: boolean;
+  intervalMinutes: number;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  tasks: HeartbeatTask[];
+}
+
 export interface AppConfig {
   openaiApiKey: string;
   braveApiKey: string;
   openWeatherMapApiKey: string;
   mcpServers: MCPServerConfig[];
+  heartbeat?: HeartbeatConfig;
 }
 
 /** getConfigValue() で文字列として取得可能なキー */
