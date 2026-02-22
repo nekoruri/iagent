@@ -9,9 +9,10 @@ interface Props {
   isStreaming: boolean;
   activeTools: ToolCallInfo[];
   onSend: (text: string) => void;
+  onStop: () => void;
 }
 
-export function ChatView({ messages, isStreaming, activeTools, onSend }: Props) {
+export function ChatView({ messages, isStreaming, activeTools, onSend, onStop }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function ChatView({ messages, isStreaming, activeTools, onSend }: Props) 
         <ToolIndicator tools={activeTools} />
         <div ref={bottomRef} />
       </div>
-      <InputBar onSend={onSend} disabled={isStreaming} />
+      <InputBar onSend={onSend} disabled={isStreaming} isStreaming={isStreaming} onStop={onStop} />
     </div>
   );
 }

@@ -3,9 +3,11 @@ import { useState, useRef, useCallback } from 'react';
 interface Props {
   onSend: (text: string) => void;
   disabled: boolean;
+  isStreaming: boolean;
+  onStop: () => void;
 }
 
-export function InputBar({ onSend, disabled }: Props) {
+export function InputBar({ onSend, disabled, isStreaming, onStop }: Props) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,9 +46,15 @@ export function InputBar({ onSend, disabled }: Props) {
         rows={1}
         disabled={disabled}
       />
-      <button onClick={handleSend} disabled={disabled || !text.trim()}>
-        送信
-      </button>
+      {isStreaming ? (
+        <button className="btn-stop" onClick={onStop}>
+          ■
+        </button>
+      ) : (
+        <button onClick={handleSend} disabled={disabled || !text.trim()}>
+          送信
+        </button>
+      )}
     </div>
   );
 }

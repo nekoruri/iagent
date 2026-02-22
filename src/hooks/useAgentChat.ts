@@ -146,10 +146,14 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
     }
   }, [isStreaming]);
 
+  const stopStreaming = useCallback(() => {
+    abortRef.current = true;
+  }, []);
+
   const clearChat = useCallback(() => {
     setMessages([]);
     historyRef.current = [];
   }, []);
 
-  return { messages, isStreaming, activeTools, sendMessage, clearChat, setMessages };
+  return { messages, isStreaming, activeTools, sendMessage, stopStreaming, clearChat, setMessages };
 }

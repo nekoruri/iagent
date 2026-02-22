@@ -1,4 +1,18 @@
+import { useMemo } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import type { ChatMessage } from '../types';
+
+marked.setOptions({
+  breaks: true,
+});
+
+function renderMarkdown(text: string): string {
+  const raw = marked.parse(text) as string;
+  return DOMPurify.sanitize(raw, {
+    ADD_ATTR: ['target'],
+  });
+}
 
 interface Props {
   message: ChatMessage;
@@ -6,6 +20,11 @@ interface Props {
 
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === 'user';
+
+  const html = useMemo(() => {
+    if (isUser || !message.content) return '';
+    return renderMarkdown(message.content);
+  }, [isUser, message.content]);
 
   return (
     <div className={`message ${isUser ? 'message-user' : 'message-assistant'}`}>
@@ -19,7 +38,14 @@ export function MessageBubble({ message }: Props) {
             ))}
           </div>
         )}
-        <div className="message-content">{message.content}</div>
+        {isUser ? (
+          <div className="message-content">{message.content}</div>
+        ) : (
+          <div
+            className="message-content markdown"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        )}
       </div>
     </div>
   );

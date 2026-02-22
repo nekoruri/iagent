@@ -9,7 +9,7 @@ import { loadMessages, clearMessages } from './store/conversationStore';
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const { messages, isStreaming, activeTools, sendMessage, clearChat, setMessages } = useAgentChat();
+  const { messages, isStreaming, activeTools, sendMessage, stopStreaming, clearChat, setMessages } = useAgentChat();
 
   useEffect(() => {
     loadMessages().then((saved) => {
@@ -61,6 +61,7 @@ export default function App() {
           isStreaming={isStreaming}
           activeTools={activeTools}
           onSend={sendMessage}
+          onStop={stopStreaming}
         />
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
