@@ -13,6 +13,17 @@ export type HeartbeatNotification = {
 
 type Listener = (notification: HeartbeatNotification) => void;
 
+/** 現在がサイレント時間帯かどうかを判定する */
+export function isQuietHours(config: HeartbeatConfig, now?: Date): boolean {
+  const hour = (now ?? new Date()).getHours();
+  const { quietHoursStart, quietHoursEnd } = config;
+  if (quietHoursStart <= quietHoursEnd) {
+    return hour >= quietHoursStart && hour < quietHoursEnd;
+  }
+  // 例: 23時〜6時のように日をまたぐ場合
+  return hour >= quietHoursStart || hour < quietHoursEnd;
+}
+
 export class HeartbeatEngine {
   private timerId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
@@ -62,16 +73,6 @@ export class HeartbeatEngine {
     }
   }
 
-  private isQuietHours(config: HeartbeatConfig): boolean {
-    const hour = new Date().getHours();
-    const { quietHoursStart, quietHoursEnd } = config;
-    if (quietHoursStart <= quietHoursEnd) {
-      return hour >= quietHoursStart && hour < quietHoursEnd;
-    }
-    // 例: 23時〜6時のように日をまたぐ場合
-    return hour >= quietHoursStart || hour < quietHoursEnd;
-  }
-
   private async getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTask[]> {
     const state = await loadHeartbeatState();
     const now = Date.now();
@@ -86,7 +87,7 @@ export class HeartbeatEngine {
 
     const config = getConfig().heartbeat;
     if (!config || !config.enabled) return;
-    if (this.isQuietHours(config)) return;
+    if (isQuietHours(config)) return;
 
     const tasks = await this.getTasksDue(config);
     if (tasks.length === 0) return;
