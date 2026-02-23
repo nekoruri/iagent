@@ -101,3 +101,7 @@ npm run lint           # eslint
 ## CI
 
 GitHub Actions（`.github/workflows/ci.yml`）: main ブランチの push / PR で `npm test` → `npm run build`（Node.js 22）。
+
+## ロードマップ
+
+`docs/ROADMAP.md` に長期計画・タスクアイデア・完了済み項目を記録している。機能追加や設計変更を行った際は、このファイルを必ず更新すること（完了チェック、新規タスク追加など）。
