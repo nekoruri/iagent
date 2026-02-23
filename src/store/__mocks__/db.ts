@@ -40,8 +40,18 @@ const mockDB = {
     getStore(storeName).delete(key);
     return Promise.resolve();
   },
-  getAllFromIndex(storeName: string, _indexName: string) {
-    return Promise.resolve([...getStore(storeName).values()].map((v) => structuredClone(v)));
+  getAllKeys(storeName: string) {
+    return Promise.resolve([...getStore(storeName).keys()]);
+  },
+  getAllFromIndex(storeName: string, _indexName: string, query?: string | number) {
+    const store = getStore(storeName);
+    if (query !== undefined) {
+      const filtered = [...store.values()].filter((v) => {
+        return Object.values(v as Record<string, unknown>).includes(query);
+      });
+      return Promise.resolve(filtered.map((v) => structuredClone(v)));
+    }
+    return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
   },
 };
 

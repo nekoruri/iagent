@@ -105,7 +105,7 @@ export class HeartbeatEngine {
       setDefaultOpenAIClient(client);
 
       const mcpServers = this.getMCPServers();
-      const agent = createHeartbeatAgent(mcpServers);
+      const agent = await createHeartbeatAgent(mcpServers);
 
       const taskDescriptions = tasks.map((t) =>
         `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
