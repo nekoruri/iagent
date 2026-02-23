@@ -32,12 +32,20 @@ export interface MCPServerConfig {
   enabled: boolean;
 }
 
+export interface TaskSchedule {
+  type: 'global' | 'interval' | 'fixed-time';
+  intervalMinutes?: number;       // type='interval' 時
+  hour?: number;                  // type='fixed-time' 時 (0-23)
+  minute?: number;                // type='fixed-time' 時 (0-59)
+}
+
 export interface HeartbeatTask {
   id: string;
   name: string;
   description: string;
   enabled: boolean;
   type: 'builtin' | 'custom';
+  schedule?: TaskSchedule;        // 未設定 or type='global' はグローバル間隔に従う
 }
 
 export interface HeartbeatResult {
@@ -50,6 +58,7 @@ export interface HeartbeatResult {
 export interface HeartbeatState {
   lastChecked: number;
   recentResults: HeartbeatResult[];
+  taskLastRun?: Record<string, number>;  // taskId → timestamp
 }
 
 export interface HeartbeatConfig {

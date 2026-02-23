@@ -59,6 +59,12 @@ describe('createAgent', () => {
     expect(agent.instructions).toContain('[preference] 朝にニュースを確認したい');
   });
 
+  it('instructions にタスク分解方針が含まれる', async () => {
+    const agent = await createAgent() as unknown as { instructions: string };
+    expect(agent.instructions).toContain('タスク実行方針');
+    expect(agent.instructions).toContain('必要なステップを特定する');
+  });
+
   it('memoryTool をツール一覧に含む', async () => {
     const agent = await createAgent() as unknown as { tools: Array<{ name: string }> };
     const toolNames = agent.tools.map((t) => t.name);

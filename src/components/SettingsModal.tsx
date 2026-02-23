@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule } from '../types';
 
 interface Props {
   open: boolean;
@@ -309,43 +309,111 @@ export function SettingsModal({ open, onClose }: Props) {
             {customTasks.length === 0 && (
               <p className="mcp-empty">カスタムタスクなし</p>
             )}
-            {customTasks.map((task) => (
-              <div className="mcp-server-card" key={task.id}>
-                <div className="mcp-server-row">
-                  <input
-                    className="mcp-server-name"
-                    type="text"
-                    value={task.name}
-                    onChange={(e) => updateHeartbeatTask(task.id, { name: e.target.value })}
-                    placeholder="タスク名"
-                  />
-                  <label className="mcp-toggle-label">
+            {customTasks.map((task) => {
+              const scheduleType = task.schedule?.type ?? 'global';
+              const updateSchedule = (patch: Partial<TaskSchedule>) => {
+                const current = task.schedule ?? { type: 'global' as const };
+                updateHeartbeatTask(task.id, { schedule: { ...current, ...patch } });
+              };
+
+              return (
+                <div className="mcp-server-card" key={task.id}>
+                  <div className="mcp-server-row">
                     <input
-                      type="checkbox"
-                      checked={task.enabled}
-                      onChange={(e) => updateHeartbeatTask(task.id, { enabled: e.target.checked })}
+                      className="mcp-server-name"
+                      type="text"
+                      value={task.name}
+                      onChange={(e) => updateHeartbeatTask(task.id, { name: e.target.value })}
+                      placeholder="タスク名"
                     />
-                    有効
-                  </label>
+                    <label className="mcp-toggle-label">
+                      <input
+                        type="checkbox"
+                        checked={task.enabled}
+                        onChange={(e) => updateHeartbeatTask(task.id, { enabled: e.target.checked })}
+                      />
+                      有効
+                    </label>
+                  </div>
+                  <textarea
+                    className="hb-task-description"
+                    value={task.description}
+                    onChange={(e) => updateHeartbeatTask(task.id, { description: e.target.value })}
+                    placeholder="タスクの説明（エージェントへの指示）"
+                    rows={2}
+                  />
+                  <div className="hb-schedule-row">
+                    <span className="hb-schedule-label">スケジュール:</span>
+                    <select
+                      className="hb-schedule-select"
+                      value={scheduleType}
+                      onChange={(e) => {
+                        const type = e.target.value as TaskSchedule['type'];
+                        if (type === 'global') {
+                          updateHeartbeatTask(task.id, { schedule: { type: 'global' } });
+                        } else if (type === 'interval') {
+                          updateHeartbeatTask(task.id, { schedule: { type: 'interval', intervalMinutes: 60 } });
+                        } else {
+                          updateHeartbeatTask(task.id, { schedule: { type: 'fixed-time', hour: 8, minute: 0 } });
+                        }
+                      }}
+                    >
+                      <option value="global">グローバル設定に従う</option>
+                      <option value="interval">カスタム間隔</option>
+                      <option value="fixed-time">毎日指定時刻</option>
+                    </select>
+                  </div>
+                  {scheduleType === 'interval' && (
+                    <div className="hb-schedule-detail">
+                      <label className="hb-range-label">
+                        間隔: {task.schedule?.intervalMinutes ?? 60}分
+                        <input
+                          type="range"
+                          min={5}
+                          max={240}
+                          step={5}
+                          value={task.schedule?.intervalMinutes ?? 60}
+                          onChange={(e) => updateSchedule({ intervalMinutes: Number(e.target.value) })}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {scheduleType === 'fixed-time' && (
+                    <div className="hb-schedule-detail hb-schedule-time">
+                      <span className="hb-schedule-label">実行時刻:</span>
+                      <select
+                        className="hb-schedule-select"
+                        value={task.schedule?.hour ?? 8}
+                        onChange={(e) => updateSchedule({ hour: Number(e.target.value) })}
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                      <span>:</span>
+                      <select
+                        className="hb-schedule-select"
+                        value={task.schedule?.minute ?? 0}
+                        onChange={(e) => updateSchedule({ minute: Number(e.target.value) })}
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                          <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="mcp-server-actions">
+                    <div />
+                    <button
+                      className="btn-danger btn-small"
+                      onClick={() => removeCustomTask(task.id)}
+                    >
+                      削除
+                    </button>
+                  </div>
                 </div>
-                <textarea
-                  className="hb-task-description"
-                  value={task.description}
-                  onChange={(e) => updateHeartbeatTask(task.id, { description: e.target.value })}
-                  placeholder="タスクの説明（エージェントへの指示）"
-                  rows={2}
-                />
-                <div className="mcp-server-actions">
-                  <div />
-                  <button
-                    className="btn-danger btn-small"
-                    onClick={() => removeCustomTask(task.id)}
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

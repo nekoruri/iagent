@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { ToolIndicator } from './ToolIndicator';
+import { TaskProgress } from './TaskProgress';
 import { InputBar } from './InputBar';
 import type { ChatMessage, ToolCallInfo } from '../types';
 
@@ -42,7 +43,11 @@ export function ChatView({ messages, isStreaming, activeTools, onSend, onStop }:
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
-        <ToolIndicator tools={activeTools} />
+        {activeTools.length >= 2 ? (
+          <TaskProgress tools={activeTools} />
+        ) : (
+          <ToolIndicator tools={activeTools} />
+        )}
         <div ref={bottomRef} />
       </div>
       <InputBar onSend={onSend} disabled={isStreaming} isStreaming={isStreaming} onStop={onStop} />

@@ -89,11 +89,12 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
         } else if (event.type === 'run_item_stream_event') {
           if (event.name === 'tool_called') {
             const item = event.item;
-            const rawItem = item.rawItem as { id?: string; name?: string } | undefined;
+            const rawItem = item.rawItem as { id?: string; name?: string; arguments?: string } | undefined;
             const toolCall: ToolCallInfo = {
               id: rawItem?.id ?? crypto.randomUUID(),
               name: rawItem?.name ?? 'unknown',
               status: 'running',
+              args: rawItem?.arguments,
             };
             toolCalls.push(toolCall);
             setActiveTools([...toolCalls]);
@@ -101,6 +102,8 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
             const lastTool = toolCalls[toolCalls.length - 1];
             if (lastTool) {
               lastTool.status = 'completed';
+              const rawOutput = event.item?.rawItem as { output?: string } | undefined;
+              lastTool.result = rawOutput?.output;
               setActiveTools([...toolCalls]);
             }
           }
