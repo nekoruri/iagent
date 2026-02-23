@@ -14,7 +14,8 @@
 - Heartbeat バックグラウンドチェック
 - デスクトップ通知（Notification API）
 - PWA（Service Worker 自動生成、インストール可能）
-- テスト 43 件（カバレッジ 42.8%）
+- エージェント長期メモリ（memoryTool + 自動コンテキスト注入）
+- テスト 59 件（カバレッジ 42.8%）
 
 ---
 
@@ -44,10 +45,10 @@
 - [ ] IndexedDB conversations ストアの拡張
 
 ### エージェントの長期メモリ
-- [ ] IndexedDB に memory ストア追加
-- [ ] `memoryTool.ts`（save / search / list）
-- [ ] ユーザーの好みや過去のやり取りを蓄積
-- [ ] Heartbeat タスクのパーソナライズに活用
+- [x] IndexedDB に memory ストア追加
+- [x] `memoryTool.ts`（save / search / list / delete）
+- [x] ユーザーの好みや過去のやり取りを蓄積
+- [x] Heartbeat タスクのパーソナライズに活用
 
 ### Heartbeat 高度化
 - [ ] 結果の専用パネル（チャットとの分離）
@@ -84,3 +85,4 @@
 
 - [x] Heartbeat バックグラウンドチェック（2026-02-23）
 - [x] デスクトップ通知 Notification API 統合（2026-02-23, PR #1）
+- [x] エージェント長期メモリ — memoryTool + IndexedDB memories ストア + 自動コンテキスト注入（2026-02-23, PR #2）
