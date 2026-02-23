@@ -60,7 +60,7 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
 
     try {
       const mcpServers = mcpManager.getActiveServers();
-      const agent = createAgent(mcpServers);
+      const agent = await createAgent(mcpServers);
       historyRef.current.push(user(text));
 
       const result = await run(agent, historyRef.current, {

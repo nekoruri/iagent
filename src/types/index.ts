@@ -69,5 +69,13 @@ export interface AppConfig {
   heartbeat?: HeartbeatConfig;
 }
 
+export interface Memory {
+  id: string;
+  content: string;
+  category: 'preference' | 'fact' | 'context' | 'other';
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** getConfigValue() で文字列として取得可能なキー */
 export type ConfigKey = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';

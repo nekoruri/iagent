@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'iagent-db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -18,6 +18,11 @@ export function getDB(): Promise<IDBPDatabase> {
         }
         if (!db.objectStoreNames.contains('heartbeat')) {
           db.createObjectStore('heartbeat', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('memories')) {
+          const memStore = db.createObjectStore('memories', { keyPath: 'id' });
+          memStore.createIndex('category', 'category', { unique: false });
+          memStore.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
       },
       blocked() {
