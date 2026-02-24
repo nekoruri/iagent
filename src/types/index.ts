@@ -5,6 +5,15 @@ export interface ChatMessage {
   timestamp: number;
   toolCalls?: ToolCallInfo[];
   source?: 'chat' | 'heartbeat';
+  conversationId?: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
 }
 
 export interface ToolCallInfo {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { run, user } from '@openai/agents';
 import { setDefaultOpenAIClient } from '@openai/agents-openai';
 import OpenAI from 'openai';
@@ -6,7 +6,7 @@ import type { AgentInputItem, RunStreamEvent } from '@openai/agents';
 import { createAgent } from '../core/agent';
 import { getConfigValue } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
-import { saveMessage } from '../store/conversationStore';
+import { loadMessages, saveMessage } from '../store/conversationStore';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, TOOL_ATTRS } from '../telemetry/semantics';
 import type { ChatMessage, ToolCallInfo } from '../types';
@@ -19,15 +19,32 @@ function ensureOpenAIClient(apiKey: string): void {
   setDefaultOpenAIClient(client);
 }
 
-export function useAgentChat(initialMessages: ChatMessage[] = []) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+export function useAgentChat(conversationId: string | null) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTools, setActiveTools] = useState<ToolCallInfo[]>([]);
   const historyRef = useRef<AgentInputItem[]>([]);
   const abortRef = useRef(false);
+  const currentConvIdRef = useRef<string | null>(null);
+
+  // conversationId 変更時にメッセージをリロード
+  useEffect(() => {
+    currentConvIdRef.current = conversationId;
+    if (!conversationId) {
+      setMessages([]);
+      historyRef.current = [];
+      return;
+    }
+    loadMessages(conversationId).then((saved) => {
+      // 切替中に conversationId が変わった場合は無視
+      if (currentConvIdRef.current !== conversationId) return;
+      setMessages(saved);
+      historyRef.current = [];
+    });
+  }, [conversationId]);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || isStreaming) return;
+    if (!text.trim() || isStreaming || !conversationId) return;
 
     const apiKey = getConfigValue('openaiApiKey');
     if (!apiKey) {
@@ -42,6 +59,7 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
       role: 'user',
       content: text,
       timestamp: Date.now(),
+      conversationId,
     };
     setMessages((prev) => [...prev, userMsg]);
     await saveMessage(userMsg);
@@ -53,6 +71,7 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
       content: '',
       timestamp: Date.now(),
       toolCalls: [],
+      conversationId,
     };
     setMessages((prev) => [...prev, assistantMsg]);
 
@@ -182,7 +201,7 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
       setIsStreaming(false);
       setActiveTools([]);
     }
-  }, [isStreaming]);
+  }, [isStreaming, conversationId]);
 
   const stopStreaming = useCallback(() => {
     abortRef.current = true;
