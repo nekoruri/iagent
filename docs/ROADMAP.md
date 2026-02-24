@@ -19,7 +19,7 @@
 - カスタムワークフロー（タスクごとの個別スケジュール設定）
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
-- テスト 126 件
+- テスト 173 件（Statements 86.45%）
 
 ---
 
@@ -40,12 +40,34 @@
 - [x] Heartbeat 計装（タスク実行トレース）
 - [x] 設定 UI（有効/無効、OTLP エンドポイント、認証ヘッダー）
 
-### テストカバレッジ向上
-- [ ] `calendarStore.ts` のテスト追加（現 7.69%）
-- [ ] `mcpClient.ts` のテスト追加（現 0%）
-- [ ] `mcpManager.ts` のテスト追加（現 0%）
-- [ ] `heartbeat.ts` のカバレッジ改善（現 47.36%）
-- **目標**: Statements 70% 以上
+### テスト基盤の拡充
+
+#### ユニットテスト完備（Statements 70% 目標 → 達成済み 86.45%）
+- [x] `calendarStore.ts` のテスト追加（7.69% → 100%）
+- [x] `mcpClient.ts` のテスト追加（0% → 98.76%）
+- [x] `mcpManager.ts` のテスト追加（0% → 98.82%）
+- [x] `heartbeat.ts` のカバレッジ改善（51.53% → 96.31%）
+- [ ] CI にカバレッジ閾値（Statements 70%）を設定
+
+#### コンポーネント / フックテスト導入
+- [ ] @testing-library/react + @testing-library/user-event 導入
+- [ ] InputBar テスト（入力 → 送信、空文字無効化、ストリーミング中ブロック）
+- [ ] SettingsModal テスト（API キー入力保存、MCP サーバー追加削除）
+- [ ] ConversationSidebar テスト（一覧表示、選択、削除）
+- [ ] useConversations フックテスト（CRUD、マイグレーション）
+- [ ] useHeartbeat フックテスト（エンジン連携、visibility 連動）
+
+#### E2E テスト導入
+- [ ] Playwright 導入 + page.route() で OpenAI API モック
+- [ ] 初回起動 → API キー設定 → チャット送信フロー
+- [ ] 会話管理（作成・切替・削除）フロー
+- [ ] モバイルビューポートでのドロワー動作
+- [ ] CI に E2E テストステップ追加（main PR 時のみ）
+
+#### テスト品質の継続改善
+- [ ] telemetry をカバレッジ対象に追加
+- [ ] ツール定義（calendarTool 等）のインテグレーションテスト
+- [ ] Visual Regression テスト（Playwright スクリーンショット比較）
 
 ---
 
@@ -108,3 +130,4 @@
 - [x] カスタムワークフロー — タスクごとの個別スケジュール（global/interval/fixed-time）（2026-02-24）
 - [x] オブザーバビリティ基盤 — OTel 互換トレーサー + IndexedDB 永続化 + OTLP/HTTP エクスポーター（2026-02-25）
 - [x] 会話履歴の複数管理 — サイドバー UI + 作成・切替・削除 + 既存データマイグレーション（2026-02-25）
+- [x] テスト基盤拡充 — calendarStore/mcpClient/mcpManager/heartbeat テスト追加、Statements 53.4% → 86.45%（2026-02-25）

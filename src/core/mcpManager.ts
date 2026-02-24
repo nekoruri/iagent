@@ -11,7 +11,7 @@ interface ManagedServer {
   error?: string;
 }
 
-class MCPManager {
+export class MCPManager {
   private servers = new Map<string, ManagedServer>();
   private listeners = new Set<() => void>();
 
