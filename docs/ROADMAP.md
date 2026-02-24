@@ -100,6 +100,14 @@
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
 - [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
 
+### Web Push 信頼性向上
+- [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
+- [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
+- [ ] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
+- [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加
+- [ ] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
+- [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
+
 ---
 
 ## フェーズ 3: UX 改善
@@ -108,6 +116,9 @@
 - [ ] 初回セットアップウィザード（API キー入力の導線改善）
 - [ ] ライト/ダークテーマ切替
 - [ ] レスポンシブ改善（モバイル最適化）
+
+### ビルド最適化
+- [ ] バンドルサイズ削減 — `dynamic import()` によるコード分割、`manualChunks` でベンダーチャンク分離（現在 index.js が 920KB 超で 500KB 警告）
 
 ### オフライン対応
 - [ ] Service Worker キャッシュ戦略の改善

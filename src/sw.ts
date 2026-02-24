@@ -98,6 +98,112 @@ async function handlePeriodicSync(): Promise<void> {
   }
 }
 
+// --- pushsubscriptionchange ハンドラ（Subscription 失効時の自動再登録） ---
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const changeEvent = event as ExtendableEvent & {
+    oldSubscription?: PushSubscription;
+    newSubscription?: PushSubscription;
+  };
+  event.waitUntil(handlePushSubscriptionChange(changeEvent));
+});
+
+async function handlePushSubscriptionChange(event: ExtendableEvent & {
+  oldSubscription?: PushSubscription;
+  newSubscription?: PushSubscription;
+}): Promise<void> {
+  try {
+    // IndexedDB から Push サーバー URL を取得
+    const serverUrl = await getPushServerUrlFromIDB();
+    if (!serverUrl) {
+      console.warn('[SW] Push サーバー URL が設定されていないため、再登録をスキップ');
+      return;
+    }
+
+    const url = serverUrl.replace(/\/+$/, '');
+
+    // 旧 Subscription をサーバーから削除
+    if (event.oldSubscription) {
+      try {
+        await fetch(`${url}/unsubscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: event.oldSubscription.toJSON() }),
+        });
+      } catch {
+        // 削除失敗は無視して再登録を続行
+      }
+    }
+
+    // 新しい Subscription で再登録
+    let newSubscription = event.newSubscription;
+    if (!newSubscription) {
+      // ブラウザが新 Subscription を提供しない場合は手動で再購読
+      const vapidResponse = await fetch(`${url}/vapid-public-key`);
+      if (!vapidResponse.ok) {
+        throw new Error(`VAPID 公開鍵の取得に失敗 (${vapidResponse.status})`);
+      }
+      const { publicKey } = await vapidResponse.json() as { publicKey: string };
+      const applicationServerKey = urlBase64ToUint8ArraySW(publicKey).buffer as ArrayBuffer;
+
+      newSubscription = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+    }
+
+    // サーバーに新 Subscription を登録
+    const response = await fetch(`${url}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: newSubscription.toJSON() }),
+    });
+
+    if (!response.ok) {
+      console.error('[SW] 新 Subscription のサーバー登録に失敗:', response.status);
+    }
+  } catch (error) {
+    console.error('[SW] pushsubscriptionchange ハンドラエラー:', error);
+  }
+}
+
+/** IndexedDB から Push サーバー URL を取得する */
+async function getPushServerUrlFromIDB(): Promise<string | null> {
+  try {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('iagent-db');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    const tx = db.transaction('config', 'readonly');
+    const store = tx.objectStore('config');
+    const result = await new Promise<{ key: string; value: string } | undefined>((resolve) => {
+      const req = store.get('iagent-config');
+      req.onsuccess = () => resolve(req.result as { key: string; value: string } | undefined);
+      req.onerror = () => resolve(undefined);
+    });
+    db.close();
+
+    if (!result?.value) return null;
+    const config = JSON.parse(result.value) as { push?: { serverUrl?: string } };
+    return config.push?.serverUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Base64 URL エンコードされた文字列を Uint8Array に変換する（SW 内用） */
+function urlBase64ToUint8ArraySW(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // --- 通知クリックハンドラ ---
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
