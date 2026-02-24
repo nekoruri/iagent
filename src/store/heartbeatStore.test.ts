@@ -8,6 +8,8 @@ import {
   saveHeartbeatState,
   updateLastChecked,
   addHeartbeatResult,
+  updateTaskLastRun,
+  getTaskLastRun,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
 
@@ -106,5 +108,42 @@ describe('addHeartbeatResult', () => {
     expect(state.recentResults).toHaveLength(50);
     // 最新が先頭
     expect(state.recentResults[0].taskId).toBe('task-54');
+  });
+});
+
+describe('updateTaskLastRun / getTaskLastRun', () => {
+  it('未登録タスクの lastRun は 0', async () => {
+    const lastRun = await getTaskLastRun('nonexistent');
+    expect(lastRun).toBe(0);
+  });
+
+  it('タスクごとの lastRun を保存・取得できる', async () => {
+    await updateTaskLastRun('task-a', 1000);
+    await updateTaskLastRun('task-b', 2000);
+
+    expect(await getTaskLastRun('task-a')).toBe(1000);
+    expect(await getTaskLastRun('task-b')).toBe(2000);
+  });
+
+  it('同じタスクの lastRun を上書きできる', async () => {
+    await updateTaskLastRun('task-a', 1000);
+    await updateTaskLastRun('task-a', 5000);
+
+    expect(await getTaskLastRun('task-a')).toBe(5000);
+  });
+
+  it('taskLastRun は他の状態に影響しない', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 3000,
+      hasChanges: false,
+      summary: '',
+    });
+    await updateTaskLastRun('task-1', 5000);
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults).toHaveLength(1);
+    expect(state.lastChecked).toBe(3000);
+    expect(state.taskLastRun?.['task-1']).toBe(5000);
   });
 });

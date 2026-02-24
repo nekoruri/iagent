@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import type { MCPServer } from '@openai/agents';
 import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
-import { loadHeartbeatState, addHeartbeatResult, updateLastChecked } from '../store/heartbeatStore';
+import { loadHeartbeatState, addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -22,6 +22,49 @@ export function isQuietHours(config: HeartbeatConfig, now?: Date): boolean {
   }
   // 例: 23時〜6時のように日をまたぐ場合
   return hour >= quietHoursStart || hour < quietHoursEnd;
+}
+
+/** タスクごとのスケジュールを評価し、実行すべきタスクを返す */
+export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTask[]> {
+  const now = Date.now();
+  const currentDate = new Date();
+  const currentHour = currentDate.getHours();
+  const currentMinute = currentDate.getMinutes();
+  const enabledTasks = config.tasks.filter((t) => t.enabled);
+  const dueTasks: HeartbeatTask[] = [];
+
+  for (const task of enabledTasks) {
+    const schedule = task.schedule;
+
+    if (!schedule || schedule.type === 'global') {
+      // 既存動作: グローバル間隔
+      const state = await loadHeartbeatState();
+      const intervalMs = config.intervalMinutes * 60_000;
+      if (now - state.lastChecked >= intervalMs) {
+        dueTasks.push(task);
+      }
+    } else if (schedule.type === 'interval') {
+      // タスク独自間隔
+      const lastRun = await getTaskLastRun(task.id);
+      const intervalMs = (schedule.intervalMinutes ?? config.intervalMinutes) * 60_000;
+      if (now - lastRun >= intervalMs) {
+        dueTasks.push(task);
+      }
+    } else if (schedule.type === 'fixed-time') {
+      // 固定時刻: 今が指定時刻の ±1分 かつ今日まだ実行していない
+      const targetHour = schedule.hour ?? 8;
+      const targetMinute = schedule.minute ?? 0;
+      if (currentHour === targetHour && Math.abs(currentMinute - targetMinute) <= 1) {
+        const lastRun = await getTaskLastRun(task.id);
+        const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
+        if (lastRun < todayStart) {
+          dueTasks.push(task);
+        }
+      }
+    }
+  }
+
+  return dueTasks;
 }
 
 export class HeartbeatEngine {
@@ -73,15 +116,6 @@ export class HeartbeatEngine {
     }
   }
 
-  private async getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTask[]> {
-    const state = await loadHeartbeatState();
-    const now = Date.now();
-    const intervalMs = config.intervalMinutes * 60_000;
-    const elapsed = now - state.lastChecked;
-    if (elapsed < intervalMs) return [];
-    return config.tasks.filter((t) => t.enabled);
-  }
-
   private async tick(): Promise<void> {
     if (!this.isRunning || this.isAgentBusy || this.isExecuting) return;
 
@@ -89,7 +123,7 @@ export class HeartbeatEngine {
     if (!config || !config.enabled) return;
     if (isQuietHours(config)) return;
 
-    const tasks = await this.getTasksDue(config);
+    const tasks = await getTasksDue(config);
     if (tasks.length === 0) return;
 
     await this.executeCheck(tasks);
@@ -137,6 +171,7 @@ export class HeartbeatEngine {
           summary: r.summary || '',
         };
         await addHeartbeatResult(hbResult);
+        await updateTaskLastRun(r.taskId, now);
         if (r.hasChanges) {
           heartbeatResults.push(hbResult);
         }
