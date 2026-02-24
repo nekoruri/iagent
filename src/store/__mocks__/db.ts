@@ -45,11 +45,11 @@ const mockDB = {
   getAllKeys(storeName: string) {
     return Promise.resolve([...getStore(storeName).keys()]);
   },
-  getAllFromIndex(storeName: string, _indexName: string, query?: string | number) {
+  getAllFromIndex(storeName: string, indexName: string, query?: string | number) {
     const store = getStore(storeName);
     if (query !== undefined) {
       const filtered = [...store.values()].filter((v) => {
-        return Object.values(v as Record<string, unknown>).includes(query);
+        return (v as Record<string, unknown>)[indexName] === query;
       });
       return Promise.resolve(filtered.map((v) => structuredClone(v)));
     }
@@ -78,17 +78,15 @@ const mockDB = {
           delete(key: string | number) {
             store.delete(key);
           },
-          index(_indexName: string) {
+          index(idxName: string) {
             return {
               getAll(query?: IDBKeyRange | string | number) {
                 if (query === undefined) {
                   return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
                 }
-                // IDBKeyRange.only(value) 相当: exported フィールドでフィルタ
+                const queryValue = query instanceof IDBKeyRange ? (query as unknown as { _value: unknown })._value : query;
                 const values = [...store.values()].filter((v) => {
-                  return Object.values(v as Record<string, unknown>).includes(
-                    query instanceof IDBKeyRange ? (query as unknown as { _value: unknown })._value : query
-                  );
+                  return (v as Record<string, unknown>)[idxName] === queryValue;
                 });
                 return Promise.resolve(values.map((v) => structuredClone(v)));
               },
