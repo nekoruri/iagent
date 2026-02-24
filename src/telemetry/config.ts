@@ -6,7 +6,7 @@ const STORAGE_KEY = 'iagent-config';
 
 const DEFAULT_CONFIG: OtelConfig = {
   enabled: false,
-  endpoint: '',
+  endpoint: '/api/otel',
   headers: {},
   batchSize: 10,
   flushIntervalMs: 30000,

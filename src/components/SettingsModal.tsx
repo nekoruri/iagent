@@ -452,7 +452,7 @@ export function SettingsModal({ open, onClose }: Props) {
               type="text"
               value={otel.endpoint}
               onChange={(e) => updateOtel({ endpoint: e.target.value })}
-              placeholder="http://localhost:4318"
+              placeholder="/api/otel (開発時) or http://collector:4318"
               disabled={!otel.enabled}
             />
           </label>

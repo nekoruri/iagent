@@ -9,7 +9,7 @@ describe('telemetry/config', () => {
   it('localStorage 未設定時はデフォルト値を返す', () => {
     const config = getOtelConfig();
     expect(config.enabled).toBe(false);
-    expect(config.endpoint).toBe('');
+    expect(config.endpoint).toBe('/api/otel');
     expect(config.headers).toEqual({});
     expect(config.batchSize).toBe(10);
     expect(config.flushIntervalMs).toBe(30000);

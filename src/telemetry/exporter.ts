@@ -136,7 +136,9 @@ export class OtlpExporter {
         ...config.headers,
       };
 
-      const url = config.endpoint.replace(/\/$/, '') + '/v1/traces';
+      // 開発時は Vite proxy 経由で CORS 回避
+      const endpoint = config.endpoint.replace(/\/$/, '');
+      const url = endpoint + '/v1/traces';
       const response = await fetch(url, {
         method: 'POST',
         headers,

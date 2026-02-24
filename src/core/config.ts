@@ -22,7 +22,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
 export function getDefaultOtelConfig(): OtelConfig {
   return {
     enabled: false,
-    endpoint: '',
+    endpoint: '/api/otel',
     headers: {},
     batchSize: 10,
     flushIntervalMs: 30000,
