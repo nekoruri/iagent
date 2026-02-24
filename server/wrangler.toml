@@ -7,7 +7,7 @@ crons = ["*/15 * * * *"]
 
 [[kv_namespaces]]
 binding = "SUBSCRIPTIONS"
-id = ""  # `wrangler kv namespace create SUBSCRIPTIONS` で取得した ID を設定
+id = "YOUR_KV_NAMESPACE_ID_HERE"  # `wrangler kv namespace create SUBSCRIPTIONS` で取得した ID を設定
 
 # VAPID 秘密鍵は `wrangler secret put VAPID_PRIVATE_KEY` で設定
 # VAPID 公開鍵は `wrangler secret put VAPID_PUBLIC_KEY` で設定

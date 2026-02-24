@@ -22,6 +22,7 @@ async function initLayer3(): Promise<void> {
     const subscription = await getPushSubscription();
     if (subscription) {
       // Push 購読済み — Periodic Sync もフォールバックとして登録
+      // 注: 実際の最小間隔はブラウザ依存（Chrome では約12時間、サイトエンゲージメントに基づく）
       await registerPeriodicSync(config.heartbeat.intervalMinutes * 60_000);
     }
   } catch {

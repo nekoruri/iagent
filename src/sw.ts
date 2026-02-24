@@ -54,7 +54,8 @@ async function handlePush(event: PushEvent): Promise<void> {
         tag: 'heartbeat-silent',
         silent: true,
       });
-      // 少し待ってからサイレント通知を閉じる
+      // 少し待ってからサイレント通知を閉じる（通知表示の反映を待つ）
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const notifications = await self.registration.getNotifications({ tag: 'heartbeat-silent' });
       for (const n of notifications) {
         n.close();
@@ -213,7 +214,7 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       // 既存タブがあればフォーカス
       for (const client of clients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
+        if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           return client.focus();
         }
       }

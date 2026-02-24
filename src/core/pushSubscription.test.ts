@@ -38,12 +38,17 @@ beforeEach(() => {
 });
 
 describe('subscribePush', () => {
-  it('既存の Subscription があればそのまま返す', async () => {
+  it('既存の Subscription があればサーバーに再登録して返す', async () => {
     mockPushManager.getSubscription.mockResolvedValue(mockSubscription);
+    mockFetch.mockResolvedValueOnce({ ok: true });
 
     const result = await subscribePush('https://server.example.com');
     expect(result).toBe(mockSubscription);
-    expect(mockFetch).not.toHaveBeenCalled();
+    // TTL 延長のためサーバーに /subscribe を呼ぶ
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith('https://server.example.com/subscribe', expect.objectContaining({
+      method: 'POST',
+    }));
   });
 
   it('新規 Subscription を作成してサーバーに登録する', async () => {

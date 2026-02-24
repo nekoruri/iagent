@@ -134,10 +134,12 @@ function derToRaw(der: Uint8Array): ArrayBuffer {
   offset++;
   const s = der.slice(offset, offset + sLen);
 
-  // r と s をそれぞれ 32 バイトにパディング
+  // r と s をそれぞれ 32 バイトにパディング（先頭ゼロパディング付き）
+  const rBytes = r.length > 32 ? r.slice(r.length - 32) : r;
+  const sBytes = s.length > 32 ? s.slice(s.length - 32) : s;
   const raw = new Uint8Array(64);
-  raw.set(r.length > 32 ? r.slice(r.length - 32) : r, 32 - Math.min(r.length, 32));
-  raw.set(s.length > 32 ? s.slice(s.length - 32) : s, 64 - Math.min(s.length, 32));
+  raw.set(rBytes, 32 - rBytes.length);
+  raw.set(sBytes, 64 - sBytes.length);
 
   return raw.buffer;
 }
@@ -177,7 +179,8 @@ async function sendWebPush(
     return false;
   }
 
-  return response.ok;
+  // 429, 500 等の一時エラーは Subscription を保持
+  return true;
 }
 
 /** Web Push ペイロードを aes128gcm で暗号化する */
@@ -230,18 +233,13 @@ async function encryptPayload(
     ...serverPublicKeyBytes,
   ]);
 
-  const prkKey = await crypto.subtle.importKey(
-    'raw',
-    authSecret,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const ikm = new Uint8Array(
-    await crypto.subtle.sign('HMAC', prkKey, new Uint8Array(sharedSecret)),
-  );
+  // RFC 8291 Section 3.4: IKM 導出
+  // Step 1: PRK_key = HKDF-Extract(auth_secret, ecdh_secret)
+  const prkKey = await hkdfExtract(authSecret, new Uint8Array(sharedSecret));
+  // Step 2: IKM = HKDF-Expand(PRK_key, auth_info, 32)
+  const ikm = await hkdfExpand(prkKey, authInfo, 32);
 
-  // HKDF で PRK を導出
+  // HKDF で PRK を導出: PRK = HKDF-Extract(salt, IKM)
   const prk = await hkdfExtract(salt, ikm);
 
   // CEK (Content Encryption Key) を導出
@@ -359,7 +357,12 @@ function handleGetVapidPublicKey(env: Env): Response {
 }
 
 async function handleSubscribe(request: Request, env: Env): Promise<Response> {
-  const body = await request.json() as SubscribeRequest;
+  let body: SubscribeRequest;
+  try {
+    body = await request.json() as SubscribeRequest;
+  } catch {
+    return jsonResponse({ error: '不正な JSON 形式' }, 400);
+  }
   const { subscription } = body;
 
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
@@ -376,7 +379,12 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleUnsubscribe(request: Request, env: Env): Promise<Response> {
-  const body = await request.json() as SubscribeRequest;
+  let body: SubscribeRequest;
+  try {
+    body = await request.json() as SubscribeRequest;
+  } catch {
+    return jsonResponse({ error: '不正な JSON 形式' }, 400);
+  }
   const { subscription } = body;
 
   if (!subscription?.endpoint) {
@@ -393,14 +401,29 @@ async function handleUnsubscribe(request: Request, env: Env): Promise<Response> 
 
 async function handleCron(env: Env): Promise<void> {
   const payload = JSON.stringify({ type: 'heartbeat-wake' });
-  const list = await env.SUBSCRIPTIONS.list({ prefix: 'sub:' });
+
+  // KV list のページネーション対応
+  let cursor: string | undefined;
+  const allKeys: { name: string }[] = [];
+  do {
+    const list = await env.SUBSCRIPTIONS.list({ prefix: 'sub:', cursor });
+    allKeys.push(...list.keys);
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
 
   const results = await Promise.allSettled(
-    list.keys.map(async ({ name }) => {
+    allKeys.map(async ({ name }) => {
       const data = await env.SUBSCRIPTIONS.get(name);
       if (!data) return;
 
-      const subscription = JSON.parse(data) as PushSubscriptionJSON;
+      let subscription: PushSubscriptionJSON;
+      try {
+        subscription = JSON.parse(data) as PushSubscriptionJSON;
+      } catch {
+        // 不正な JSON データは削除
+        await env.SUBSCRIPTIONS.delete(name);
+        return;
+      }
       const success = await sendWebPush(subscription, payload, env);
 
       if (!success) {
