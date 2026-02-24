@@ -93,7 +93,7 @@
 - [x] TaskProgress コンポーネント（ステップ進捗の階層表示）
 
 ### Heartbeat 高度化
-- [ ] 結果の専用パネル（チャットとの分離）
+- [x] 結果の専用パネル（チャットとの分離）
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
 - [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
 
@@ -134,3 +134,4 @@
 - [x] 会話履歴の複数管理 — サイドバー UI + 作成・切替・削除 + 既存データマイグレーション（2026-02-25）
 - [x] テスト基盤拡充 — calendarStore/mcpClient/mcpManager/heartbeat テスト追加、Statements 53.4% → 86.45%（2026-02-25）
 - [x] Heartbeat 層2（Dedicated Worker）— タブ非表示時の Worker 実行 + Visibility API 自動切り替え + IndexedDB 設定二重書き込み（2026-02-25）
+- [x] Heartbeat 結果の専用パネル — ベルアイコン + 未読バッジ + ドロップダウン表示（2026-02-25）
