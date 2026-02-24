@@ -1,4 +1,4 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig } from '../types';
 
 const STORAGE_KEY = 'iagent-config';
 
@@ -19,6 +19,16 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
   },
 ];
 
+export function getDefaultOtelConfig(): OtelConfig {
+  return {
+    enabled: false,
+    endpoint: '',
+    headers: {},
+    batchSize: 10,
+    flushIntervalMs: 30000,
+  };
+}
+
 export function getDefaultHeartbeatConfig(): HeartbeatConfig {
   return {
     enabled: false,
@@ -33,7 +43,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig() };
+    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), otel: getDefaultOtelConfig() };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
   return {
@@ -44,6 +54,9 @@ export function getConfig(): AppConfig {
     heartbeat: parsed.heartbeat
       ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
       : getDefaultHeartbeatConfig(),
+    otel: parsed.otel
+      ? { ...getDefaultOtelConfig(), ...parsed.otel }
+      : getDefaultOtelConfig(),
   };
 }
 

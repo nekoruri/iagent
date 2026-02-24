@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import type { MCPServer } from '@openai/agents';
 import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
+import { tracer } from '../telemetry/tracer';
+import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
 import { loadHeartbeatState, addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
@@ -131,6 +133,11 @@ export class HeartbeatEngine {
 
   private async executeCheck(tasks: HeartbeatTask[]): Promise<void> {
     this.isExecuting = true;
+    const trace = tracer.startTrace('heartbeat.check');
+    trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
+    trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-nano');
+    trace.rootSpan.setAttribute(HEARTBEAT_ATTRS.TASK_COUNT, tasks.length);
+
     try {
       const apiKey = getConfig().openaiApiKey;
       if (!apiKey) return;
@@ -172,6 +179,10 @@ export class HeartbeatEngine {
         };
         await addHeartbeatResult(hbResult);
         await updateTaskLastRun(r.taskId, now);
+        trace.rootSpan.addEvent('heartbeat.task.result', {
+          [HEARTBEAT_ATTRS.TASK_ID]: r.taskId,
+          [HEARTBEAT_ATTRS.HAS_CHANGES]: r.hasChanges,
+        });
         if (r.hasChanges) {
           heartbeatResults.push(hbResult);
         }
@@ -180,8 +191,12 @@ export class HeartbeatEngine {
       if (heartbeatResults.length > 0) {
         this.notify({ results: heartbeatResults });
       }
+
+      await trace.finish().catch(() => {});
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
+      trace.rootSpan.endWithError(error);
+      await trace.finish().catch(() => {});
       // エラー時も lastChecked を更新して即リトライを防止
       await updateLastChecked(Date.now()).catch(() => {});
     } finally {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig } from '../types';
 
 interface Props {
   open: boolean;
@@ -38,6 +38,14 @@ export function SettingsModal({ open, onClose }: Props) {
   }, [open]);
 
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const otel = config.otel ?? getDefaultOtelConfig();
+
+  const updateOtel = (patch: Partial<OtelConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      otel: { ...otel, ...patch },
+    }));
+  };
 
   const updateHeartbeat = (patch: Partial<HeartbeatConfig>) => {
     setConfig((prev) => ({
@@ -415,6 +423,53 @@ export function SettingsModal({ open, onClose }: Props) {
               );
             })}
           </div>
+        </div>
+
+        {/* オブザーバビリティ設定 */}
+        <div className="mcp-section">
+          <div className="mcp-header">
+            <h3>オブザーバビリティ</h3>
+            <label className="hb-toggle-label">
+              <input
+                type="checkbox"
+                checked={otel.enabled}
+                onChange={(e) => updateOtel({ enabled: e.target.checked })}
+              />
+              有効
+            </label>
+          </div>
+          <p className="mcp-hint">トレースデータをIndexedDBに保存し、OTLP/HTTPで外部バックエンドに送信できます。</p>
+
+          <label>
+            OTLP エンドポイント
+            <input
+              type="text"
+              value={otel.endpoint}
+              onChange={(e) => updateOtel({ endpoint: e.target.value })}
+              placeholder="http://localhost:4318"
+              disabled={!otel.enabled}
+            />
+          </label>
+
+          <label>
+            認証ヘッダー (JSON)
+            <input
+              type="text"
+              value={JSON.stringify(otel.headers)}
+              onChange={(e) => {
+                try {
+                  const parsed = JSON.parse(e.target.value);
+                  if (typeof parsed === 'object' && parsed !== null) {
+                    updateOtel({ headers: parsed });
+                  }
+                } catch {
+                  // JSON パースエラーは無視（入力途中）
+                }
+              }}
+              placeholder='{"Authorization": "Bearer ..."}'
+              disabled={!otel.enabled}
+            />
+          </label>
         </div>
 
         <div className="modal-actions">

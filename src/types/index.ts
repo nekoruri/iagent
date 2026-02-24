@@ -70,12 +70,21 @@ export interface HeartbeatConfig {
   desktopNotification: boolean;
 }
 
+export interface OtelConfig {
+  enabled: boolean;
+  endpoint: string;
+  headers: Record<string, string>;
+  batchSize: number;
+  flushIntervalMs: number;
+}
+
 export interface AppConfig {
   openaiApiKey: string;
   braveApiKey: string;
   openWeatherMapApiKey: string;
   mcpServers: MCPServerConfig[];
   heartbeat?: HeartbeatConfig;
+  otel?: OtelConfig;
 }
 
 export interface Memory {
