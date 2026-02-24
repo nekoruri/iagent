@@ -1,4 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// configStore の IndexedDB 呼び出しをモック（テスト環境に indexedDB がないため）
+vi.mock('../store/configStore', () => ({
+  saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   BUILTIN_HEARTBEAT_TASKS,
   getDefaultHeartbeatConfig,

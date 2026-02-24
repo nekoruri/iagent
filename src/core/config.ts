@@ -1,4 +1,5 @@
 import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig } from '../types';
+import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
 
@@ -62,6 +63,8 @@ export function getConfig(): AppConfig {
 
 export function saveConfig(config: AppConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  // Worker 向け: IndexedDB にも非同期書き込み
+  saveConfigToIDB(config).catch((e) => console.warn('[iAgent] IndexedDB 設定保存失敗:', e));
 }
 
 export function getConfigValue(key: ConfigKey): string {

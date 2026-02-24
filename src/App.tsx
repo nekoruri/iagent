@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
+import { HeartbeatPanel } from './components/HeartbeatPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { useAgentChat } from './hooks/useAgentChat';
 import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
+import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { isConfigured, getConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
@@ -32,6 +34,8 @@ export default function App() {
   const { messages, isStreaming, activeTools, sendMessage, stopStreaming, setMessages } =
     useAgentChat(activeConversationId);
 
+  const heartbeatPanel = useHeartbeatPanel();
+
   const handleHeartbeatNotification = useCallback((notification: HeartbeatNotification) => {
     if (!activeConversationId) return;
     for (const result of notification.results) {
@@ -46,7 +50,8 @@ export default function App() {
       setMessages((prev) => [...prev, msg]);
       saveMessage(msg);
     }
-  }, [setMessages, activeConversationId]);
+    heartbeatPanel.refresh();
+  }, [setMessages, activeConversationId, heartbeatPanel]);
 
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(
     () => getConfig().heartbeat?.enabled ?? false,
@@ -166,6 +171,15 @@ export default function App() {
             <button className="btn-icon" onClick={handleSidebarCreate} title="新しい会話">
               +
             </button>
+            {heartbeatEnabled && (
+              <HeartbeatPanel
+                isOpen={heartbeatPanel.isOpen}
+                results={heartbeatPanel.results}
+                unreadCount={heartbeatPanel.unreadCount}
+                onToggle={heartbeatPanel.toggle}
+                onClose={heartbeatPanel.close}
+              />
+            )}
             <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="設定">
               &#9881;
             </button>

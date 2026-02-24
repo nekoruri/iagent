@@ -266,9 +266,9 @@ export function SettingsModal({ open, onClose }: Props) {
             チェック間隔: {heartbeat.intervalMinutes}分
             <input
               type="range"
-              min={10}
+              min={1}
               max={120}
-              step={5}
+              step={1}
               value={heartbeat.intervalMinutes}
               onChange={(e) => updateHeartbeat({ intervalMinutes: Number(e.target.value) })}
             />
