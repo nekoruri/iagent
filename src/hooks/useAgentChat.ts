@@ -166,8 +166,6 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
         return updated;
       });
       await saveMessage(finalMsg);
-      // トレース正常終了
-      await trace.finish().catch(() => {});
     } catch (error) {
       const errorText = error instanceof Error ? error.message : '不明なエラーが発生しました';
       setMessages((prev) => {
@@ -178,10 +176,9 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
         }
         return updated;
       });
-      // トレースエラー終了
       trace.rootSpan.endWithError(error);
-      await trace.finish().catch(() => {});
     } finally {
+      await trace.finish().catch(() => {});
       setIsStreaming(false);
       setActiveTools([]);
     }

@@ -39,6 +39,12 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
+  const [otelHeadersText, setOtelHeadersText] = useState(JSON.stringify(otel.headers));
+
+  // モーダルが開かれたとき、ヘッダーテキストも同期
+  useEffect(() => {
+    if (open) setOtelHeadersText(JSON.stringify(config.otel?.headers ?? {}));
+  }, [open, config.otel?.headers]);
 
   const updateOtel = (patch: Partial<OtelConfig>) => {
     setConfig((prev) => ({
@@ -455,15 +461,16 @@ export function SettingsModal({ open, onClose }: Props) {
             認証ヘッダー (JSON)
             <input
               type="text"
-              value={JSON.stringify(otel.headers)}
+              value={otelHeadersText}
               onChange={(e) => {
+                setOtelHeadersText(e.target.value);
                 try {
                   const parsed = JSON.parse(e.target.value);
-                  if (typeof parsed === 'object' && parsed !== null) {
+                  if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                     updateOtel({ headers: parsed });
                   }
                 } catch {
-                  // JSON パースエラーは無視（入力途中）
+                  // 入力途中の不正な JSON は state のみ更新、config には反映しない
                 }
               }}
               placeholder='{"Authorization": "Bearer ..."}'

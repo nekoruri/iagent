@@ -57,12 +57,17 @@ export class ActiveTrace {
       exported: false,
     };
 
-    await saveTrace(record);
+    try {
+      await saveTrace(record);
+    } catch (e) {
+      console.warn('[iAgent Telemetry] トレース保存失敗:', e);
+    }
 
-    // OTel エクスポーター送信 (非同期、失敗しても握りつぶす)
+    // OTel エクスポーター送信 + 定期フラッシュ起動
     const config = getOtelConfig();
     if (config.enabled && config.endpoint) {
       exporter.enqueue(record);
+      exporter.start();
     }
 
     return record;
