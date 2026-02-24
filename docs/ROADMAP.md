@@ -49,15 +49,15 @@
 - [x] `mcpClient.ts` のテスト追加（0% → 98.76%）
 - [x] `mcpManager.ts` のテスト追加（0% → 98.82%）
 - [x] `heartbeat.ts` のカバレッジ改善（51.53% → 96.31%）
-- [ ] CI にカバレッジ閾値（Statements 70%）を設定
+- [x] CI にカバレッジ閾値（Statements 70%）を設定
 
 #### コンポーネント / フックテスト導入
-- [ ] @testing-library/react + @testing-library/user-event 導入
-- [ ] InputBar テスト（入力 → 送信、空文字無効化、ストリーミング中ブロック）
-- [ ] SettingsModal テスト（API キー入力保存、MCP サーバー追加削除）
-- [ ] ConversationSidebar テスト（一覧表示、選択、削除）
-- [ ] useConversations フックテスト（CRUD、マイグレーション）
-- [ ] useHeartbeat フックテスト（エンジン連携、visibility 連動）
+- [x] @testing-library/react + @testing-library/user-event 導入
+- [x] InputBar テスト（入力 → 送信、空文字無効化、ストリーミング中ブロック）
+- [x] SettingsModal テスト（API キー入力保存、MCP サーバー追加削除）
+- [x] ConversationSidebar テスト（一覧表示、選択、削除）
+- [x] useConversations フックテスト（CRUD、マイグレーション）
+- [x] useHeartbeat フックテスト（エンジン連携、visibility 連動）
 
 #### E2E テスト導入
 - [ ] Playwright 導入 + page.route() で OpenAI API モック
@@ -67,7 +67,7 @@
 - [ ] CI に E2E テストステップ追加（main PR 時のみ）
 
 #### テスト品質の継続改善
-- [ ] telemetry をカバレッジ対象に追加
+- [x] telemetry をカバレッジ対象に追加
 - [ ] ツール定義（calendarTool 等）のインテグレーションテスト
 - [ ] Visual Regression テスト（Playwright スクリーンショット比較）
 
@@ -136,3 +136,4 @@
 - [x] Heartbeat 層2（Dedicated Worker）— タブ非表示時の Worker 実行 + Visibility API 自動切り替え + IndexedDB 設定二重書き込み（2026-02-25）
 - [x] Heartbeat 結果の専用パネル — ベルアイコン + 未読バッジ + ドロップダウン表示（2026-02-25）
 - [x] ドキュメント分離 — CLAUDE.md スリム化 + README.md 最新化 + docs/ARCHITECTURE.md 新規作成（2026-02-25, PR #8）
+- [x] テスト基盤フェーズ2 — カバレッジ閾値 70% 設定 + telemetry カバレッジ対象追加 + コンポーネント/フックテスト導入（206 → 240 テスト）（2026-02-25）
