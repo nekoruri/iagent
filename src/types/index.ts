@@ -79,6 +79,11 @@ export interface HeartbeatConfig {
   desktopNotification: boolean;
 }
 
+export interface PushConfig {
+  enabled: boolean;
+  serverUrl: string;
+}
+
 export interface OtelConfig {
   enabled: boolean;
   endpoint: string;
@@ -93,6 +98,7 @@ export interface AppConfig {
   openWeatherMapApiKey: string;
   mcpServers: MCPServerConfig[];
   heartbeat?: HeartbeatConfig;
+  push?: PushConfig;
   otel?: OtelConfig;
 }
 

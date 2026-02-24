@@ -4,10 +4,29 @@ import { HeartbeatWorkerBridge } from '../core/heartbeatWorkerBridge';
 import { getConfig } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
 import { sendHeartbeatNotifications } from '../core/notifier';
+import { getPushSubscription, registerPeriodicSync } from '../core/pushSubscription';
 
 interface UseHeartbeatOptions {
   isStreaming: boolean;
   onNotification: (notification: HeartbeatNotification) => void;
+}
+
+/** Layer 3 の初期化: Push Subscription 確認 + Periodic Sync フォールバック */
+async function initLayer3(): Promise<void> {
+  try {
+    const config = getConfig();
+    if (!config.heartbeat?.enabled) return;
+    if (!config.push?.enabled) return;
+
+    // Push Subscription が有効か確認
+    const subscription = await getPushSubscription();
+    if (subscription) {
+      // Push 購読済み — Periodic Sync もフォールバックとして登録
+      await registerPeriodicSync(config.heartbeat.intervalMinutes * 60_000);
+    }
+  } catch {
+    // Layer 3 の初期化失敗は Layer 1/2 に影響しない
+  }
 }
 
 export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOptions) {
@@ -50,6 +69,9 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       engine.start();
     }
 
+    // 層3: Push + Periodic Sync の初期化（非同期、失敗しても Layer 1/2 に影響なし）
+    void initLayer3();
+
     return () => {
       unsub();
       unsubNotify();
@@ -88,6 +110,7 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
         });
       } else {
         // タブ表示復帰 → Worker 停止、メインスレッド開始 + 即時チェック
+        // Layer 3 実行後のタブ復帰時も、taskLastRun で自動的に重複回避
         bridge.stop();
         engine.start();
         engine.runNow();
@@ -117,6 +140,8 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
           heartbeat: config.heartbeat,
         });
       }
+      // Layer 3 の再初期化
+      void initLayer3();
     } else {
       engine.stop();
       bridge?.stop();

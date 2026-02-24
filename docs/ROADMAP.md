@@ -13,13 +13,14 @@
 - MCP サーバー連携（ブラウザベース StreamableHTTP）
 - Heartbeat バックグラウンドチェック
 - デスクトップ通知（Notification API）
-- PWA（Service Worker 自動生成、インストール可能）
+- PWA（カスタム Service Worker + injectManifest、インストール可能）
 - エージェント長期メモリ（memoryTool + 自動コンテキスト注入）
 - マルチステップタスク実行 + TaskProgress 進捗UI
 - カスタムワークフロー（タスクごとの個別スケジュール設定）
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
-- テスト 173 件（Statements 86.45%）
+- Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
+- テスト 263 件（Statements 86.45%+）
 
 ---
 
@@ -27,11 +28,13 @@
 
 ### Heartbeat バックグラウンド実行（3層構成）
 - [x] 層2: Dedicated Worker — タブ非表示時に Worker で Heartbeat 実行 + Visibility API 切り替え
-- [ ] 層3: Push API + Cloudflare Workers — タブ完全閉鎖後もサーバー経由で定期チェック
-- [ ] vite-plugin-pwa を `injectManifest` モードに切替
-- [ ] カスタム Service Worker に Heartbeat ロジックを移行
-- [ ] Periodic Background Sync API で定期チェック
-- [ ] Service Worker 内からの `showNotification()` に移行
+- [x] 層3: Push API + Cloudflare Workers — タブ完全閉鎖後もサーバー経由で定期チェック
+- [x] vite-plugin-pwa を `injectManifest` モードに切替
+- [x] カスタム Service Worker に Heartbeat ロジックを移行
+- [x] Periodic Background Sync API で定期チェック（フォールバック）
+- [x] Service Worker 内からの `showNotification()` に移行
+- [x] Cloudflare Workers wake-up cron サーバー（`server/` ディレクトリ）
+- [x] Push Subscription 管理 UI（設定モーダル）
 - **意義**: タブを閉じてもエージェントが動き続ける＝自律型の核心体験
 
 ### オブザーバビリティ基盤
@@ -114,7 +117,6 @@
 
 ## アイデア・検討中
 
-- Web Push（サーバー経由のプッシュ通知、現在はサーバーレスなので要検討）
 - エージェント間の連携（複数エージェントの協調動作）
 - プラグインシステム（ユーザーがカスタムツールを追加）
 - ファイル添付・画像認識（マルチモーダル対応）
@@ -137,3 +139,4 @@
 - [x] Heartbeat 結果の専用パネル — ベルアイコン + 未読バッジ + ドロップダウン表示（2026-02-25）
 - [x] ドキュメント分離 — CLAUDE.md スリム化 + README.md 最新化 + docs/ARCHITECTURE.md 新規作成（2026-02-25, PR #8）
 - [x] テスト基盤フェーズ2 — カバレッジ閾値 70% 設定 + telemetry カバレッジ対象追加 + コンポーネント/フックテスト導入（206 → 240 テスト）（2026-02-25）
+- [x] Heartbeat 層3（Service Worker + Web Push）— injectManifest 切替 + カスタム SW + Push/PeriodicSync ハンドラ + Cloudflare Workers サーバー + 3層統合（240 → 263 テスト）（2026-02-25）
