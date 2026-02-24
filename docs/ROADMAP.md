@@ -25,7 +25,9 @@
 
 ## フェーズ 1: 基盤強化
 
-### Service Worker バックグラウンド実行
+### Heartbeat バックグラウンド実行（3層構成）
+- [x] 層2: Dedicated Worker — タブ非表示時に Worker で Heartbeat 実行 + Visibility API 切り替え
+- [ ] 層3: Push API + Cloudflare Workers — タブ完全閉鎖後もサーバー経由で定期チェック
 - [ ] vite-plugin-pwa を `injectManifest` モードに切替
 - [ ] カスタム Service Worker に Heartbeat ロジックを移行
 - [ ] Periodic Background Sync API で定期チェック
@@ -131,3 +133,4 @@
 - [x] オブザーバビリティ基盤 — OTel 互換トレーサー + IndexedDB 永続化 + OTLP/HTTP エクスポーター（2026-02-25）
 - [x] 会話履歴の複数管理 — サイドバー UI + 作成・切替・削除 + 既存データマイグレーション（2026-02-25）
 - [x] テスト基盤拡充 — calendarStore/mcpClient/mcpManager/heartbeat テスト追加、Statements 53.4% → 86.45%（2026-02-25）
+- [x] Heartbeat 層2（Dedicated Worker）— タブ非表示時の Worker 実行 + Visibility API 自動切り替え + IndexedDB 設定二重書き込み（2026-02-25）

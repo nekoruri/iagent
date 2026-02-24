@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'iagent-db';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -32,6 +32,9 @@ export function getDB(): Promise<IDBPDatabase> {
         if (!db.objectStoreNames.contains('conversation-meta')) {
           const convMetaStore = db.createObjectStore('conversation-meta', { keyPath: 'id' });
           convMetaStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('config')) {
+          db.createObjectStore('config', { keyPath: 'key' });
         }
         // conversations ストアに conversationId インデックス追加
         if (db.objectStoreNames.contains('conversations')) {
