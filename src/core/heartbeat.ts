@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import type { MCPServer } from '@openai/agents';
 import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
+import { tracer } from '../telemetry/tracer';
+import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
 import { loadHeartbeatState, addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
@@ -131,9 +133,17 @@ export class HeartbeatEngine {
 
   private async executeCheck(tasks: HeartbeatTask[]): Promise<void> {
     this.isExecuting = true;
+    const trace = tracer.startTrace('heartbeat.check');
+    trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
+    trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-nano');
+    trace.rootSpan.setAttribute(HEARTBEAT_ATTRS.TASK_COUNT, tasks.length);
+
     try {
       const apiKey = getConfig().openaiApiKey;
-      if (!apiKey) return;
+      if (!apiKey) {
+        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_api_key' });
+        return;
+      }
 
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
       setDefaultOpenAIClient(client);
@@ -150,11 +160,17 @@ export class HeartbeatEngine {
       const result = await run(agent, [user(prompt)], { stream: false });
       const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
 
-      if (typeof finalOutput !== 'string') return;
+      if (typeof finalOutput !== 'string') {
+        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_string_output' });
+        return;
+      }
 
       // JSON部分を抽出
       const jsonMatch = finalOutput.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return;
+      if (!jsonMatch) {
+        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_json_match' });
+        return;
+      }
 
       const parsed = JSON.parse(jsonMatch[0]) as {
         results: Array<{ taskId: string; hasChanges: boolean; summary: string }>;
@@ -172,6 +188,10 @@ export class HeartbeatEngine {
         };
         await addHeartbeatResult(hbResult);
         await updateTaskLastRun(r.taskId, now);
+        trace.rootSpan.addEvent('heartbeat.task.result', {
+          [HEARTBEAT_ATTRS.TASK_ID]: r.taskId,
+          [HEARTBEAT_ATTRS.HAS_CHANGES]: r.hasChanges,
+        });
         if (r.hasChanges) {
           heartbeatResults.push(hbResult);
         }
@@ -182,9 +202,11 @@ export class HeartbeatEngine {
       }
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
+      trace.rootSpan.endWithError(error);
       // エラー時も lastChecked を更新して即リトライを防止
       await updateLastChecked(Date.now()).catch(() => {});
     } finally {
+      await trace.finish().catch(() => {});
       this.isExecuting = false;
     }
   }

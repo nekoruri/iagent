@@ -7,6 +7,8 @@ import { createAgent } from '../core/agent';
 import { getConfigValue } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
 import { saveMessage } from '../store/conversationStore';
+import { tracer } from '../telemetry/tracer';
+import { LLM_ATTRS, TOOL_ATTRS } from '../telemetry/semantics';
 import type { ChatMessage, ToolCallInfo } from '../types';
 
 function ensureOpenAIClient(apiKey: string): void {
@@ -58,6 +60,10 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
     setActiveTools([]);
     abortRef.current = false;
 
+    const trace = tracer.startTrace('agent.chat');
+    trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
+    trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-mini');
+
     try {
       const mcpServers = mcpManager.getActiveServers();
       const agent = await createAgent(mcpServers);
@@ -69,12 +75,22 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
 
       let fullText = '';
       const toolCalls: ToolCallInfo[] = [];
+      let currentToolSpan: ReturnType<typeof trace.startSpan> | null = null;
 
       for await (const event of result as AsyncIterable<RunStreamEvent>) {
         if (abortRef.current) break;
 
         if (event.type === 'raw_model_stream_event') {
           const data = event.data;
+          // response_done イベントから usage 取得
+          if (data.type === 'response_done' && 'response' in data) {
+            const resp = (data as { response?: { usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number } } }).response;
+            if (resp?.usage) {
+              if (resp.usage.input_tokens != null) trace.rootSpan.setAttribute(LLM_ATTRS.USAGE_INPUT, resp.usage.input_tokens);
+              if (resp.usage.output_tokens != null) trace.rootSpan.setAttribute(LLM_ATTRS.USAGE_OUTPUT, resp.usage.output_tokens);
+              if (resp.usage.total_tokens != null) trace.rootSpan.setAttribute(LLM_ATTRS.USAGE_TOTAL, resp.usage.total_tokens);
+            }
+          }
           if (data.type === 'output_text_delta' && 'delta' in data) {
             fullText += (data as { delta: string }).delta;
             setMessages((prev) => {
@@ -90,14 +106,21 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
           if (event.name === 'tool_called') {
             const item = event.item;
             const rawItem = item.rawItem as { id?: string; name?: string; arguments?: string } | undefined;
+            const toolName = rawItem?.name ?? 'unknown';
             const toolCall: ToolCallInfo = {
               id: rawItem?.id ?? crypto.randomUUID(),
-              name: rawItem?.name ?? 'unknown',
+              name: toolName,
               status: 'running',
               args: rawItem?.arguments,
             };
             toolCalls.push(toolCall);
             setActiveTools([...toolCalls]);
+            // ツールスパン開始
+            currentToolSpan = trace.startSpan(`tool.${toolName}`, trace.rootSpan.spanId, 'client');
+            currentToolSpan.setAttribute(TOOL_ATTRS.NAME, toolName);
+            if (rawItem?.arguments) {
+              currentToolSpan.setAttribute(TOOL_ATTRS.ARGUMENTS, rawItem.arguments);
+            }
           } else if (event.name === 'tool_output') {
             const lastTool = toolCalls[toolCalls.length - 1];
             if (lastTool) {
@@ -106,6 +129,15 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
               const output = rawOutput?.output;
               lastTool.result = typeof output === 'string' ? output : output != null ? JSON.stringify(output) : undefined;
               setActiveTools([...toolCalls]);
+            }
+            // ツールスパン終了
+            if (currentToolSpan) {
+              const resultStr = lastTool?.result;
+              if (resultStr) {
+                currentToolSpan.setAttribute(TOOL_ATTRS.RESULT_SIZE_BYTES, new Blob([resultStr]).size);
+              }
+              trace.endSpan(currentToolSpan);
+              currentToolSpan = null;
             }
           }
         }
@@ -144,7 +176,9 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
         }
         return updated;
       });
+      trace.rootSpan.endWithError(error);
     } finally {
+      await trace.finish().catch(() => {});
       setIsStreaming(false);
       setActiveTools([]);
     }

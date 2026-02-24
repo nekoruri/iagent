@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig } from '../types';
 
 interface Props {
   open: boolean;
@@ -38,6 +38,20 @@ export function SettingsModal({ open, onClose }: Props) {
   }, [open]);
 
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const otel = config.otel ?? getDefaultOtelConfig();
+  const [otelHeadersText, setOtelHeadersText] = useState(JSON.stringify(otel.headers));
+
+  // モーダルが開かれたとき、ヘッダーテキストも同期
+  useEffect(() => {
+    if (open) setOtelHeadersText(JSON.stringify(config.otel?.headers ?? {}));
+  }, [open, config.otel?.headers]);
+
+  const updateOtel = (patch: Partial<OtelConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      otel: { ...otel, ...patch },
+    }));
+  };
 
   const updateHeartbeat = (patch: Partial<HeartbeatConfig>) => {
     setConfig((prev) => ({
@@ -415,6 +429,54 @@ export function SettingsModal({ open, onClose }: Props) {
               );
             })}
           </div>
+        </div>
+
+        {/* オブザーバビリティ設定 */}
+        <div className="mcp-section">
+          <div className="mcp-header">
+            <h3>オブザーバビリティ</h3>
+            <label className="hb-toggle-label">
+              <input
+                type="checkbox"
+                checked={otel.enabled}
+                onChange={(e) => updateOtel({ enabled: e.target.checked })}
+              />
+              有効
+            </label>
+          </div>
+          <p className="mcp-hint">トレースデータをIndexedDBに保存し、OTLP/HTTPで外部バックエンドに送信できます。</p>
+
+          <label>
+            OTLP エンドポイント
+            <input
+              type="text"
+              value={otel.endpoint}
+              onChange={(e) => updateOtel({ endpoint: e.target.value })}
+              placeholder="/api/otel (開発時) or http://collector:4318"
+              disabled={!otel.enabled}
+            />
+          </label>
+
+          <label>
+            認証ヘッダー (JSON)
+            <input
+              type="text"
+              value={otelHeadersText}
+              onChange={(e) => {
+                setOtelHeadersText(e.target.value);
+                try {
+                  const parsed = JSON.parse(e.target.value);
+                  if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                    updateOtel({ headers: parsed });
+                  }
+                } catch {
+                  // 入力途中の不正な JSON は state のみ更新、config には反映しない
+                }
+              }}
+              placeholder='{"Authorization": "Bearer ..."}'
+              disabled={!otel.enabled}
+            />
+          </label>
         </div>
 
         <div className="modal-actions">
