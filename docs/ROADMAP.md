@@ -63,11 +63,11 @@
 - [x] useHeartbeat フックテスト（エンジン連携、visibility 連動）
 
 #### E2E テスト導入
-- [ ] Playwright 導入 + page.route() で OpenAI API モック
-- [ ] 初回起動 → API キー設定 → チャット送信フロー
-- [ ] 会話管理（作成・切替・削除）フロー
-- [ ] モバイルビューポートでのドロワー動作
-- [ ] CI に E2E テストステップ追加（main PR 時のみ）
+- [x] Playwright 導入 + page.route() で OpenAI API モック
+- [x] 初回起動 → API キー設定 → チャット送信フロー
+- [x] 会話管理（作成・切替・削除）フロー
+- [x] モバイルビューポートでのドロワー動作
+- [x] CI に E2E テストステップ追加（main PR 時のみ）
 
 #### テスト品質の継続改善
 - [x] telemetry をカバレッジ対象に追加
@@ -151,3 +151,4 @@
 - [x] ドキュメント分離 — CLAUDE.md スリム化 + README.md 最新化 + docs/ARCHITECTURE.md 新規作成（2026-02-25, PR #8）
 - [x] テスト基盤フェーズ2 — カバレッジ閾値 70% 設定 + telemetry カバレッジ対象追加 + コンポーネント/フックテスト導入（206 → 240 テスト）（2026-02-25）
 - [x] Heartbeat 層3（Service Worker + Web Push）— injectManifest 切替 + カスタム SW + Push/PeriodicSync ハンドラ + Cloudflare Workers サーバー + 3層統合（240 → 263 テスト）（2026-02-25）
+- [x] E2E テスト導入 — Playwright + OpenAI SSE モック + 設定フロー/会話管理/モバイルドロワー/Push設定 UI テスト（16テスト）+ CI E2E ジョブ（2026-02-25）
