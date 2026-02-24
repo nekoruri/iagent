@@ -102,8 +102,9 @@ export function useAgentChat(initialMessages: ChatMessage[] = []) {
             const lastTool = toolCalls[toolCalls.length - 1];
             if (lastTool) {
               lastTool.status = 'completed';
-              const rawOutput = event.item?.rawItem as { output?: string } | undefined;
-              lastTool.result = rawOutput?.output;
+              const rawOutput = event.item?.rawItem as { output?: unknown } | undefined;
+              const output = rawOutput?.output;
+              lastTool.result = typeof output === 'string' ? output : output != null ? JSON.stringify(output) : undefined;
               setActiveTools([...toolCalls]);
             }
           }

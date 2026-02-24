@@ -8,14 +8,15 @@ interface Props {
 /** ツール結果の要約を生成（長すぎる場合は切り詰め） */
 function summarizeResult(result?: string): string | null {
   if (!result) return null;
+  const text = typeof result === 'string' ? result : String(result);
   try {
-    const parsed = JSON.parse(result);
+    const parsed = JSON.parse(text);
     if (typeof parsed === 'string') return parsed.slice(0, 100);
     if (parsed.summary) return String(parsed.summary).slice(0, 100);
     if (parsed.result) return String(parsed.result).slice(0, 100);
     return JSON.stringify(parsed).slice(0, 80) + '...';
   } catch {
-    return result.slice(0, 100);
+    return text.slice(0, 100);
   }
 }
 
