@@ -18,6 +18,20 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     enabled: false,
     type: 'builtin',
   },
+  {
+    id: 'feed-check',
+    name: 'フィードチェック',
+    description: '購読中の RSS フィードの新着記事を確認し、新着があれば通知します。',
+    enabled: false,
+    type: 'builtin',
+  },
+  {
+    id: 'web-monitor-check',
+    name: 'Webページ監視',
+    description: '監視中のWebページに変化がないかチェックし、変化があれば通知します。',
+    enabled: false,
+    type: 'builtin',
+  },
 ];
 
 export function getDefaultProxyConfig(): ProxyConfig {

@@ -5,6 +5,7 @@ import { getNotificationPermission, requestNotificationPermission } from '../cor
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
+import { isReadOnlyTool } from '../core/agent';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig } from '../types';
 
 interface Props {
@@ -52,6 +53,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const [proxyStatus, setProxyStatus] = useState<'idle' | 'registering' | 'error'>('idle');
   const [proxyError, setProxyError] = useState<string>('');
   const [proxyDomainsText, setProxyDomainsText] = useState(proxy.allowedDomains.join(', '));
+  const [mcpToolsList, setMcpToolsList] = useState<Array<{ serverName: string; toolName: string }>>([]);
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
@@ -73,6 +75,12 @@ export function SettingsModal({ open, onClose }: Props) {
     if (!open) return;
     setPushError('');
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
+  }, [open]);
+
+  // MCP ツール一覧を取得
+  useEffect(() => {
+    if (!open) return;
+    mcpManager.getAvailableTools().then(setMcpToolsList).catch(() => setMcpToolsList([]));
   }, [open]);
 
   const updateProxy = (patch: Partial<ProxyConfig>) => {
@@ -564,6 +572,35 @@ export function SettingsModal({ open, onClose }: Props) {
                       </select>
                     </div>
                   )}
+                  {/* MCP ツール許可設定 */}
+                  {mcpToolsList.length > 0 && (() => {
+                    const readOnlyTools = mcpToolsList.filter((t) => isReadOnlyTool(t.toolName));
+                    if (readOnlyTools.length === 0) return null;
+                    const allowedTools = task.allowedMcpTools ?? [];
+                    return (
+                      <div className="hb-mcp-tools-section">
+                        <span className="hb-schedule-label">MCP ツール許可:</span>
+                        <div className="hb-mcp-tools-list">
+                          {readOnlyTools.map((t) => (
+                            <label key={`${t.serverName}/${t.toolName}`} className="mcp-toggle-label hb-mcp-tool-label">
+                              <input
+                                type="checkbox"
+                                checked={allowedTools.includes(t.toolName)}
+                                onChange={(e) => {
+                                  const newAllowed = e.target.checked
+                                    ? [...allowedTools, t.toolName]
+                                    : allowedTools.filter((n) => n !== t.toolName);
+                                  updateHeartbeatTask(task.id, { allowedMcpTools: newAllowed });
+                                }}
+                              />
+                              <span className="hb-mcp-tool-name">{t.toolName}</span>
+                              <span className="hb-mcp-tool-server">({t.serverName})</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="mcp-server-actions">
                     <div />
                     <button

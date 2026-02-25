@@ -6,12 +6,12 @@
 
 ---
 
-## 現状（2026-02-25 時点）
+## 現状（2026-02-26 時点）
 
 - チャット UI（ストリーミング対応）
-- ビルトインツール 3 種（カレンダー、Web 検索、デバイス情報）
-- MCP サーバー連携（ブラウザベース StreamableHTTP）
-- Heartbeat バックグラウンドチェック
+- ビルトインツール 7 種（カレンダー、Web 検索、デバイス情報、メモリ、クリッピング、RSS フィード、Web ページ監視）
+- MCP サーバー連携（ブラウザベース StreamableHTTP）+ Heartbeat 対応（read-only ツール許可）
+- Heartbeat バックグラウンドチェック（4 ビルトインタスク: カレンダー、天気、フィード、Web 監視）
 - デスクトップ通知（Notification API）
 - PWA（カスタム Service Worker + injectManifest、インストール可能）
 - エージェント長期メモリ（memoryTool + 自動コンテキスト注入）
@@ -20,7 +20,9 @@
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
-- テスト 263 件（Statements 86.45%+）
+- CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
+- セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
+- テスト 369 件
 
 ---
 
@@ -141,12 +143,12 @@
 > 詳細: [docs/PROPOSAL-external-integration.md](PROPOSAL-external-integration.md)
 
 ### ビルトインツール拡充
-- [ ] RSS/フィード収集ツール（購読管理 + Heartbeat 定期チェック）
-- [ ] Web ページ監視ツール（差分検出 + 通知）
-- [ ] クリッピング/ナレッジベースツール（収集情報の構造化保存）
+- [x] クリッピングツール（構造化保存 — DOMPurify sanitize + 500 件上限 + 100KB サイズ制限）
+- [x] RSS/フィード収集ツール（購読管理 + RSS 2.0/Atom 1.0 パーサー + Heartbeat 定期チェック）
+- [x] Web ページ監視ツール（CSS セレクタ指定 + SHA-256 差分検出 + Heartbeat 連携）
 
 ### MCP エコシステム活用
-- [ ] MCP ツールの Heartbeat 対応（バックグラウンドで MCP ツール実行可能に）
+- [x] MCP ツールの Heartbeat 対応（read-only ツール許可リスト + 設定 UI）
 - [ ] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
 
 ### エージェント自律性強化
@@ -188,3 +190,4 @@
 - [x] Push 通知統合テスト — API URL 環境変数化 + OpenAI モックサーバー + SW 有効 Playwright 設定 + Push→Heartbeat E2E テスト（2026-02-26）
 - [x] セキュリティ基盤整備 — MCP URL HTTPS 強制バリデーション + CSP meta タグ（本番ビルド）（2026-02-26）
 - [x] CORS プロキシ — Cloudflare Workers 拡張（トークン認証 + SSRF 防止 + レート制限 + クライアント設定 UI）（2026-02-26）
+- [x] 外部情報収集ツール Phase C — クリッピング（clipTool + clipStore）、RSS フィード（feedTool + feedParser + feedStore + Heartbeat 連携）、Web ページ監視（webMonitorTool + monitorStore + Heartbeat 連携）、MCP Heartbeat 対応（read-only ツール許可 + 設定 UI）。DB_VERSION 7→8、4 新ストア追加。テスト 263→369 件。（2026-02-26）

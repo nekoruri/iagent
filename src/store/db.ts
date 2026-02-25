@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'iagent-db';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -35,6 +35,24 @@ export function getDB(): Promise<IDBPDatabase> {
         }
         if (!db.objectStoreNames.contains('config')) {
           db.createObjectStore('config', { keyPath: 'key' });
+        }
+        // Phase C: クリッピング・RSS フィード・Web 監視ストア
+        if (!db.objectStoreNames.contains('clips')) {
+          const clipStore = db.createObjectStore('clips', { keyPath: 'id' });
+          clipStore.createIndex('createdAt', 'createdAt', { unique: false });
+          clipStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
+        }
+        if (!db.objectStoreNames.contains('feeds')) {
+          db.createObjectStore('feeds', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('feed-items')) {
+          const feedItemStore = db.createObjectStore('feed-items', { keyPath: 'id' });
+          feedItemStore.createIndex('feedId', 'feedId', { unique: false });
+          feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
+          feedItemStore.createIndex('guid', 'guid', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('monitors')) {
+          db.createObjectStore('monitors', { keyPath: 'id' });
         }
         // conversations ストアに conversationId インデックス追加
         if (db.objectStoreNames.contains('conversations')) {

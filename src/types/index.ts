@@ -55,6 +55,7 @@ export interface HeartbeatTask {
   enabled: boolean;
   type: 'builtin' | 'custom';
   schedule?: TaskSchedule;        // 未設定 or type='global' はグローバル間隔に従う
+  allowedMcpTools?: string[];     // Heartbeat 実行時に許可する MCP ツール名リスト
 }
 
 /** Heartbeat 実行元を示すソース識別子 */
@@ -124,3 +125,8 @@ export interface Memory {
 
 /** getConfigValue() で文字列として取得可能なキー */
 export type ConfigKey = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';
+
+// Phase C: 外部情報収集ツール型定義
+export type { Clip } from './clip';
+export type { Feed, FeedItem } from './feed';
+export type { Monitor } from './monitor';

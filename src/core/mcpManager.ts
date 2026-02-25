@@ -93,6 +93,23 @@ export class MCPManager {
     return this.servers.get(id)?.error;
   }
 
+  /** 接続済み MCP サーバーの全ツール一覧を取得 */
+  async getAvailableTools(): Promise<Array<{ serverName: string; toolName: string }>> {
+    const result: Array<{ serverName: string; toolName: string }> = [];
+    for (const managed of this.servers.values()) {
+      if (managed.status !== 'connected') continue;
+      try {
+        const tools = await managed.server.listTools();
+        for (const t of tools) {
+          result.push({ serverName: managed.config.name, toolName: t.name });
+        }
+      } catch {
+        // ツール一覧取得失敗はスキップ
+      }
+    }
+    return result;
+  }
+
   /** 設定変更時に差分で接続/切断 */
   async syncWithConfig(configs: MCPServerConfig[]): Promise<void> {
     const desiredIds = new Set(configs.filter((c) => c.enabled).map((c) => c.id));

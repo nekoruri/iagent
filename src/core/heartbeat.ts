@@ -148,8 +148,21 @@ export class HeartbeatEngine {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
       setDefaultOpenAIClient(client);
 
+      // タスクに許可された MCP ツール名を集約
+      const allowedMcpToolNames = new Set<string>();
+      for (const task of tasks) {
+        if (task.allowedMcpTools) {
+          for (const toolName of task.allowedMcpTools) {
+            allowedMcpToolNames.add(toolName);
+          }
+        }
+      }
+
       const mcpServers = this.getMCPServers();
-      const agent = await createHeartbeatAgent(mcpServers);
+      const agent = await createHeartbeatAgent(
+        mcpServers,
+        allowedMcpToolNames.size > 0 ? [...allowedMcpToolNames] : undefined,
+      );
 
       const taskDescriptions = tasks.map((t) =>
         `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
