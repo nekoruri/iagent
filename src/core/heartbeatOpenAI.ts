@@ -66,7 +66,16 @@ export async function callChatCompletions(
       throw new Error(`OpenAI API エラー (${response.status}): ${errorText}`);
     }
 
-    return response.json();
+    let data: ChatCompletionResponse;
+    try {
+      data = await response.json();
+    } catch (jsonError: unknown) {
+      throw new Error(
+        `OpenAI API レスポンスの JSON 解析に失敗: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`,
+      );
+    }
+
+    return data;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error(`OpenAI API タイムアウト (${FETCH_TIMEOUT_MS / 1000}秒)`);

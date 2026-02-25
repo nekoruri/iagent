@@ -76,8 +76,12 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
   });
 
   if (!response.ok) {
-    // 登録失敗時は Subscription を解除
-    await subscription.unsubscribe();
+    // 登録失敗時は Subscription を解除（解除失敗は無視して元のエラーを報告）
+    try {
+      await subscription.unsubscribe();
+    } catch {
+      // unsubscribe 失敗は無視
+    }
     throw new Error(`サーバーへの Subscription 登録に失敗しました (${response.status})`);
   }
 

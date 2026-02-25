@@ -78,7 +78,7 @@ async function createVapidJwt(
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     aud: audience,
-    exp: now + 12 * 3600, // 12時間有効
+    exp: now + 2 * 3600, // 2時間有効（cron は15分間隔で再生成するため短めで十分）
     sub: subject,
   };
 
@@ -117,7 +117,8 @@ function derToRaw(der: Uint8Array): ArrayBuffer {
   if (der[0] !== 0x30) {
     // 既に raw 形式の可能性（64バイト）
     if (der.length === 64) return der.buffer;
-    throw new Error('不正な署名形式');
+    const hexPreview = Array.from(der).slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+    throw new Error(`不正な署名形式: length=${der.length}, bytes[0..16)=${hexPreview}`);
   }
 
   let offset = 2;
@@ -419,8 +420,12 @@ async function handleCron(env: Env): Promise<void> {
       let subscription: PushSubscriptionJSON;
       try {
         subscription = JSON.parse(data) as PushSubscriptionJSON;
-      } catch {
-        // 不正な JSON データは削除
+      } catch (err) {
+        console.error('[Cron] Failed to parse subscription JSON', {
+          key: name,
+          error: err instanceof Error ? err.message : String(err),
+          dataPreview: data.length > 200 ? data.slice(0, 200) + '...<truncated>' : data,
+        });
         await env.SUBSCRIPTIONS.delete(name);
         return;
       }

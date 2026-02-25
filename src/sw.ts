@@ -35,7 +35,8 @@ async function handlePush(event: PushEvent): Promise<void> {
   if (data.type && data.type !== 'heartbeat-wake') return;
 
   try {
-    const results = await executeHeartbeatAndStore('');
+    // 空文字を渡し、executeHeartbeatAndStore 内部で IndexedDB から API キーを取得する
+    const results = await executeHeartbeatAndStore('heartbeat-push');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -82,7 +83,7 @@ self.addEventListener('periodicsync', (event) => {
 
 async function handlePeriodicSync(): Promise<void> {
   try {
-    const results = await executeHeartbeatAndStore('');
+    const results = await executeHeartbeatAndStore('heartbeat-periodic');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -179,14 +180,15 @@ async function getPushServerUrlFromIDB(): Promise<string | null> {
     const tx = db.transaction('config', 'readonly');
     const store = tx.objectStore('config');
     const result = await new Promise<{ key: string; value: string } | undefined>((resolve) => {
-      const req = store.get('iagent-config');
+      const req = store.get('app-config');
       req.onsuccess = () => resolve(req.result as { key: string; value: string } | undefined);
       req.onerror = () => resolve(undefined);
     });
     db.close();
 
-    if (!result?.value) return null;
-    const config = JSON.parse(result.value) as { push?: { serverUrl?: string } };
+    if (!result) return null;
+    // configStore は { key: 'app-config', ...config } 形式で保存している
+    const config = result as unknown as { key: string; push?: { serverUrl?: string } };
     return config.push?.serverUrl || null;
   } catch {
     return null;

@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src/sw.ts", "src/core/heartbeatCommon.ts", "src/core/heartbeatOpenAI.ts", "src/core/heartbeatTools.ts", "src/core/heartbeat.ts", "src/core/pushSubscription.ts", "src/store/db.ts", "src/store/configStore.ts", "src/store/heartbeatStore.ts", "src/types/index.ts"]
+  "include": ["src/sw.ts"]
 }

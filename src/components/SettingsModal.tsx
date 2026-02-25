@@ -54,6 +54,7 @@ export function SettingsModal({ open, onClose }: Props) {
   // Push Subscription 状態を初期化
   useEffect(() => {
     if (!open) return;
+    setPushError('');
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
   }, [open]);
 
@@ -361,7 +362,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 value={push.serverUrl}
                 onChange={(e) => updatePush({ serverUrl: e.target.value })}
                 placeholder="https://your-worker.workers.dev"
-                disabled={push.enabled}
+                disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing'}
               />
             </label>
             <div className="hb-notification-row">
