@@ -52,6 +52,28 @@ describe('BrowserMCPServer', () => {
     expect(server.name).toBe('test-server');
   });
 
+  describe('URL バリデーション', () => {
+    it('HTTPS URL を受け入れる', () => {
+      expect(() => new BrowserMCPServer({ name: 'test', url: 'https://example.com/mcp' })).not.toThrow();
+    });
+
+    it('localhost の HTTP URL を受け入れる', () => {
+      expect(() => new BrowserMCPServer({ name: 'test', url: 'http://localhost:3000' })).not.toThrow();
+    });
+
+    it('非 localhost の HTTP URL を拒否する', () => {
+      expect(() => new BrowserMCPServer({ name: 'test', url: 'http://example.com/mcp' })).toThrow(
+        'https: プロトコルが必要です'
+      );
+    });
+
+    it('不正な URL を拒否する', () => {
+      expect(() => new BrowserMCPServer({ name: 'test', url: 'not-a-url' })).toThrow(
+        'URL の形式が正しくありません'
+      );
+    });
+  });
+
   describe('connect', () => {
     it('transport + client が初期化される', async () => {
       const server = new BrowserMCPServer({ name: 'test', url: 'http://localhost:3000' });

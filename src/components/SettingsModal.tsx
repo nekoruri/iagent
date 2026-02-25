@@ -3,6 +3,7 @@ import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig,
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
+import { getUrlValidationError } from '../core/urlValidation';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig } from '../types';
 
 interface Props {
@@ -136,6 +137,13 @@ export function SettingsModal({ open, onClose }: Props) {
   };
 
   const handleSave = useCallback(async () => {
+    // 有効な MCP サーバーの URL をバリデーション
+    const invalidServer = config.mcpServers.find(
+      (s) => s.enabled && s.url && getUrlValidationError(s.url)
+    );
+    if (invalidServer) {
+      return; // URL バリデーションエラーがある場合は保存しない
+    }
     saveConfig(config);
     await mcpManager.syncWithConfig(config.mcpServers);
     onClose();
@@ -247,6 +255,9 @@ export function SettingsModal({ open, onClose }: Props) {
                   onChange={(e) => updateMCPServer(server.id, { url: e.target.value })}
                   placeholder="https://example.com/mcp"
                 />
+                {server.url && getUrlValidationError(server.url) && (
+                  <p className="mcp-error-text">{getUrlValidationError(server.url)}</p>
+                )}
                 {error && <p className="mcp-error-text">{error}</p>}
                 <div className="mcp-server-actions">
                   <label className="mcp-toggle-label">
@@ -364,6 +375,9 @@ export function SettingsModal({ open, onClose }: Props) {
                 placeholder="https://your-worker.workers.dev"
                 disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing'}
               />
+              {push.serverUrl && getUrlValidationError(push.serverUrl) && (
+                <p className="mcp-error-text">{getUrlValidationError(push.serverUrl)}</p>
+              )}
             </label>
             <div className="hb-notification-row">
               <label className="mcp-toggle-label">

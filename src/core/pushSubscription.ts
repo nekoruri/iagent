@@ -3,18 +3,11 @@
  * Web Push API の登録/解除と Periodic Background Sync のフォールバックを提供する。
  */
 
-/** Push サーバー URL をバリデーションする */
-function validateServerUrl(serverUrl: string): string {
-  const parsed = new URL(serverUrl);
-  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
-    throw new Error('Push サーバー URL は https: プロトコルが必要です');
-  }
-  return parsed.origin + parsed.pathname.replace(/\/+$/, '');
-}
+import { validateUrl } from './urlValidation';
 
 /** サーバーから VAPID 公開鍵を取得する */
 async function fetchVapidPublicKey(serverUrl: string): Promise<string> {
-  const url = validateServerUrl(serverUrl);
+  const url = validateUrl(serverUrl);
   const response = await fetch(`${url}/vapid-public-key`);
   if (!response.ok) {
     throw new Error(`VAPID 公開鍵の取得に失敗しました (${response.status})`);
@@ -48,7 +41,7 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
   const existingSub = await registration.pushManager.getSubscription();
   if (existingSub) {
     // 既存 Subscription もサーバーに再登録して TTL を延長
-    const url = validateServerUrl(serverUrl);
+    const url = validateUrl(serverUrl);
     await fetch(`${url}/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,7 +50,7 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
     return existingSub;
   }
 
-  const validatedUrl = validateServerUrl(serverUrl);
+  const validatedUrl = validateUrl(serverUrl);
   const publicKey = await fetchVapidPublicKey(serverUrl);
   const applicationServerKey = urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer;
 
@@ -100,7 +93,7 @@ export async function unsubscribePush(serverUrl: string): Promise<void> {
   if (!subscription) return;
 
   // サーバーから Subscription を削除
-  const url = validateServerUrl(serverUrl);
+  const url = validateUrl(serverUrl);
   try {
     await fetch(`${url}/unsubscribe`, {
       method: 'POST',

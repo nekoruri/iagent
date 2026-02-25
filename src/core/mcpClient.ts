@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ListToolsResultSchema, CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { MCPServer } from '@openai/agents';
+import { validateUrl } from './urlValidation';
 
 /** MCPServer.listTools() が返すツール定義 */
 type MCPTool = Awaited<ReturnType<MCPServer['listTools']>>[number];
@@ -25,7 +26,7 @@ export class BrowserMCPServer implements MCPServer {
 
   constructor(options: { name: string; url: string }) {
     this._name = options.name;
-    this._url = options.url;
+    this._url = validateUrl(options.url);
   }
 
   get name(): string {
