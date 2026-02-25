@@ -35,8 +35,8 @@ async function handlePush(event: PushEvent): Promise<void> {
   if (data.type && data.type !== 'heartbeat-wake') return;
 
   try {
-    // 空文字を渡し、executeHeartbeatAndStore 内部で IndexedDB から API キーを取得する
-    const results = await executeHeartbeatAndStore('heartbeat-push');
+    // ソース識別子を渡す（API キーは executeHeartbeatAndStore 内部で IndexedDB から取得）
+    const results = await executeHeartbeatAndStore('');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -83,7 +83,8 @@ self.addEventListener('periodicsync', (event) => {
 
 async function handlePeriodicSync(): Promise<void> {
   try {
-    const results = await executeHeartbeatAndStore('heartbeat-periodic');
+    // ソース識別子を渡す（API キーは IndexedDB から取得）
+    const results = await executeHeartbeatAndStore('');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
