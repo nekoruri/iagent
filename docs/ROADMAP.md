@@ -80,6 +80,10 @@
 - [ ] ツール定義（calendarTool 等）のインテグレーションテスト
 - [ ] Visual Regression テスト（Playwright スクリーンショット比較）
 
+### セキュリティ基盤
+- [x] MCP URL バリデーション（HTTPS 強制 + localhost 例外）— 共有ユーティリティ化 + コア層/UI 層の 2 層バリデーション
+- [x] CSP ヘッダー導入 — 本番ビルド時のみ meta タグ注入（Vite プラグイン）
+
 ---
 
 ## フェーズ 2: エージェント体験の深化
@@ -132,6 +136,29 @@
 
 ---
 
+## フェーズ 4: 外部情報収集・自律行動の強化
+
+> 詳細: [docs/PROPOSAL-external-integration.md](PROPOSAL-external-integration.md)
+
+### ビルトインツール拡充
+- [ ] RSS/フィード収集ツール（購読管理 + Heartbeat 定期チェック）
+- [ ] Web ページ監視ツール（差分検出 + 通知）
+- [ ] クリッピング/ナレッジベースツール（収集情報の構造化保存）
+
+### MCP エコシステム活用
+- [ ] MCP ツールの Heartbeat 対応（バックグラウンドで MCP ツール実行可能に）
+- [ ] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
+
+### エージェント自律性強化
+- [ ] 情報収集ワークフロー（RSS ダイジェスト、ニュースブリーフィング等の Heartbeat タスク）
+- [ ] プロアクティブ提案エンジン（日次ブリーフィング、関連情報サジェスト）
+- [ ] Action Planning（チェック → 判断 → アクション）
+
+### 横断的課題
+- [x] CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
+
+---
+
 ## アイデア・検討中
 
 - エージェント間の連携（複数エージェントの協調動作）
@@ -159,3 +186,5 @@
 - [x] Heartbeat 層3（Service Worker + Web Push）— injectManifest 切替 + カスタム SW + Push/PeriodicSync ハンドラ + Cloudflare Workers サーバー + 3層統合（240 → 263 テスト）（2026-02-25）
 - [x] E2E テスト導入 — Playwright + OpenAI SSE モック + 設定フロー/会話管理/モバイルドロワー/Push設定 UI テスト（16テスト）+ CI E2E ジョブ（2026-02-25）
 - [x] Push 通知統合テスト — API URL 環境変数化 + OpenAI モックサーバー + SW 有効 Playwright 設定 + Push→Heartbeat E2E テスト（2026-02-26）
+- [x] セキュリティ基盤整備 — MCP URL HTTPS 強制バリデーション + CSP meta タグ（本番ビルド）（2026-02-26）
+- [x] CORS プロキシ — Cloudflare Workers 拡張（トークン認証 + SSRF 防止 + レート制限 + クライアント設定 UI）（2026-02-26）

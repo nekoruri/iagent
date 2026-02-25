@@ -189,6 +189,8 @@ server/
 | POST | `/subscribe` | Subscription を KV に保存（TTL: 30日） |
 | POST | `/unsubscribe` | Subscription を KV から削除 |
 | GET | `/health` | ヘルスチェック |
+| POST | `/register` | CORS プロキシ用トークン発行（マスターキー認証） |
+| POST | `/proxy` | CORS プロキシ（Bearer トークン認証） |
 | (Cron) | — | 全 Subscription に `{type:"heartbeat-wake"}` push を送信 |
 
 **セキュリティ設計**:
@@ -198,12 +200,30 @@ server/
 - Subscription は 30 日の TTL で自動削除
 - 404/410 レスポンスの Subscription は自動クリーンアップ
 
+**CORS プロキシ セキュリティ設計**:
+
+| 対策 | 実装 |
+|------|------|
+| 認証 | マスターキーで `/register` → トークン自動生成（TTL 90日）→ Bearer トークンで `/proxy` 認証 |
+| SSRF 防止 | プライベート IP レンジ拒否（127/10/172.16/192.168/169.254）+ localhost 拒否 |
+| HTTPS 強制 | `https:` プロトコルのみ許可 |
+| リダイレクト検証 | `redirect: 'manual'` で手動追跡、各リダイレクト先も SSRF 検証、上限 5 回 |
+| レート制限 | KV ベース、60 秒ウィンドウ / 30 リクエスト（`CF-Connecting-IP` ベース） |
+| サイズ制限 | 2MB 上限、ストリーミング読み取りで超過時 abort |
+| タイムアウト | 15 秒（`AbortController`） |
+| ドメイン制御 | クライアント側の許可ドメインリスト（`ProxyConfig.allowedDomains`） |
+| ログ | 全リクエストを `[Proxy]` プレフィックスで Workers ログに出力 |
+
+クライアント側: `src/core/corsProxy.ts` の `fetchViaProxy()` でプロキシ経由のリソース取得。設定 UI で サーバーURL / トークン / 許可ドメインを管理。
+
 **デプロイ手順**:
 1. `cd server && npm install`
 2. `node scripts/generate-vapid.mjs` で VAPID キーペアを生成
 3. `wrangler secret put VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`
 4. `wrangler kv namespace create SUBSCRIPTIONS` で KV 作成、`wrangler.toml` に ID を設定
-5. `wrangler deploy`
+5. `wrangler kv namespace create RATE_LIMIT` で KV 作成、`wrangler.toml` に ID を設定
+6. `wrangler secret put PROXY_MASTER_KEY` でプロキシ用マスターキーを設定
+7. `wrangler deploy`
 
 ### 排他制御（Layer 間の重複回避）
 

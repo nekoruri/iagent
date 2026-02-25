@@ -6,13 +6,19 @@
  *
  * サーバーはユーザーデータを一切扱わない。
  * Push ペイロードは「今チェックして」というシグナルのみ。
+ *
+ * CORS プロキシ機能も提供する（/register, /proxy エンドポイント）。
  */
+
+import { handleRegister, handleProxy } from './proxy';
 
 export interface Env {
   SUBSCRIPTIONS: KVNamespace;
+  RATE_LIMIT: KVNamespace;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT: string;
+  PROXY_MASTER_KEY: string;
 }
 
 interface PushSubscriptionJSON {
@@ -31,7 +37,7 @@ interface SubscribeRequest {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -43,6 +49,19 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function corsResponse(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+/** 既存レスポンスに CORS ヘッダーを付与する */
+function addCorsHeaders(response: Response): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
 }
 
 // --- VAPID / Web Push 実装 (Web Crypto API ベース) ---
@@ -362,6 +381,18 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         return jsonResponse({ error: 'Method not allowed' }, 405);
       }
       return handleTestPush(env);
+
+    case '/register':
+      if (request.method !== 'POST') {
+        return jsonResponse({ error: 'Method not allowed' }, 405);
+      }
+      return handleRegister(request, env).then(addCorsHeaders);
+
+    case '/proxy':
+      if (request.method !== 'POST') {
+        return jsonResponse({ error: 'Method not allowed' }, 405);
+      }
+      return handleProxy(request, env).then(addCorsHeaders);
 
     default:
       return jsonResponse({ error: 'Not found' }, 404);

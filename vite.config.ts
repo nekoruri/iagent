@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { cspPlugin } from './vite-plugins/csp'
 
 export default defineConfig({
   plugins: [
     react(),
+    cspPlugin(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
@@ -52,6 +54,11 @@ export default defineConfig({
         target: 'https://api.openweathermap.org',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/weather/, ''),
+      },
+      '/api/proxy': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/proxy/, '/proxy'),
       },
       '/api/otel': {
         target: 'http://localhost:4318',
