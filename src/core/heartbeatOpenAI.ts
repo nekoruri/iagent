@@ -1,7 +1,8 @@
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory } from '../types';
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
+  || 'https://api.openai.com/v1/chat/completions';
 const MAX_TOOL_ROUNDS = 3;
 const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
 

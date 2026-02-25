@@ -69,6 +69,12 @@
 - [x] モバイルビューポートでのドロワー動作
 - [x] CI に E2E テストステップ追加（main PR 時のみ）
 
+#### Push 通知統合テスト（E2E）
+- [x] OpenAI API URL を環境変数化（`VITE_OPENAI_API_URL`）で SW 内 fetch 先を差し替え可能に
+- [x] OpenAI モック HTTP サーバー（`e2e/fixtures/openai-mock-server.ts`）
+- [x] Push テスト専用 Playwright 設定（`playwright.push.config.ts`、`serviceWorkers: 'allow'`）
+- [x] Push 受信 → SW Heartbeat 実行 → 完了の統合テスト（`e2e/push-integration.spec.ts`）
+
 #### テスト品質の継続改善
 - [x] telemetry をカバレッジ対象に追加
 - [ ] ツール定義（calendarTool 等）のインテグレーションテスト
@@ -152,3 +158,4 @@
 - [x] テスト基盤フェーズ2 — カバレッジ閾値 70% 設定 + telemetry カバレッジ対象追加 + コンポーネント/フックテスト導入（206 → 240 テスト）（2026-02-25）
 - [x] Heartbeat 層3（Service Worker + Web Push）— injectManifest 切替 + カスタム SW + Push/PeriodicSync ハンドラ + Cloudflare Workers サーバー + 3層統合（240 → 263 テスト）（2026-02-25）
 - [x] E2E テスト導入 — Playwright + OpenAI SSE モック + 設定フロー/会話管理/モバイルドロワー/Push設定 UI テスト（16テスト）+ CI E2E ジョブ（2026-02-25）
+- [x] Push 通知統合テスト — API URL 環境変数化 + OpenAI モックサーバー + SW 有効 Playwright 設定 + Push→Heartbeat E2E テスト（2026-02-26）
