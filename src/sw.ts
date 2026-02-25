@@ -35,12 +35,12 @@ async function handlePush(event: PushEvent): Promise<void> {
   if (data.type && data.type !== 'heartbeat-wake') return;
 
   try {
-    // ソース識別子を渡す（API キーは executeHeartbeatAndStore 内部で IndexedDB から取得）
-    const results = await executeHeartbeatAndStore('');
+    // API キーは executeHeartbeatAndStore 内部で IndexedDB から取得
+    const results = await executeHeartbeatAndStore('', 'push');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
-      await self.registration.showNotification('iAgent Heartbeat', {
+      await self.registration.showNotification('iAgent Heartbeat [push]', {
         body: summaries,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
@@ -49,7 +49,7 @@ async function handlePush(event: PushEvent): Promise<void> {
       });
     } else {
       // Chrome は push 受信時に通知表示が必須 — サイレント通知を出して即閉じ
-      await self.registration.showNotification('iAgent', {
+      await self.registration.showNotification('iAgent [push]', {
         body: '定期チェック完了（変化なし）',
         icon: '/pwa-192x192.png',
         tag: 'heartbeat-silent',
@@ -83,12 +83,12 @@ self.addEventListener('periodicsync', (event) => {
 
 async function handlePeriodicSync(): Promise<void> {
   try {
-    // ソース識別子を渡す（API キーは IndexedDB から取得）
-    const results = await executeHeartbeatAndStore('');
+    // API キーは IndexedDB から取得
+    const results = await executeHeartbeatAndStore('', 'periodic-sync');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
-      await self.registration.showNotification('iAgent Heartbeat', {
+      await self.registration.showNotification('iAgent Heartbeat [periodic-sync]', {
         body: summaries,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',

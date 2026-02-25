@@ -163,7 +163,10 @@ async function sendWebPush(
     new TextEncoder().encode(payload),
   );
 
-  const response = await fetch(subscription.endpoint, {
+  const endpoint = subscription.endpoint;
+  console.log(`[Push] 送信開始: ${endpoint.slice(0, 80)}...`);
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Authorization': `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
@@ -176,11 +179,17 @@ async function sendWebPush(
   });
 
   if (response.status === 404 || response.status === 410) {
-    // Subscription が無効 → 削除対象
+    console.warn(`[Push] 購読無効 (${response.status}): ${endpoint.slice(0, 80)}...`);
     return false;
   }
 
-  // 429, 500 等の一時エラーは Subscription を保持
+  if (!response.ok) {
+    const body = await response.text().catch(() => '(読み取り不可)');
+    console.warn(`[Push] 応答 ${response.status}: ${body.slice(0, 200)}`);
+  } else {
+    console.log(`[Push] 送信成功 (${response.status})`);
+  }
+
   return true;
 }
 
@@ -348,6 +357,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     case '/health':
       return jsonResponse({ status: 'ok' });
 
+    case '/test-push':
+      if (request.method !== 'POST') {
+        return jsonResponse({ error: 'Method not allowed' }, 405);
+      }
+      return handleTestPush(env);
+
     default:
       return jsonResponse({ error: 'Not found' }, 404);
   }
@@ -398,6 +413,55 @@ async function handleUnsubscribe(request: Request, env: Env): Promise<Response> 
   return jsonResponse({ ok: true });
 }
 
+/** 手動 push テスト — 全購読に即時送信して結果を返す */
+async function handleTestPush(env: Env): Promise<Response> {
+  const payload = JSON.stringify({ type: 'heartbeat-wake' });
+
+  let cursor: string | undefined;
+  const allKeys: { name: string }[] = [];
+  do {
+    const list = await env.SUBSCRIPTIONS.list({ prefix: 'sub:', cursor });
+    allKeys.push(...list.keys);
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+
+  if (allKeys.length === 0) {
+    return jsonResponse({ message: '登録済み購読なし', total: 0 });
+  }
+
+  const details: { endpoint: string; status: string }[] = [];
+  for (const { name } of allKeys) {
+    const data = await env.SUBSCRIPTIONS.get(name);
+    if (!data) continue;
+
+    let subscription: PushSubscriptionJSON;
+    try {
+      subscription = JSON.parse(data) as PushSubscriptionJSON;
+    } catch {
+      details.push({ endpoint: name, status: 'parse_error' });
+      continue;
+    }
+
+    try {
+      const success = await sendWebPush(subscription, payload, env);
+      details.push({
+        endpoint: subscription.endpoint.slice(0, 80) + '...',
+        status: success ? 'ok' : 'invalid_subscription',
+      });
+      if (!success) {
+        await env.SUBSCRIPTIONS.delete(name);
+      }
+    } catch (err) {
+      details.push({
+        endpoint: subscription.endpoint.slice(0, 80) + '...',
+        status: `error: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  return jsonResponse({ total: allKeys.length, details }, 200);
+}
+
 // --- Cron Handler ---
 
 async function handleCron(env: Env): Promise<void> {
@@ -411,6 +475,8 @@ async function handleCron(env: Env): Promise<void> {
     allKeys.push(...list.keys);
     cursor = list.list_complete ? undefined : list.cursor;
   } while (cursor);
+
+  console.log(`[Cron] 開始: ${allKeys.length} 件の購読に push 送信`);
 
   const results = await Promise.allSettled(
     allKeys.map(async ({ name }) => {
@@ -433,14 +499,19 @@ async function handleCron(env: Env): Promise<void> {
 
       if (!success) {
         // 無効な Subscription を削除
+        console.warn(`[Cron] 無効な購読を削除: ${name.slice(0, 60)}...`);
         await env.SUBSCRIPTIONS.delete(name);
       }
     }),
   );
 
-  const failed = results.filter((r) => r.status === 'rejected');
+  const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  const succeeded = results.length - failed.length;
+  console.log(`[Cron] 完了: 成功=${succeeded}, 失敗=${failed.length}`);
   if (failed.length > 0) {
-    console.error(`[Cron] ${failed.length}/${results.length} 件の push 送信に失敗`);
+    for (const f of failed) {
+      console.error('[Cron] 失敗理由:', f.reason);
+    }
   }
 }
 

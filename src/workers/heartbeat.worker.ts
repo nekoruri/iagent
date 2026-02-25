@@ -33,7 +33,7 @@ async function tick(): Promise<void> {
   postEvent({ type: 'status', status: 'executing' });
 
   try {
-    const heartbeatResults = await executeHeartbeatAndStore(config.openaiApiKey);
+    const heartbeatResults = await executeHeartbeatAndStore(config.openaiApiKey, 'worker');
 
     if (heartbeatResults.length > 0) {
       postEvent({ type: 'heartbeat-result', results: heartbeatResults });

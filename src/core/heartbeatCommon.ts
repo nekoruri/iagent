@@ -3,7 +3,7 @@ import { loadConfigFromIDB } from '../store/configStore';
 import { loadHeartbeatState, addHeartbeatResult, updateTaskLastRun, getTaskLastRun } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
-import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask, CalendarEvent, Memory } from '../types';
+import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent, Memory } from '../types';
 
 /** IndexedDB から最新設定を読み込み、API キーと Heartbeat 設定を返す */
 export async function loadFreshConfig(
@@ -67,9 +67,11 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
 /**
  * Heartbeat チェックを実行し、結果を IndexedDB に保存する。
  * Worker / Service Worker 共通のパイプライン。
+ * @param apiKey フォールバック用 API キー（通常は空文字で IDB から取得）
+ * @param source 実行元の識別子
  * @returns 変化ありの結果のみ返す
  */
-export async function executeHeartbeatAndStore(apiKey: string): Promise<HeartbeatResult[]> {
+export async function executeHeartbeatAndStore(apiKey: string, source?: HeartbeatSource): Promise<HeartbeatResult[]> {
   // IndexedDB から最新設定を読み込む
   const freshConfig = await loadConfigFromIDB();
   const hbConfig = freshConfig?.heartbeat;
@@ -97,14 +99,20 @@ export async function executeHeartbeatAndStore(apiKey: string): Promise<Heartbea
 
   const now = Date.now();
   const heartbeatResults: HeartbeatResult[] = [];
+  const label = source ?? 'unknown';
+
+  console.log(`[Heartbeat:${label}] ${results.length} 件のタスクを実行`);
 
   for (const r of results) {
-    await addHeartbeatResult(r);
+    const tagged = { ...r, source };
+    await addHeartbeatResult(tagged);
     await updateTaskLastRun(r.taskId, now);
     if (r.hasChanges) {
-      heartbeatResults.push(r);
+      heartbeatResults.push(tagged);
     }
   }
+
+  console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}`);
 
   return heartbeatResults;
 }

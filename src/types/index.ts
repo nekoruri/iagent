@@ -57,11 +57,15 @@ export interface HeartbeatTask {
   schedule?: TaskSchedule;        // 未設定 or type='global' はグローバル間隔に従う
 }
 
+/** Heartbeat 実行元を示すソース識別子 */
+export type HeartbeatSource = 'tab' | 'worker' | 'push' | 'periodic-sync';
+
 export interface HeartbeatResult {
   taskId: string;
   timestamp: number;
   hasChanges: boolean;
   summary: string;
+  source?: HeartbeatSource;
 }
 
 export interface HeartbeatState {
