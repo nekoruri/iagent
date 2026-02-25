@@ -56,6 +56,14 @@ vi.mock('../core/corsProxy', () => ({
   registerProxyToken: vi.fn(async () => 'mock-token'),
 }));
 
+// agent モック（isReadOnlyTool）
+vi.mock('../core/agent', () => ({
+  isReadOnlyTool: vi.fn((name: string) => {
+    const prefixes = ['list_', 'get_', 'search_', 'read_'];
+    return prefixes.some((p) => name.startsWith(p));
+  }),
+}));
+
 // mcpManager モック
 vi.mock('../core/mcpManager', () => ({
   mcpManager: {
@@ -63,6 +71,7 @@ vi.mock('../core/mcpManager', () => ({
     syncWithConfig: vi.fn(async () => {}),
     getStatus: vi.fn(() => 'disconnected'),
     getError: vi.fn(() => null),
+    getAvailableTools: vi.fn(async () => []),
   },
 }));
 

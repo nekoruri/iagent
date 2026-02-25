@@ -11,11 +11,14 @@ beforeEach(() => {
 });
 
 describe('WORKER_TOOLS', () => {
-  it('listCalendarEvents と getCurrentTime の 2 つが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(2);
+  it('全 Worker ツールが定義されている', () => {
+    expect(WORKER_TOOLS).toHaveLength(5);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
+    expect(names).toContain('fetchFeeds');
+    expect(names).toContain('listFeeds');
+    expect(names).toContain('checkMonitors');
   });
 
   it('全ツールが function タイプである', () => {
