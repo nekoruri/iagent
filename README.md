@@ -1,5 +1,7 @@
 # iAgent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ブラウザ上で動作するパーソナルAIアシスタント。OpenAI Agents SDK を活用し、リアルタイムストリーミング、バックグラウンドチェック（Heartbeat）、MCP サーバー連携をサポートする PWA アプリケーション。
 
 ## 技術スタック
@@ -170,3 +172,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push /
 
 - [アーキテクチャ詳細](docs/ARCHITECTURE.md)
 - [ロードマップ](docs/ROADMAP.md)
+
+## ライセンス
+
+[MIT License](LICENSE) の下で公開されています。
