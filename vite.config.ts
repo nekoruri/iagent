@@ -55,6 +55,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/weather/, ''),
       },
+      '/api/proxy': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/proxy/, '/proxy'),
+      },
       '/api/otel': {
         target: 'http://localhost:4318',
         changeOrigin: true,

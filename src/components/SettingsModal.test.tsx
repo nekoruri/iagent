@@ -42,7 +42,18 @@ vi.mock('../core/config', () => ({
     batchSize: 10,
     flushIntervalMs: 30000,
   })),
+  getDefaultProxyConfig: vi.fn(() => ({
+    enabled: false,
+    serverUrl: '',
+    authToken: '',
+    allowedDomains: [],
+  })),
   BUILTIN_HEARTBEAT_TASKS: [],
+}));
+
+// corsProxy モック
+vi.mock('../core/corsProxy', () => ({
+  registerProxyToken: vi.fn(async () => 'mock-token'),
 }));
 
 // mcpManager モック

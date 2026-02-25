@@ -88,6 +88,13 @@ export interface PushConfig {
   serverUrl: string;
 }
 
+export interface ProxyConfig {
+  enabled: boolean;
+  serverUrl: string;       // プロキシサーバー URL
+  authToken: string;       // Bearer トークン（/register で自動取得）
+  allowedDomains: string[];  // 許可ドメインリスト（クライアント側制御、空=全許可）
+}
+
 export interface OtelConfig {
   enabled: boolean;
   endpoint: string;
@@ -103,6 +110,7 @@ export interface AppConfig {
   mcpServers: MCPServerConfig[];
   heartbeat?: HeartbeatConfig;
   push?: PushConfig;
+  proxy?: ProxyConfig;
   otel?: OtelConfig;
 }
 

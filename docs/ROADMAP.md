@@ -155,7 +155,7 @@
 - [ ] Action Planning（チェック → 判断 → アクション）
 
 ### 横断的課題
-- [ ] CORS プロキシ（Cloudflare Workers 拡張 or MCP 経由）
+- [x] CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 
 ---
 
@@ -187,3 +187,4 @@
 - [x] E2E テスト導入 — Playwright + OpenAI SSE モック + 設定フロー/会話管理/モバイルドロワー/Push設定 UI テスト（16テスト）+ CI E2E ジョブ（2026-02-25）
 - [x] Push 通知統合テスト — API URL 環境変数化 + OpenAI モックサーバー + SW 有効 Playwright 設定 + Push→Heartbeat E2E テスト（2026-02-26）
 - [x] セキュリティ基盤整備 — MCP URL HTTPS 強制バリデーション + CSP meta タグ（本番ビルド）（2026-02-26）
+- [x] CORS プロキシ — Cloudflare Workers 拡張（トークン認証 + SSRF 防止 + レート制限 + クライアント設定 UI）（2026-02-26）

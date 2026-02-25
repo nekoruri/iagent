@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "generate-vapid": "node scripts/generate-vapid.mjs"
+    "generate-vapid": "node scripts/generate-vapid.mjs",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250214.0",
+    "vitest": "^3.0.0",
     "wrangler": "^4.68.1"
   }
 }

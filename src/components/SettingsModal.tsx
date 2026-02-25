@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
+import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig } from '../types';
 
 interface Props {
   open: boolean;
@@ -41,16 +42,31 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
   const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
+  const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
   const [otelHeadersText, setOtelHeadersText] = useState(JSON.stringify(otel.headers));
   const [pushStatus, setPushStatus] = useState<'idle' | 'subscribing' | 'unsubscribing' | 'error'>('idle');
   const [pushError, setPushError] = useState<string>('');
   const [hasPushSubscription, setHasPushSubscription] = useState(false);
+  const [proxyMasterKey, setProxyMasterKey] = useState('');
+  const [proxyStatus, setProxyStatus] = useState<'idle' | 'registering' | 'error'>('idle');
+  const [proxyError, setProxyError] = useState<string>('');
+  const [proxyDomainsText, setProxyDomainsText] = useState(proxy.allowedDomains.join(', '));
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
     if (open) setOtelHeadersText(JSON.stringify(config.otel?.headers ?? {}));
   }, [open, config.otel?.headers]);
+
+  // モーダルが開かれたとき、プロキシ関連の状態をリセット
+  useEffect(() => {
+    if (open) {
+      setProxyDomainsText(config.proxy?.allowedDomains?.join(', ') ?? '');
+      setProxyMasterKey('');
+      setProxyError('');
+      setProxyStatus('idle');
+    }
+  }, [open, config.proxy?.allowedDomains]);
 
   // Push Subscription 状態を初期化
   useEffect(() => {
@@ -58,6 +74,35 @@ export function SettingsModal({ open, onClose }: Props) {
     setPushError('');
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
   }, [open]);
+
+  const updateProxy = (patch: Partial<ProxyConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      proxy: { ...proxy, ...patch },
+    }));
+  };
+
+  const handleProxyRegister = async () => {
+    if (!proxy.serverUrl) {
+      setProxyError('サーバーURLを入力してください');
+      return;
+    }
+    if (!proxyMasterKey) {
+      setProxyError('マスターキーを入力してください');
+      return;
+    }
+    setProxyStatus('registering');
+    setProxyError('');
+    try {
+      const token = await registerProxyToken(proxy.serverUrl, proxyMasterKey);
+      updateProxy({ authToken: token, enabled: true });
+      setProxyMasterKey(''); // マスターキーは保存しない
+      setProxyStatus('idle');
+    } catch (error) {
+      setProxyError(error instanceof Error ? error.message : String(error));
+      setProxyStatus('error');
+    }
+  };
 
   const updateOtel = (patch: Partial<OtelConfig>) => {
     setConfig((prev) => ({
@@ -532,6 +577,85 @@ export function SettingsModal({ open, onClose }: Props) {
               );
             })}
           </div>
+        </div>
+
+        {/* CORS プロキシ設定 */}
+        <div className="mcp-section">
+          <div className="mcp-header">
+            <h3>CORS プロキシ</h3>
+            <label className="hb-toggle-label">
+              <input
+                type="checkbox"
+                checked={proxy.enabled}
+                onChange={(e) => updateProxy({ enabled: e.target.checked })}
+              />
+              有効
+            </label>
+          </div>
+          <p className="mcp-hint">外部サーバー経由で CORS 制限を回避し、RSS フィードや Web ページを取得します。</p>
+
+          <label>
+            プロキシサーバーURL
+            <input
+              type="text"
+              value={proxy.serverUrl}
+              onChange={(e) => updateProxy({ serverUrl: e.target.value })}
+              placeholder="https://your-worker.workers.dev"
+            />
+            {proxy.serverUrl && getUrlValidationError(proxy.serverUrl) && (
+              <p className="mcp-error-text">{getUrlValidationError(proxy.serverUrl)}</p>
+            )}
+          </label>
+
+          {proxy.authToken ? (
+            <div className="hb-notification-row">
+              <span className="mcp-status mcp-status-connected">トークン設定済み</span>
+              <button
+                className="btn-danger btn-small"
+                onClick={() => updateProxy({ authToken: '', enabled: false })}
+              >
+                トークン削除
+              </button>
+            </div>
+          ) : (
+            <>
+              <label>
+                マスターキー（トークン取得用・保存されません）
+                <input
+                  type="password"
+                  value={proxyMasterKey}
+                  onChange={(e) => setProxyMasterKey(e.target.value)}
+                  placeholder="マスターキーを入力"
+                  disabled={proxyStatus === 'registering'}
+                />
+              </label>
+              <button
+                className="btn-primary btn-small"
+                onClick={handleProxyRegister}
+                disabled={proxyStatus === 'registering' || !proxy.serverUrl || !proxyMasterKey}
+              >
+                {proxyStatus === 'registering' ? 'トークン取得中...' : 'トークン取得'}
+              </button>
+            </>
+          )}
+          {proxyError && <p className="mcp-error-text">{proxyError}</p>}
+
+          <label>
+            許可ドメイン（カンマ区切り、空=全許可）
+            <input
+              type="text"
+              value={proxyDomainsText}
+              onChange={(e) => {
+                setProxyDomainsText(e.target.value);
+                const domains = e.target.value
+                  .split(',')
+                  .map((d) => d.trim())
+                  .filter((d) => d.length > 0);
+                updateProxy({ allowedDomains: domains });
+              }}
+              placeholder="example.com, news.ycombinator.com"
+            />
+          </label>
         </div>
 
         {/* オブザーバビリティ設定 */}

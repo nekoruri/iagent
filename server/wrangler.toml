@@ -9,6 +9,11 @@ crons = ["*/15 * * * *"]
 binding = "SUBSCRIPTIONS"
 id = "YOUR_KV_NAMESPACE_ID_HERE"  # `wrangler kv namespace create SUBSCRIPTIONS` で取得した ID を設定
 
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "YOUR_RATE_LIMIT_KV_ID_HERE"  # `wrangler kv namespace create RATE_LIMIT` で取得した ID を設定
+
 # VAPID 秘密鍵は `wrangler secret put VAPID_PRIVATE_KEY` で設定
 # VAPID 公開鍵は `wrangler secret put VAPID_PUBLIC_KEY` で設定
 # VAPID subject は `wrangler secret put VAPID_SUBJECT` で設定
+# プロキシマスターキーは `wrangler secret put PROXY_MASTER_KEY` で設定
