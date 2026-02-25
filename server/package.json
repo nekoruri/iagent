@@ -1,0 +1,15 @@
+{
+  "name": "iagent-push-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "generate-vapid": "node scripts/generate-vapid.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "wrangler": "^4.68.1"
+  }
+}

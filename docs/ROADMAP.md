@@ -13,13 +13,14 @@
 - MCP サーバー連携（ブラウザベース StreamableHTTP）
 - Heartbeat バックグラウンドチェック
 - デスクトップ通知（Notification API）
-- PWA（Service Worker 自動生成、インストール可能）
+- PWA（カスタム Service Worker + injectManifest、インストール可能）
 - エージェント長期メモリ（memoryTool + 自動コンテキスト注入）
 - マルチステップタスク実行 + TaskProgress 進捗UI
 - カスタムワークフロー（タスクごとの個別スケジュール設定）
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
-- テスト 173 件（Statements 86.45%）
+- Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
+- テスト 263 件（Statements 86.45%+）
 
 ---
 
@@ -27,11 +28,13 @@
 
 ### Heartbeat バックグラウンド実行（3層構成）
 - [x] 層2: Dedicated Worker — タブ非表示時に Worker で Heartbeat 実行 + Visibility API 切り替え
-- [ ] 層3: Push API + Cloudflare Workers — タブ完全閉鎖後もサーバー経由で定期チェック
-- [ ] vite-plugin-pwa を `injectManifest` モードに切替
-- [ ] カスタム Service Worker に Heartbeat ロジックを移行
-- [ ] Periodic Background Sync API で定期チェック
-- [ ] Service Worker 内からの `showNotification()` に移行
+- [x] 層3: Push API + Cloudflare Workers — タブ完全閉鎖後もサーバー経由で定期チェック
+- [x] vite-plugin-pwa を `injectManifest` モードに切替
+- [x] カスタム Service Worker に Heartbeat ロジックを移行
+- [x] Periodic Background Sync API で定期チェック（フォールバック）
+- [x] Service Worker 内からの `showNotification()` に移行
+- [x] Cloudflare Workers wake-up cron サーバー（`server/` ディレクトリ）
+- [x] Push Subscription 管理 UI（設定モーダル）
 - **意義**: タブを閉じてもエージェントが動き続ける＝自律型の核心体験
 
 ### オブザーバビリティ基盤
@@ -60,11 +63,17 @@
 - [x] useHeartbeat フックテスト（エンジン連携、visibility 連動）
 
 #### E2E テスト導入
-- [ ] Playwright 導入 + page.route() で OpenAI API モック
-- [ ] 初回起動 → API キー設定 → チャット送信フロー
-- [ ] 会話管理（作成・切替・削除）フロー
-- [ ] モバイルビューポートでのドロワー動作
-- [ ] CI に E2E テストステップ追加（main PR 時のみ）
+- [x] Playwright 導入 + page.route() で OpenAI API モック
+- [x] 初回起動 → API キー設定 → チャット送信フロー
+- [x] 会話管理（作成・切替・削除）フロー
+- [x] モバイルビューポートでのドロワー動作
+- [x] CI に E2E テストステップ追加（main PR 時のみ）
+
+#### Push 通知統合テスト（E2E）
+- [x] OpenAI API URL を環境変数化（`VITE_OPENAI_API_URL`）で SW 内 fetch 先を差し替え可能に
+- [x] OpenAI モック HTTP サーバー（`e2e/fixtures/openai-mock-server.ts`）
+- [x] Push テスト専用 Playwright 設定（`playwright.push.config.ts`、`serviceWorkers: 'allow'`）
+- [x] Push 受信 → SW Heartbeat 実行 → 完了の統合テスト（`e2e/push-integration.spec.ts`）
 
 #### テスト品質の継続改善
 - [x] telemetry をカバレッジ対象に追加
@@ -97,6 +106,14 @@
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
 - [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
 
+### Web Push 信頼性向上
+- [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
+- [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
+- [ ] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
+- [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加
+- [ ] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
+- [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
+
 ---
 
 ## フェーズ 3: UX 改善
@@ -106,6 +123,9 @@
 - [ ] ライト/ダークテーマ切替
 - [ ] レスポンシブ改善（モバイル最適化）
 
+### ビルド最適化
+- [ ] バンドルサイズ削減 — `dynamic import()` によるコード分割、`manualChunks` でベンダーチャンク分離（現在 index.js が 920KB 超で 500KB 警告）
+
 ### オフライン対応
 - [ ] Service Worker キャッシュ戦略の改善
 - [ ] オフライン時のフォールバック UI
@@ -114,7 +134,6 @@
 
 ## アイデア・検討中
 
-- Web Push（サーバー経由のプッシュ通知、現在はサーバーレスなので要検討）
 - エージェント間の連携（複数エージェントの協調動作）
 - プラグインシステム（ユーザーがカスタムツールを追加）
 - ファイル添付・画像認識（マルチモーダル対応）
@@ -137,3 +156,6 @@
 - [x] Heartbeat 結果の専用パネル — ベルアイコン + 未読バッジ + ドロップダウン表示（2026-02-25）
 - [x] ドキュメント分離 — CLAUDE.md スリム化 + README.md 最新化 + docs/ARCHITECTURE.md 新規作成（2026-02-25, PR #8）
 - [x] テスト基盤フェーズ2 — カバレッジ閾値 70% 設定 + telemetry カバレッジ対象追加 + コンポーネント/フックテスト導入（206 → 240 テスト）（2026-02-25）
+- [x] Heartbeat 層3（Service Worker + Web Push）— injectManifest 切替 + カスタム SW + Push/PeriodicSync ハンドラ + Cloudflare Workers サーバー + 3層統合（240 → 263 テスト）（2026-02-25）
+- [x] E2E テスト導入 — Playwright + OpenAI SSE モック + 設定フロー/会話管理/モバイルドロワー/Push設定 UI テスト（16テスト）+ CI E2E ジョブ（2026-02-25）
+- [x] Push 通知統合テスト — API URL 環境変数化 + OpenAI モックサーバー + SW 有効 Playwright 設定 + Push→Heartbeat E2E テスト（2026-02-26）

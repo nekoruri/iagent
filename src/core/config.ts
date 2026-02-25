@@ -44,7 +44,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), otel: getDefaultOtelConfig() };
+    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, otel: getDefaultOtelConfig() };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
   return {
@@ -55,6 +55,7 @@ export function getConfig(): AppConfig {
     heartbeat: parsed.heartbeat
       ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
       : getDefaultHeartbeatConfig(),
+    push: parsed.push ?? { enabled: false, serverUrl: '' },
     otel: parsed.otel
       ? { ...getDefaultOtelConfig(), ...parsed.otel }
       : getDefaultOtelConfig(),

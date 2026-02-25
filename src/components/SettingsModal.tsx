@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig } from '../types';
+import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig } from '../types';
 
 interface Props {
   open: boolean;
@@ -38,19 +39,72 @@ export function SettingsModal({ open, onClose }: Props) {
   }, [open]);
 
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
   const otel = config.otel ?? getDefaultOtelConfig();
   const [otelHeadersText, setOtelHeadersText] = useState(JSON.stringify(otel.headers));
+  const [pushStatus, setPushStatus] = useState<'idle' | 'subscribing' | 'unsubscribing' | 'error'>('idle');
+  const [pushError, setPushError] = useState<string>('');
+  const [hasPushSubscription, setHasPushSubscription] = useState(false);
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
     if (open) setOtelHeadersText(JSON.stringify(config.otel?.headers ?? {}));
   }, [open, config.otel?.headers]);
 
+  // Push Subscription 状態を初期化
+  useEffect(() => {
+    if (!open) return;
+    setPushError('');
+    getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
+  }, [open]);
+
   const updateOtel = (patch: Partial<OtelConfig>) => {
     setConfig((prev) => ({
       ...prev,
       otel: { ...otel, ...patch },
     }));
+  };
+
+  const updatePush = (patch: Partial<PushConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      push: { ...push, ...patch },
+    }));
+  };
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled) {
+      if (!push.serverUrl) {
+        setPushError('サーバーURLを入力してください');
+        return;
+      }
+      setPushStatus('subscribing');
+      setPushError('');
+      try {
+        await subscribePush(push.serverUrl);
+        updatePush({ enabled: true });
+        setHasPushSubscription(true);
+        // Periodic Sync もフォールバックとして登録
+        await registerPeriodicSync();
+        setPushStatus('idle');
+      } catch (error) {
+        setPushError(error instanceof Error ? error.message : String(error));
+        setPushStatus('error');
+      }
+    } else {
+      setPushStatus('unsubscribing');
+      setPushError('');
+      try {
+        await unsubscribePush(push.serverUrl);
+        await unregisterPeriodicSync();
+        updatePush({ enabled: false });
+        setHasPushSubscription(false);
+        setPushStatus('idle');
+      } catch (error) {
+        setPushError(error instanceof Error ? error.message : String(error));
+        setPushStatus('error');
+      }
+    }
   };
 
   const updateHeartbeat = (patch: Partial<HeartbeatConfig>) => {
@@ -293,6 +347,41 @@ export function SettingsModal({ open, onClose }: Props) {
                 <option key={i} value={i}>{i}:00</option>
               ))}
             </select>
+          </div>
+
+          {/* Push 通知設定（Layer 3） */}
+          <div className="hb-push-section">
+            <h4>バックグラウンド Push（タブ閉鎖後も動作）</h4>
+            <p className="mcp-hint">
+              外部サーバーからの wake-up シグナルで、タブを閉じた後も定期チェックを継続します。
+            </p>
+            <label>
+              Push サーバーURL
+              <input
+                type="text"
+                value={push.serverUrl}
+                onChange={(e) => updatePush({ serverUrl: e.target.value })}
+                placeholder="https://your-worker.workers.dev"
+                disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing'}
+              />
+            </label>
+            <div className="hb-notification-row">
+              <label className="mcp-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={push.enabled}
+                  disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing'}
+                  onChange={(e) => handlePushToggle(e.target.checked)}
+                />
+                {pushStatus === 'subscribing' ? '登録中...' :
+                  pushStatus === 'unsubscribing' ? '解除中...' :
+                    'Push 通知を有効化'}
+              </label>
+              {hasPushSubscription && push.enabled && (
+                <span className="mcp-status mcp-status-connected">登録済み</span>
+              )}
+            </div>
+            {pushError && <p className="mcp-error-text">{pushError}</p>}
           </div>
 
           <div className="hb-tasks-section">

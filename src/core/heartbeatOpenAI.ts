@@ -1,8 +1,10 @@
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory } from '../types';
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
+  || 'https://api.openai.com/v1/chat/completions';
 const MAX_TOOL_ROUNDS = 3;
+const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -46,21 +48,43 @@ export async function callChatCompletions(
     body.tools = tools;
   }
 
-  const response = await fetch(OPENAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API エラー (${response.status}): ${errorText}`);
+  try {
+    const response = await fetch(OPENAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API エラー (${response.status}): ${errorText}`);
+    }
+
+    let data: ChatCompletionResponse;
+    try {
+      data = await response.json();
+    } catch (jsonError: unknown) {
+      throw new Error(
+        `OpenAI API レスポンスの JSON 解析に失敗: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`,
+      );
+    }
+
+    return data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`OpenAI API タイムアウト (${FETCH_TIMEOUT_MS / 1000}秒)`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 }
 
 /** Heartbeat 用システムプロンプトを構築する */
