@@ -1,5 +1,7 @@
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
-import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory } from '../types';
+import { buildWorkerHeartbeatPrompt } from './instructionBuilder';
+import { getDefaultPersonaConfig } from './config';
+import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory, PersonaConfig } from '../types';
 
 const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
   || 'https://api.openai.com/v1/chat/completions';
@@ -88,30 +90,13 @@ export async function callChatCompletions(
 }
 
 /** Heartbeat 用システムプロンプトを構築する */
-function buildSystemPrompt(memories: Memory[]): string {
-  const memoryContext = memories.length > 0
-    ? `\n\nユーザーについての記憶:\n${memories.map((m) => `- [${m.category}] ${m.content}`).join('\n')}`
-    : '';
-
-  return `あなたはiAgentのバックグラウンドチェッカーです。
-与えられたタスクに基づいて定期チェックを実行し、結果をJSON形式で返してください。
-
-必ず以下のJSON形式で回答してください（他のテキストは含めないでください）:
-{
-  "results": [
-    {
-      "taskId": "タスクID",
-      "hasChanges": true/false,
-      "summary": "変化の要約（変化がない場合は空文字列）"
-    }
-  ]
-}
-
-現在の日時: ${new Date().toLocaleString('ja-JP')}
-ルール:
-- hasChanges が false の場合、summary は空文字列にしてください
-- 通知する価値がある情報のみ hasChanges: true にしてください
-- 日本語で summary を書いてください${memoryContext}`;
+function buildSystemPrompt(memories: Memory[], persona?: PersonaConfig): string {
+  return buildWorkerHeartbeatPrompt({
+    persona: persona ?? getDefaultPersonaConfig(),
+    memories,
+    currentDateTime: new Date().toLocaleString('ja-JP'),
+    isHeartbeat: true,
+  });
 }
 
 /** Worker 内で Heartbeat チェックを実行する（DOM/localStorage 非依存） */
@@ -120,8 +105,9 @@ export async function executeWorkerHeartbeatCheck(
   tasks: HeartbeatTask[],
   calendarEvents: CalendarEvent[],
   memories: Memory[],
+  persona?: PersonaConfig,
 ): Promise<HeartbeatResult[]> {
-  const systemPrompt = buildSystemPrompt(memories);
+  const systemPrompt = buildSystemPrompt(memories, persona);
   const taskDescriptions = tasks.map((t) =>
     `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
   ).join('\n');

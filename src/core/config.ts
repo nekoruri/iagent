@@ -1,4 +1,4 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, ProxyConfig } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig } from '../types';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -53,6 +53,15 @@ export function getDefaultOtelConfig(): OtelConfig {
   };
 }
 
+export function getDefaultPersonaConfig(): PersonaConfig {
+  return {
+    name: 'iAgent',
+    personality: '',
+    tone: '',
+    customInstructions: '',
+  };
+}
+
 export function getDefaultHeartbeatConfig(): HeartbeatConfig {
   return {
     enabled: false,
@@ -67,7 +76,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig() };
+    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig(), persona: getDefaultPersonaConfig() };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
   return {
@@ -85,6 +94,9 @@ export function getConfig(): AppConfig {
     otel: parsed.otel
       ? { ...getDefaultOtelConfig(), ...parsed.otel }
       : getDefaultOtelConfig(),
+    persona: parsed.persona
+      ? { ...getDefaultPersonaConfig(), ...parsed.persona }
+      : getDefaultPersonaConfig(),
   };
 }
 

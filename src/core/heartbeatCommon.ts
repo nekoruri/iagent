@@ -3,6 +3,7 @@ import { loadConfigFromIDB } from '../store/configStore';
 import { loadHeartbeatState, addHeartbeatResult, updateTaskLastRun, getTaskLastRun } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
+import { getDefaultPersonaConfig } from './config';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent, Memory } from '../types';
 
 /** IndexedDB から最新設定を読み込み、API キーと Heartbeat 設定を返す */
@@ -90,11 +91,15 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
   const memories: Memory[] = await db.getAll('memories');
 
+  // persona を取得（未設定時はデフォルト）
+  const persona = freshConfig?.persona ?? getDefaultPersonaConfig();
+
   const results = await executeWorkerHeartbeatCheck(
     resolvedApiKey,
     tasks,
     calendarEvents,
     memories.slice(0, 5),
+    persona,
   );
 
   const now = Date.now();

@@ -9,10 +9,28 @@ import {
   listMemories,
   deleteMemory,
   getRecentMemories,
+  getRelevantMemories,
+  normalizeMemory,
 } from './memoryStore';
 
 beforeEach(() => {
   __resetStores();
+});
+
+describe('normalizeMemory', () => {
+  it('importance/tags が未設定の場合にデフォルト値を付与する', () => {
+    const raw = { id: '1', content: 'test', category: 'fact', createdAt: 100, updatedAt: 100 };
+    const normalized = normalizeMemory(raw);
+    expect(normalized.importance).toBe(3);
+    expect(normalized.tags).toEqual([]);
+  });
+
+  it('importance/tags が設定済みの場合はそのまま返す', () => {
+    const raw = { id: '1', content: 'test', category: 'fact', importance: 5, tags: ['a'], createdAt: 100, updatedAt: 100 };
+    const normalized = normalizeMemory(raw);
+    expect(normalized.importance).toBe(5);
+    expect(normalized.tags).toEqual(['a']);
+  });
 });
 
 describe('saveMemory', () => {
@@ -21,8 +39,48 @@ describe('saveMemory', () => {
     expect(memory.id).toBeDefined();
     expect(memory.content).toBe('ユーザーは東京在住');
     expect(memory.category).toBe('fact');
+    expect(memory.importance).toBe(3);
+    expect(memory.tags).toEqual([]);
     expect(memory.createdAt).toBeGreaterThan(0);
     expect(memory.updatedAt).toBe(memory.createdAt);
+  });
+
+  it('importance を指定して保存できる', async () => {
+    const memory = await saveMemory('重要な事実', 'fact', { importance: 5 });
+    expect(memory.importance).toBe(5);
+  });
+
+  it('tags を指定して保存できる', async () => {
+    const memory = await saveMemory('タグ付きメモリ', 'preference', { tags: ['tokyo', 'weather'] });
+    expect(memory.tags).toEqual(['tokyo', 'weather']);
+  });
+
+  it('importance の範囲外はクランプされる', async () => {
+    const low = await saveMemory('低すぎ', 'other', { importance: 0 });
+    expect(low.importance).toBe(1);
+    const high = await saveMemory('高すぎ', 'other', { importance: 10 });
+    expect(high.importance).toBe(5);
+  });
+
+  it('importance 省略時にデフォルト 3', async () => {
+    const memory = await saveMemory('デフォルト', 'other');
+    expect(memory.importance).toBe(3);
+  });
+
+  it('tags 省略時に空配列', async () => {
+    const memory = await saveMemory('タグなし', 'other');
+    expect(memory.tags).toEqual([]);
+  });
+
+  it('新カテゴリ（routine, goal, personality）で保存できる', async () => {
+    const routine = await saveMemory('毎朝7時にニュース確認', 'routine');
+    expect(routine.category).toBe('routine');
+
+    const goal = await saveMemory('3月末までにレポート提出', 'goal');
+    expect(goal.category).toBe('goal');
+
+    const personality = await saveMemory('敬語で話して', 'personality');
+    expect(personality.category).toBe('personality');
   });
 
   it('MAX_MEMORIES を超えたとき最古が削除される', async () => {
@@ -68,6 +126,13 @@ describe('searchMemories', () => {
     const results = await searchMemories('react');
     expect(results).toHaveLength(1);
     expect(results[0].content).toBe('React is preferred');
+  });
+
+  it('検索結果に normalizeMemory が適用される', async () => {
+    await saveMemory('テスト', 'fact');
+    const results = await searchMemories('テスト');
+    expect(results[0].importance).toBe(3);
+    expect(results[0].tags).toEqual([]);
   });
 });
 
@@ -141,5 +206,68 @@ describe('getRecentMemories', () => {
 
     const recent = await getRecentMemories();
     expect(recent).toHaveLength(10);
+  });
+});
+
+describe('getRelevantMemories', () => {
+  it('personality と routine カテゴリを常に含む', async () => {
+    await saveMemory('通常のメモリ1', 'fact', { importance: 5 });
+    await saveMemory('通常のメモリ2', 'fact', { importance: 5 });
+    await saveMemory('通常のメモリ3', 'fact', { importance: 5 });
+    await saveMemory('敬語で話して', 'personality');
+    await saveMemory('毎朝7時にニュース確認', 'routine');
+
+    const results = await getRelevantMemories('', 5);
+    const categories = results.map((m) => m.category);
+    expect(categories).toContain('personality');
+    expect(categories).toContain('routine');
+  });
+
+  it('キーワード一致でスコアリングする', async () => {
+    await saveMemory('東京の天気は晴れ', 'fact');
+    await saveMemory('大阪のグルメ情報', 'fact');
+    await saveMemory('横浜のイベント', 'fact');
+
+    const results = await getRelevantMemories('東京', 2);
+    expect(results[0].content).toContain('東京');
+  });
+
+  it('importance の高いメモリを優先する', async () => {
+    await saveMemory('低重要度', 'fact', { importance: 1 });
+    await saveMemory('高重要度', 'fact', { importance: 5 });
+
+    const results = await getRelevantMemories('', 2);
+    expect(results[0].content).toBe('高重要度');
+  });
+
+  it('tags 一致でスコアが上がる', async () => {
+    await saveMemory('タグなし', 'fact', { importance: 3 });
+    await saveMemory('タグあり', 'fact', { importance: 3, tags: ['東京'] });
+
+    const results = await getRelevantMemories('東京', 2);
+    expect(results[0].content).toBe('タグあり');
+  });
+
+  it('limit を超えない', async () => {
+    for (let i = 0; i < 20; i++) {
+      await saveMemory(`メモリ ${i}`, 'fact');
+    }
+
+    const results = await getRelevantMemories('', 5);
+    expect(results).toHaveLength(5);
+  });
+
+  it('メモリ 0 件でもエラーにならない', async () => {
+    const results = await getRelevantMemories('テスト', 10);
+    expect(results).toEqual([]);
+  });
+
+  it('空クエリでもスコアリングが動作する', async () => {
+    await saveMemory('メモリA', 'preference', { importance: 5 });
+    await saveMemory('メモリB', 'fact', { importance: 1 });
+
+    const results = await getRelevantMemories('', 2);
+    // preference(+2) + importance(5) = 7 > fact(+1) + importance(1) = 2
+    expect(results[0].content).toBe('メモリA');
   });
 });
