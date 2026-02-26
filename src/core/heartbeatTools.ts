@@ -3,6 +3,7 @@ import type { CalendarEvent, Feed, FeedItem, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
+import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories } from '../store/memoryStore';
 
 /** OpenAI function calling 形式のツールスキーマ */
 export const WORKER_TOOLS = [
@@ -60,6 +61,44 @@ export const WORKER_TOOLS = [
     function: {
       name: 'checkMonitors',
       description: '監視中の全 Web ページの変更をチェックします。',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getRecentMemoriesForReflection',
+      description: '直近24時間の記憶と、よく参照される記憶を取得します。',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'saveReflection',
+      description: 'ふりかえりの結果を reflection カテゴリの長期記憶として保存します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          content: { type: 'string', description: 'ふりかえりの内容' },
+          tags: { type: 'string', description: 'タグ（カンマ区切り）' },
+          importance: { type: 'number', description: '重要度（1-5）' },
+        },
+        required: ['content'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'cleanupMemories',
+      description: '低スコアの記憶をアーカイブに移動します。',
       parameters: {
         type: 'object',
         properties: {},
@@ -237,6 +276,52 @@ export async function executeWorkerTool(
       }
 
       return JSON.stringify({ results, totalMonitors: monitors.length });
+    }
+    case 'getRecentMemoriesForReflection': {
+      const { recent, topAccessed } = await getRecentMemoriesForReflection();
+      return JSON.stringify({
+        recent: recent.map((m) => ({
+          id: m.id,
+          content: m.content,
+          category: m.category,
+          importance: m.importance,
+          tags: m.tags,
+          accessCount: m.accessCount,
+          updatedAt: m.updatedAt,
+        })),
+        topAccessed: topAccessed.map((m) => ({
+          id: m.id,
+          content: m.content,
+          category: m.category,
+          importance: m.importance,
+          tags: m.tags,
+          accessCount: m.accessCount,
+          updatedAt: m.updatedAt,
+        })),
+        recentCount: recent.length,
+        topAccessedCount: topAccessed.length,
+      });
+    }
+    case 'saveReflection': {
+      const content = args.content as string;
+      if (!content) {
+        return JSON.stringify({ error: 'content は必須です' });
+      }
+      const importance = typeof args.importance === 'number'
+        ? Math.max(1, Math.min(5, args.importance))
+        : 3;
+      const tags = typeof args.tags === 'string'
+        ? args.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+        : [];
+      const memory = await saveMemory(content, 'reflection', { importance, tags });
+      return JSON.stringify({ message: 'ふりかえりを保存しました', memory });
+    }
+    case 'cleanupMemories': {
+      const archivedCount = await cleanupLowScoredMemories(5);
+      return JSON.stringify({
+        message: `${archivedCount} 件の記憶をアーカイブしました`,
+        archivedCount,
+      });
     }
     default:
       return JSON.stringify({ error: `不明なツール: ${name}` });

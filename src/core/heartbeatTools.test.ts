@@ -5,6 +5,7 @@ vi.mock('../store/db');
 
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import { getDB } from '../store/db';
+import { saveMemory } from '../store/memoryStore';
 
 beforeEach(() => {
   __resetStores();
@@ -12,13 +13,16 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(5);
+    expect(WORKER_TOOLS).toHaveLength(8);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
     expect(names).toContain('fetchFeeds');
     expect(names).toContain('listFeeds');
     expect(names).toContain('checkMonitors');
+    expect(names).toContain('getRecentMemoriesForReflection');
+    expect(names).toContain('saveReflection');
+    expect(names).toContain('cleanupMemories');
   });
 
   it('全ツールが function タイプである', () => {
@@ -76,6 +80,75 @@ describe('executeWorkerTool', () => {
       const parsed = JSON.parse(result);
       expect(parsed.currentTime).toBeDefined();
       expect(typeof parsed.currentTime).toBe('string');
+    });
+  });
+
+  describe('getRecentMemoriesForReflection', () => {
+    it('直近の記憶とアクセス上位を返す', async () => {
+      await saveMemory('最近のメモリ', 'fact');
+      await saveMemory('もう一つの記憶', 'preference');
+
+      const result = await executeWorkerTool('getRecentMemoriesForReflection', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.recentCount).toBe(2);
+      expect(parsed.topAccessedCount).toBe(2);
+      expect(parsed.recent).toHaveLength(2);
+      expect(parsed.topAccessed).toHaveLength(2);
+    });
+
+    it('記憶なしでも正常に動作する', async () => {
+      const result = await executeWorkerTool('getRecentMemoriesForReflection', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.recentCount).toBe(0);
+      expect(parsed.topAccessedCount).toBe(0);
+    });
+  });
+
+  describe('saveReflection', () => {
+    it('ふりかえりを reflection カテゴリで保存する', async () => {
+      const result = await executeWorkerTool('saveReflection', {
+        content: 'ユーザーは朝型で、午前中の作業効率が高い',
+        importance: 4,
+        tags: '洞察,パターン',
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.message).toBe('ふりかえりを保存しました');
+      expect(parsed.memory.category).toBe('reflection');
+      expect(parsed.memory.importance).toBe(4);
+      expect(parsed.memory.tags).toEqual(['洞察', 'パターン']);
+    });
+
+    it('content なしでエラーを返す', async () => {
+      const result = await executeWorkerTool('saveReflection', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBe('content は必須です');
+    });
+
+    it('デフォルト importance は 3', async () => {
+      const result = await executeWorkerTool('saveReflection', {
+        content: 'シンプルな振り返り',
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.memory.importance).toBe(3);
+    });
+  });
+
+  describe('cleanupMemories', () => {
+    it('低スコア記憶をアーカイブする', async () => {
+      for (let i = 0; i < 10; i++) {
+        await saveMemory(`メモリ ${i}`, 'other');
+      }
+
+      const result = await executeWorkerTool('cleanupMemories', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.archivedCount).toBe(5);
+      expect(parsed.message).toContain('5 件');
+    });
+
+    it('記憶なしでもエラーにならない', async () => {
+      const result = await executeWorkerTool('cleanupMemories', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.archivedCount).toBe(0);
     });
   });
 

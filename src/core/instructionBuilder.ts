@@ -49,6 +49,7 @@ export function buildMainInstructions(ctx: InstructionContext): string {
 - routine: ユーザーの日課・習慣
 - goal: ユーザーの目標・締切
 - personality: エージェントの振る舞い指示
+- reflection: 振り返りで得た洞察やパターン
 
 **重要度（importance 1-5）**:
 - 5: 絶対に忘れてはいけない情報（名前、重要な締切等）
@@ -69,8 +70,13 @@ export function buildMainInstructions(ctx: InstructionContext): string {
 
   // 6. コンテキスト
   const contextParts: string[] = [`## コンテキスト\n現在の日時: ${ctx.currentDateTime}`];
-  if (ctx.memories.length > 0) {
-    contextParts.push(`\n### あなたの記憶\n以下はこれまでに保存した重要な情報です:\n${formatMemories(ctx.memories)}`);
+  const regularMemories = ctx.memories.filter((m) => m.category !== 'reflection');
+  const reflections = ctx.memories.filter((m) => m.category === 'reflection');
+  if (regularMemories.length > 0) {
+    contextParts.push(`\n### あなたの記憶\n以下はこれまでに保存した重要な情報です:\n${formatMemories(regularMemories)}`);
+  }
+  if (reflections.length > 0) {
+    contextParts.push(`\n### 振り返りからの洞察\n${formatMemories(reflections)}`);
   }
   sections.push(contextParts.join(''));
 
@@ -109,8 +115,13 @@ export function buildHeartbeatInstructions(ctx: InstructionContext): string {
 - 日本語で summary を書いてください`);
 
   // メモリ
-  if (ctx.memories.length > 0) {
-    sections.push(`ユーザーについての記憶:\n${formatMemories(ctx.memories)}`);
+  const hbRegularMemories = ctx.memories.filter((m) => m.category !== 'reflection');
+  const hbReflections = ctx.memories.filter((m) => m.category === 'reflection');
+  if (hbRegularMemories.length > 0) {
+    sections.push(`ユーザーについての記憶:\n${formatMemories(hbRegularMemories)}`);
+  }
+  if (hbReflections.length > 0) {
+    sections.push(`振り返りからの洞察:\n${formatMemories(hbReflections)}`);
   }
 
   return sections.join('\n\n');

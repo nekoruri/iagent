@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'iagent-db';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -63,6 +63,22 @@ export function getDB(): Promise<IDBPDatabase> {
           if (!memStore.indexNames.contains('tags')) {
             memStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
           }
+        }
+        // Phase E: memories ストアに contentHash/lastAccessedAt インデックス追加
+        if (db.objectStoreNames.contains('memories')) {
+          const memStoreE = transaction.objectStore('memories');
+          if (!memStoreE.indexNames.contains('contentHash')) {
+            memStoreE.createIndex('contentHash', 'contentHash', { unique: false });
+          }
+          if (!memStoreE.indexNames.contains('lastAccessedAt')) {
+            memStoreE.createIndex('lastAccessedAt', 'lastAccessedAt', { unique: false });
+          }
+        }
+        // Phase E: memories_archive ストア新規作成
+        if (!db.objectStoreNames.contains('memories_archive')) {
+          const archiveStore = db.createObjectStore('memories_archive', { keyPath: 'id' });
+          archiveStore.createIndex('archivedAt', 'archivedAt', { unique: false });
+          archiveStore.createIndex('category', 'category', { unique: false });
         }
         // conversations ストアに conversationId インデックス追加
         if (db.objectStoreNames.contains('conversations')) {

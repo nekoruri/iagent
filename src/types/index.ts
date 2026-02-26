@@ -116,7 +116,7 @@ export interface AppConfig {
   persona?: PersonaConfig;
 }
 
-export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'other';
+export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'reflection' | 'other';
 
 export interface Memory {
   id: string;
@@ -126,6 +126,14 @@ export interface Memory {
   tags: string[];       // 自由形式タグ
   createdAt: number;
   updatedAt: number;
+  accessCount: number;      // 参照回数（初期値 0）
+  lastAccessedAt: number;   // 最終アクセス日時（初期値 = createdAt）
+  contentHash: string;       // SHA-256 ハッシュ（重複検出用）
+}
+
+export interface ArchivedMemory extends Memory {
+  archivedAt: number;
+  archiveReason: 'low-score' | 'manual' | 'consolidation';
 }
 
 export interface PersonaConfig {

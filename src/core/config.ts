@@ -32,6 +32,14 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     enabled: false,
     type: 'builtin',
   },
+  {
+    id: 'reflection',
+    name: 'ふりかえり',
+    description: '1日の記憶を振り返り、パターンや洞察を抽出して長期記憶に保存します。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 23, minute: 0 },
+  },
 ];
 
 export function getDefaultProxyConfig(): ProxyConfig {
@@ -73,20 +81,32 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
   };
 }
 
+/** 保存済み tasks に不足しているビルトインタスクを追加する */
+function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
+  const existingIds = new Set(savedTasks.map((t) => t.id));
+  const missing = BUILTIN_HEARTBEAT_TASKS
+    .filter((b) => !existingIds.has(b.id))
+    .map((t) => ({ ...t }));
+  return [...savedTasks, ...missing];
+}
+
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
     return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig(), persona: getDefaultPersonaConfig() };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
+  const heartbeat = parsed.heartbeat
+    ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
+    : getDefaultHeartbeatConfig();
+  // 不足しているビルトインタスクを補完
+  heartbeat.tasks = mergeBuiltinTasks(heartbeat.tasks);
   return {
     openaiApiKey: parsed.openaiApiKey ?? '',
     braveApiKey: parsed.braveApiKey ?? '',
     openWeatherMapApiKey: parsed.openWeatherMapApiKey ?? '',
     mcpServers: parsed.mcpServers ?? [],
-    heartbeat: parsed.heartbeat
-      ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
-      : getDefaultHeartbeatConfig(),
+    heartbeat,
     push: parsed.push ?? { enabled: false, serverUrl: '' },
     proxy: parsed.proxy
       ? { ...getDefaultProxyConfig(), ...parsed.proxy }
