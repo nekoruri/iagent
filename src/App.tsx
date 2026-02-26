@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
-import { SettingsModal } from './components/SettingsModal';
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
 import { useAgentChat } from './hooks/useAgentChat';
 import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
@@ -194,7 +196,9 @@ export default function App() {
             onStop={stopStreaming}
           />
         </main>
-        <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />
+        <Suspense fallback={null}>
+          <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />
+        </Suspense>
       </div>
     </div>
   );

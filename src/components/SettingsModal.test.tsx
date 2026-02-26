@@ -62,8 +62,8 @@ vi.mock('../core/corsProxy', () => ({
   registerProxyToken: vi.fn(async () => 'mock-token'),
 }));
 
-// agent モック（isReadOnlyTool）
-vi.mock('../core/agent', () => ({
+// toolUtils モック（isReadOnlyTool）
+vi.mock('../core/toolUtils', () => ({
   isReadOnlyTool: vi.fn((name: string) => {
     const prefixes = ['list_', 'get_', 'search_', 'read_'];
     return prefixes.some((p) => name.startsWith(p));

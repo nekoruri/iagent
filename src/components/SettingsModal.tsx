@@ -5,7 +5,7 @@ import { getNotificationPermission, requestNotificationPermission } from '../cor
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
-import { isReadOnlyTool } from '../core/agent';
+import { isReadOnlyTool } from '../core/toolUtils';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig } from '../types';
 
 interface Props {

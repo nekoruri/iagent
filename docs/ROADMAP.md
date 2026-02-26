@@ -134,7 +134,7 @@
 - [ ] レスポンシブ改善（モバイル最適化）
 
 ### ビルド最適化
-- [ ] バンドルサイズ削減 — `dynamic import()` によるコード分割、`manualChunks` でベンダーチャンク分離（現在 index.js が 920KB 超で 500KB 警告）
+- [x] バンドルサイズ削減 — `manualChunks` でベンダーチャンク分離 + `isReadOnlyTool` 依存切断 + `React.lazy()` で SettingsModal 遅延ロード（950KB → 全チャンク 500KB 未満）
 
 ### オフライン対応
 - [ ] Service Worker キャッシュ戦略の改善
