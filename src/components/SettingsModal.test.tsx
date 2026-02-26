@@ -48,6 +48,12 @@ vi.mock('../core/config', () => ({
     authToken: '',
     allowedDomains: [],
   })),
+  getDefaultPersonaConfig: vi.fn(() => ({
+    name: 'iAgent',
+    personality: '',
+    tone: '',
+    customInstructions: '',
+  })),
   BUILTIN_HEARTBEAT_TASKS: [],
 }));
 
@@ -131,8 +137,10 @@ describe('SettingsModal', () => {
 
     expect(screen.getByText('MCPサーバーが未登録です')).toBeInTheDocument();
 
-    // MCP Servers セクション内の「+ 追加」ボタンをクリック
-    const mcpSection = container.querySelector('.mcp-section')!;
+    // MCP Servers セクション内の「+ 追加」ボタンをクリック（エージェント設定の次のセクション）
+    const mcpSections = container.querySelectorAll('.mcp-section');
+    // MCP Servers はエージェント設定の次のセクション
+    const mcpSection = Array.from(mcpSections).find((s) => s.textContent?.includes('MCP Servers'))!;
     const addButton = mcpSection.querySelector('.btn-secondary')!;
     await userEvent.click(addButton);
 
@@ -145,7 +153,8 @@ describe('SettingsModal', () => {
     const { container } = render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     // MCP Servers セクション内の「+ 追加」ボタンをクリック
-    const mcpSection = container.querySelector('.mcp-section')!;
+    const mcpSections = container.querySelectorAll('.mcp-section');
+    const mcpSection = Array.from(mcpSections).find((s) => s.textContent?.includes('MCP Servers'))!;
     const addButton = mcpSection.querySelector('.btn-secondary')!;
     await userEvent.click(addButton);
     expect(screen.getByPlaceholderText('サーバー名')).toBeInTheDocument();

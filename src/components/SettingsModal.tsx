@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, getDefaultPersonaConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/agent';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig } from '../types';
 
 interface Props {
   open: boolean;
@@ -41,6 +41,7 @@ export function SettingsModal({ open, onClose }: Props) {
     if (open) setConfig(getConfig());
   }, [open]);
 
+  const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
   const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
   const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
@@ -82,6 +83,13 @@ export function SettingsModal({ open, onClose }: Props) {
     if (!open) return;
     mcpManager.getAvailableTools().then(setMcpToolsList).catch(() => setMcpToolsList([]));
   }, [open]);
+
+  const updatePersona = (patch: Partial<PersonaConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      persona: { ...persona, ...patch },
+    }));
+  };
 
   const updateProxy = (patch: Partial<ProxyConfig>) => {
     setConfig((prev) => ({
@@ -272,6 +280,52 @@ export function SettingsModal({ open, onClose }: Props) {
             placeholder="..."
           />
         </label>
+
+        {/* エージェント設定 */}
+        <div className="mcp-section">
+          <h3>エージェント設定</h3>
+          <p className="mcp-hint">エージェントの名前や性格をカスタマイズできます。</p>
+
+          <label>
+            エージェント名
+            <input
+              type="text"
+              value={persona.name}
+              onChange={(e) => updatePersona({ name: e.target.value })}
+              placeholder="iAgent"
+            />
+          </label>
+
+          <label>
+            性格・特徴
+            <input
+              type="text"
+              value={persona.personality}
+              onChange={(e) => updatePersona({ personality: e.target.value })}
+              placeholder="例: 丁寧で親しみやすい"
+            />
+          </label>
+
+          <label>
+            話し方
+            <input
+              type="text"
+              value={persona.tone}
+              onChange={(e) => updatePersona({ tone: e.target.value })}
+              placeholder="例: カジュアル"
+            />
+          </label>
+
+          <label>
+            追加指示
+            <textarea
+              value={persona.customInstructions}
+              onChange={(e) => updatePersona({ customInstructions: e.target.value })}
+              placeholder="エージェントへの追加指示を自由に記述"
+              rows={3}
+            />
+          </label>
+        </div>
 
         <div className="mcp-section">
           <div className="mcp-header">

@@ -113,14 +113,26 @@ export interface AppConfig {
   push?: PushConfig;
   proxy?: ProxyConfig;
   otel?: OtelConfig;
+  persona?: PersonaConfig;
 }
+
+export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'other';
 
 export interface Memory {
   id: string;
   content: string;
-  category: 'preference' | 'fact' | 'context' | 'other';
+  category: MemoryCategory;
+  importance: number;   // 1-5, デフォルト 3
+  tags: string[];       // 自由形式タグ
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PersonaConfig {
+  name: string;              // エージェント名 (デフォルト: 'iAgent')
+  personality: string;       // 性格・特徴の自由記述
+  tone: string;              // 話し方
+  customInstructions: string; // ユーザー独自の追加指示
 }
 
 /** getConfigValue() で文字列として取得可能なキー */

@@ -8,6 +8,7 @@ vi.mock('../store/configStore', () => ({
 import {
   BUILTIN_HEARTBEAT_TASKS,
   getDefaultHeartbeatConfig,
+  getDefaultPersonaConfig,
   getConfig,
   saveConfig,
   getConfigValue,
@@ -123,6 +124,60 @@ describe('getConfigValue', () => {
     saveConfig(saved);
     expect(getConfigValue('openaiApiKey')).toBe('sk-value');
     expect(getConfigValue('braveApiKey')).toBe('brave-value');
+  });
+});
+
+describe('getDefaultPersonaConfig', () => {
+  it('デフォルト値を返す', () => {
+    const persona = getDefaultPersonaConfig();
+    expect(persona.name).toBe('iAgent');
+    expect(persona.personality).toBe('');
+    expect(persona.tone).toBe('');
+    expect(persona.customInstructions).toBe('');
+  });
+
+  it('呼び出しごとに新しいオブジェクトを返す', () => {
+    const a = getDefaultPersonaConfig();
+    const b = getDefaultPersonaConfig();
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('persona in getConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('persona 未設定時にデフォルトが返る', () => {
+    const config = getConfig();
+    expect(config.persona).toEqual(getDefaultPersonaConfig());
+  });
+
+  it('部分的な persona がマージされる', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      persona: { name: 'MyBot', personality: '元気' },
+    }));
+    const config = getConfig();
+    expect(config.persona!.name).toBe('MyBot');
+    expect(config.persona!.personality).toBe('元気');
+    expect(config.persona!.tone).toBe('');
+    expect(config.persona!.customInstructions).toBe('');
+  });
+
+  it('完全な persona がそのまま返る', () => {
+    const fullPersona = {
+      name: 'テストボット',
+      personality: '丁寧で親しみやすい',
+      tone: 'カジュアル',
+      customInstructions: '常に日本語で回答',
+    };
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      persona: fullPersona,
+    }));
+    const config = getConfig();
+    expect(config.persona).toEqual(fullPersona);
   });
 });
 

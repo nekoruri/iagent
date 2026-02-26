@@ -14,7 +14,8 @@
 - Heartbeat バックグラウンドチェック（4 ビルトインタスク: カレンダー、天気、フィード、Web 監視）
 - デスクトップ通知（Notification API）
 - PWA（カスタム Service Worker + injectManifest、インストール可能）
-- エージェント長期メモリ（memoryTool + 自動コンテキスト注入）
+- エージェント長期メモリ（構造化記憶 — importance/tags/カテゴリ拡張 + 関連性ベース取得）
+- エージェントペルソナ設定（名前・性格・口調・追加指示のカスタマイズ + 動的 instruction 構築）
 - マルチステップタスク実行 + TaskProgress 進捗UI
 - カスタムワークフロー（タスクごとの個別スケジュール設定）
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
@@ -22,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
-- テスト 369 件
+- テスト 422 件
 
 ---
 
@@ -101,6 +102,9 @@
 - [x] `memoryTool.ts`（save / search / list / delete）
 - [x] ユーザーの好みや過去のやり取りを蓄積
 - [x] Heartbeat タスクのパーソナライズに活用
+- [x] 構造化記憶 — importance(1-5)/tags/カテゴリ拡張（routine, goal, personality 追加）
+- [x] 関連性ベースの記憶取得（スコアリング: キーワード一致 + importance + カテゴリボーナス + 時間近接性）
+- [x] 後方互換 normalizeMemory（既存データのフォールバック）
 
 ### マルチステップタスク実行
 - [x] エージェント instructions にタスク分解戦略を追加
@@ -151,6 +155,14 @@
 - [x] MCP ツールの Heartbeat 対応（read-only ツール許可リスト + 設定 UI）
 - [ ] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
 
+### エージェントアイデンティティ + 記憶フレームワーク（Phase D）
+- [x] Memory Enhancement — 構造化記憶（importance/tags/新カテゴリ）+ 関連性ベース取得 + 後方互換
+- [x] Agent Persona — PersonaConfig 型 + getDefaultPersonaConfig + 設定 UI（名前・性格・口調・追加指示）
+- [x] Instruction Builder — buildMainInstructions/buildHeartbeatInstructions/buildWorkerHeartbeatPrompt（全 7 ツールガイド + メモリ管理ガイドライン + プロアクティブ行動）
+- [x] Integration — agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts に persona + instructionBuilder 統合
+- [x] DB_VERSION 8→9（memories ストアに importance/tags インデックス追加）
+- [ ] ペルソナプリセット配布 + インポート機能
+
 ### エージェント自律性強化
 - [ ] 情報収集ワークフロー（RSS ダイジェスト、ニュースブリーフィング等の Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（日次ブリーフィング、関連情報サジェスト）
@@ -191,3 +203,4 @@
 - [x] セキュリティ基盤整備 — MCP URL HTTPS 強制バリデーション + CSP meta タグ（本番ビルド）（2026-02-26）
 - [x] CORS プロキシ — Cloudflare Workers 拡張（トークン認証 + SSRF 防止 + レート制限 + クライアント設定 UI）（2026-02-26）
 - [x] 外部情報収集ツール Phase C — クリッピング（clipTool + clipStore）、RSS フィード（feedTool + feedParser + feedStore + Heartbeat 連携）、Web ページ監視（webMonitorTool + monitorStore + Heartbeat 連携）、MCP Heartbeat 対応（read-only ツール許可 + 設定 UI）。DB_VERSION 7→8、4 新ストア追加。テスト 263→369 件。（2026-02-26）
+- [x] アイデンティティ + 記憶フレームワーク Phase D — 構造化記憶（importance/tags/新カテゴリ + 関連性ベース取得 + normalizeMemory 後方互換）、Agent Persona（PersonaConfig + 設定 UI + 動的 instructionBuilder）、全コンポーネント統合（agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts）。DB_VERSION 8→9。テスト 369→422 件。（2026-02-26）

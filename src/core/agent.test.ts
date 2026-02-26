@@ -3,8 +3,15 @@ import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
 
+// configStore モック
+vi.mock('../store/configStore', () => ({
+  saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { createAgent, createHeartbeatAgent } from './agent';
 import { saveMemory } from '../store/memoryStore';
+import { saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConfig } from './config';
+import type { AppConfig } from '../types';
 
 // Agent クラスをモックして instructions とツールを検証可能にする
 vi.mock('@openai/agents', () => {
@@ -41,6 +48,7 @@ vi.mock('../tools/memoryTool', () => ({
 
 beforeEach(() => {
   __resetStores();
+  localStorage.clear();
 });
 
 describe('createAgent', () => {
@@ -59,7 +67,7 @@ describe('createAgent', () => {
     expect(agent.instructions).toContain('[preference] 朝にニュースを確認したい');
   });
 
-  it('instructions にタスク分解方針が含まれる', async () => {
+  it('instructions にタスク実行方針が含まれる', async () => {
     const agent = await createAgent() as unknown as { instructions: string };
     expect(agent.instructions).toContain('タスク実行方針');
     expect(agent.instructions).toContain('必要なステップを特定する');
@@ -71,10 +79,56 @@ describe('createAgent', () => {
     expect(toolNames).toContain('memory');
   });
 
-  it('メモリについての指示が instructions に含まれる', async () => {
+  it('メモリ管理ガイドラインが instructions に含まれる', async () => {
     const agent = await createAgent() as unknown as { instructions: string };
-    expect(agent.instructions).toContain('メモリについて');
-    expect(agent.instructions).toContain('memory ツールの save アクション');
+    expect(agent.instructions).toContain('メモリ管理ガイドライン');
+  });
+
+  it('instructions に全ツール名が含まれる', async () => {
+    const agent = await createAgent() as unknown as { instructions: string };
+    expect(agent.instructions).toContain('calendar');
+    expect(agent.instructions).toContain('web_search');
+    expect(agent.instructions).toContain('device_info');
+    expect(agent.instructions).toContain('memory');
+    expect(agent.instructions).toContain('clip');
+    expect(agent.instructions).toContain('feed');
+    expect(agent.instructions).toContain('web_monitor');
+  });
+
+  it('persona.name が Agent の name に反映される', async () => {
+    const config: AppConfig = {
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: getDefaultHeartbeatConfig(),
+      persona: { ...getDefaultPersonaConfig(), name: 'MyBot' },
+    };
+    saveConfig(config);
+
+    const agent = await createAgent() as unknown as { name: string; instructions: string };
+    expect(agent.name).toBe('MyBot');
+    expect(agent.instructions).toContain('MyBot');
+  });
+
+  it('persona の personality が instructions に反映される', async () => {
+    const config: AppConfig = {
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: getDefaultHeartbeatConfig(),
+      persona: { ...getDefaultPersonaConfig(), personality: '丁寧で親しみやすい' },
+    };
+    saveConfig(config);
+
+    const agent = await createAgent() as unknown as { instructions: string };
+    expect(agent.instructions).toContain('丁寧で親しみやすい');
+  });
+
+  it('デフォルトペルソナで name が iAgent になる', async () => {
+    const agent = await createAgent() as unknown as { name: string };
+    expect(agent.name).toBe('iAgent');
   });
 });
 
@@ -90,5 +144,27 @@ describe('createHeartbeatAgent', () => {
     const agent = await createHeartbeatAgent() as unknown as { instructions: string };
     expect(agent.instructions).toContain('ユーザーについての記憶');
     expect(agent.instructions).toContain('[fact] ユーザーは東京在住');
+  });
+
+  it('persona.name が Heartbeat Agent の name に反映される', async () => {
+    const config: AppConfig = {
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: getDefaultHeartbeatConfig(),
+      persona: { ...getDefaultPersonaConfig(), name: 'MyBot' },
+    };
+    saveConfig(config);
+
+    const agent = await createHeartbeatAgent() as unknown as { name: string };
+    expect(agent.name).toBe('MyBot-Heartbeat');
+  });
+
+  it('JSON 出力形式が instructions に含まれる', async () => {
+    const agent = await createHeartbeatAgent() as unknown as { instructions: string };
+    expect(agent.instructions).toContain('"taskId"');
+    expect(agent.instructions).toContain('"hasChanges"');
+    expect(agent.instructions).toContain('JSON形式');
   });
 });

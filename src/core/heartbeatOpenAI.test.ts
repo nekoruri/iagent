@@ -3,8 +3,13 @@ import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
 
+// configStore モック
+vi.mock('../store/configStore', () => ({
+  saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { callChatCompletions, executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
-import type { HeartbeatTask, Memory } from '../types';
+import type { HeartbeatTask, Memory, PersonaConfig } from '../types';
 
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
@@ -151,7 +156,7 @@ describe('executeWorkerHeartbeatCheck', () => {
 
   it('メモリが含まれるとシステムプロンプトに注入される', async () => {
     const memoryList: Memory[] = [
-      { id: '1', content: 'ユーザーは朝が苦手', category: 'preference', createdAt: 0, updatedAt: 0 },
+      { id: '1', content: 'ユーザーは朝が苦手', category: 'preference', importance: 3, tags: [], createdAt: 0, updatedAt: 0 },
     ];
     const apiResponse = {
       choices: [{
@@ -169,6 +174,51 @@ describe('executeWorkerHeartbeatCheck', () => {
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     const systemMsg = body.messages.find((m: { role: string }) => m.role === 'system');
     expect(systemMsg.content).toContain('ユーザーは朝が苦手');
+  });
+
+  it('persona が反映される', async () => {
+    const persona: PersonaConfig = {
+      name: 'TestBot',
+      personality: '冷静沈着',
+      tone: '',
+      customInstructions: '',
+    };
+    const apiResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({ results: [] }),
+        },
+        finish_reason: 'stop',
+      }],
+    };
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(apiResponse) });
+
+    await executeWorkerHeartbeatCheck('sk-test', tasks, [], [], persona);
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const systemMsg = body.messages.find((m: { role: string }) => m.role === 'system');
+    expect(systemMsg.content).toContain('TestBot');
+    expect(systemMsg.content).toContain('冷静沈着');
+  });
+
+  it('persona 未指定時はデフォルトの iAgent が使われる', async () => {
+    const apiResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({ results: [] }),
+        },
+        finish_reason: 'stop',
+      }],
+    };
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(apiResponse) });
+
+    await executeWorkerHeartbeatCheck('sk-test', tasks, [], []);
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const systemMsg = body.messages.find((m: { role: string }) => m.role === 'system');
+    expect(systemMsg.content).toContain('iAgent');
   });
 
   it('content が空の場合は空配列を返す', async () => {
