@@ -106,6 +106,41 @@ describe('getConfig / saveConfig', () => {
     expect(config.heartbeat!.intervalMinutes).toBe(15);
     expect(config.heartbeat!.desktopNotification).toBe(false);
   });
+
+  it('保存済み tasks に不足しているビルトインタスクが自動追加される', () => {
+    const oldTasks = [
+      { id: 'calendar-check', name: 'カレンダーチェック', description: '', enabled: true, type: 'builtin' as const },
+    ];
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: { enabled: true, tasks: oldTasks },
+    }));
+    const config = getConfig();
+    const taskIds = config.heartbeat!.tasks.map((t) => t.id);
+    // 既存タスクは維持
+    expect(taskIds).toContain('calendar-check');
+    // 不足しているビルトインタスクが追加
+    for (const builtin of BUILTIN_HEARTBEAT_TASKS) {
+      expect(taskIds).toContain(builtin.id);
+    }
+    // 既存タスクの設定は上書きされない
+    const cal = config.heartbeat!.tasks.find((t) => t.id === 'calendar-check');
+    expect(cal!.enabled).toBe(true);
+  });
+
+  it('全ビルトインタスクが揃っている場合は重複追加されない', () => {
+    const config1: AppConfig = {
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: getDefaultHeartbeatConfig(),
+    };
+    saveConfig(config1);
+    const loaded = getConfig();
+    const builtinCount = loaded.heartbeat!.tasks.filter((t) => t.type === 'builtin').length;
+    expect(builtinCount).toBe(BUILTIN_HEARTBEAT_TASKS.length);
+  });
 });
 
 describe('getConfigValue', () => {

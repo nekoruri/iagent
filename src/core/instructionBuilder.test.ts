@@ -22,6 +22,9 @@ function makeMemory(overrides?: Partial<Memory>): Memory {
     tags: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    accessCount: 0,
+    lastAccessedAt: Date.now(),
+    contentHash: '',
     ...overrides,
   };
 }
@@ -90,6 +93,7 @@ describe('buildMainInstructions', () => {
     expect(result).toContain('routine');
     expect(result).toContain('goal');
     expect(result).toContain('personality');
+    expect(result).toContain('reflection');
   });
 
   it('プロアクティブ行動を含む', () => {
@@ -97,7 +101,7 @@ describe('buildMainInstructions', () => {
     expect(result).toContain('プロアクティブ行動');
   });
 
-  it('メモリコンテキストを含む', () => {
+  it('通常メモリコンテキストを含む', () => {
     const memories = [
       makeMemory({ content: 'ユーザーは東京在住', category: 'fact' }),
       makeMemory({ id: 'mem-2', content: '朝7時に起床', category: 'routine' }),
@@ -108,9 +112,31 @@ describe('buildMainInstructions', () => {
     expect(result).toContain('[routine] 朝7時に起床');
   });
 
+  it('reflection メモリは「振り返りからの洞察」セクションに分離表示される', () => {
+    const memories = [
+      makeMemory({ content: '通常のメモリ', category: 'fact' }),
+      makeMemory({ id: 'mem-2', content: 'ユーザーは朝型', category: 'reflection' }),
+    ];
+    const result = buildMainInstructions(makeContext({ memories }));
+    expect(result).toContain('あなたの記憶');
+    expect(result).toContain('[fact] 通常のメモリ');
+    expect(result).toContain('振り返りからの洞察');
+    expect(result).toContain('[reflection] ユーザーは朝型');
+  });
+
+  it('reflection のみの場合は「あなたの記憶」セクションが含まれない', () => {
+    const memories = [
+      makeMemory({ content: '洞察のみ', category: 'reflection' }),
+    ];
+    const result = buildMainInstructions(makeContext({ memories }));
+    expect(result).not.toContain('あなたの記憶');
+    expect(result).toContain('振り返りからの洞察');
+  });
+
   it('メモリ 0 件でもエラーにならない', () => {
     const result = buildMainInstructions(makeContext({ memories: [] }));
     expect(result).not.toContain('あなたの記憶');
+    expect(result).not.toContain('振り返りからの洞察');
   });
 
   it('importance が 3 以外の場合に表示される', () => {
@@ -166,16 +192,29 @@ describe('buildHeartbeatInstructions', () => {
     expect(result).toContain('冷静沈着');
   });
 
-  it('メモリコンテキストを含む', () => {
+  it('通常メモリコンテキストを含む', () => {
     const memories = [makeMemory({ content: 'テストメモリ', category: 'preference' })];
     const result = buildHeartbeatInstructions(makeContext({ memories }));
     expect(result).toContain('ユーザーについての記憶');
     expect(result).toContain('[preference] テストメモリ');
   });
 
+  it('reflection メモリは「振り返りからの洞察」に分離表示される', () => {
+    const memories = [
+      makeMemory({ content: '通常メモリ', category: 'fact' }),
+      makeMemory({ id: 'mem-2', content: 'パターン発見', category: 'reflection' }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({ memories }));
+    expect(result).toContain('ユーザーについての記憶');
+    expect(result).toContain('[fact] 通常メモリ');
+    expect(result).toContain('振り返りからの洞察');
+    expect(result).toContain('[reflection] パターン発見');
+  });
+
   it('メモリ 0 件でも正常', () => {
     const result = buildHeartbeatInstructions(makeContext({ memories: [] }));
     expect(result).not.toContain('ユーザーについての記憶');
+    expect(result).not.toContain('振り返りからの洞察');
   });
 });
 

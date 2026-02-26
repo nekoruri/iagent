@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
-- テスト 422 件
+- テスト 448 件
 
 ---
 
@@ -162,6 +162,17 @@
 - [x] Integration — agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts に persona + instructionBuilder 統合
 - [x] DB_VERSION 8→9（memories ストアに importance/tags インデックス追加）
 - [ ] ペルソナプリセット配布 + インポート機能
+
+### 認知的記憶アーキテクチャ（Phase E）
+- [x] 指数減衰スコアリング — カテゴリ別半減期（personality:1年 〜 other:2週間）+ アクセス頻度ブースト
+- [x] コンテンツハッシュ重複排除 — SHA-256 ハッシュで同一内容の記憶を統合（importance 最大値採用 + tags マージ）
+- [x] 品質ベースアーカイブ — FIFO 削除を廃止、最低スコア記憶を memories_archive に移動（personality/routine は保護）
+- [x] Memory モデル拡張 — accessCount/lastAccessedAt/contentHash フィールド追加 + ArchivedMemory 型
+- [x] DB_VERSION 9→10（contentHash/lastAccessedAt インデックス + memories_archive ストア）
+- [x] ふりかえりタスク — reflection ビルトインタスク（23:00 固定スケジュール）+ Worker ツール 3 種（getRecentMemoriesForReflection/saveReflection/cleanupMemories）
+- [x] reflection カテゴリ — MemoryCategory に追加 + instructionBuilder で「振り返りからの洞察」分離表示
+- [ ] ふりかえり UI — reflection 記憶の閲覧・管理画面
+- [ ] アーカイブ閲覧 UI — memories_archive の参照・復元機能
 
 ### エージェント自律性強化
 - [ ] 情報収集ワークフロー（RSS ダイジェスト、ニュースブリーフィング等の Heartbeat タスク）

@@ -11,7 +11,13 @@ import {
   getRecentMemories,
   getRelevantMemories,
   normalizeMemory,
+  scoreMemory,
+  computeContentHash,
+  getRecentMemoriesForReflection,
+  cleanupLowScoredMemories,
+  HALF_LIFE_MS,
 } from './memoryStore';
+import type { Memory } from '../types';
 
 beforeEach(() => {
   __resetStores();
@@ -31,6 +37,99 @@ describe('normalizeMemory', () => {
     expect(normalized.importance).toBe(5);
     expect(normalized.tags).toEqual(['a']);
   });
+
+  it('新フィールド（accessCount, lastAccessedAt, contentHash）のデフォルト値', () => {
+    const raw = { id: '1', content: 'test', category: 'fact', createdAt: 100, updatedAt: 200 };
+    const normalized = normalizeMemory(raw);
+    expect(normalized.accessCount).toBe(0);
+    expect(normalized.lastAccessedAt).toBe(200); // updatedAt にフォールバック
+    expect(normalized.contentHash).toBe('');
+  });
+
+  it('新フィールドが設定済みの場合はそのまま返す', () => {
+    const raw = {
+      id: '1', content: 'test', category: 'fact',
+      createdAt: 100, updatedAt: 200,
+      accessCount: 5, lastAccessedAt: 300, contentHash: 'abc123',
+    };
+    const normalized = normalizeMemory(raw);
+    expect(normalized.accessCount).toBe(5);
+    expect(normalized.lastAccessedAt).toBe(300);
+    expect(normalized.contentHash).toBe('abc123');
+  });
+});
+
+describe('computeContentHash', () => {
+  it('同じ内容に対して同じハッシュを返す', async () => {
+    const hash1 = await computeContentHash('テストコンテンツ');
+    const hash2 = await computeContentHash('テストコンテンツ');
+    expect(hash1).toBe(hash2);
+    expect(hash1).toHaveLength(64); // SHA-256 hex = 64 chars
+  });
+
+  it('異なる内容に対して異なるハッシュを返す', async () => {
+    const hash1 = await computeContentHash('コンテンツA');
+    const hash2 = await computeContentHash('コンテンツB');
+    expect(hash1).not.toBe(hash2);
+  });
+});
+
+describe('scoreMemory', () => {
+  const now = Date.now();
+
+  function makeMemory(overrides?: Partial<Memory>): Memory {
+    return {
+      id: '1',
+      content: 'テスト',
+      category: 'fact',
+      importance: 3,
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
+      accessCount: 0,
+      lastAccessedAt: now,
+      contentHash: '',
+      ...overrides,
+    };
+  }
+
+  it('最新の記憶は最大減衰スコア（+3）を得る', () => {
+    const m = makeMemory({ updatedAt: now });
+    const score = scoreMemory(m, now);
+    // importance(3) + categoryBonus(fact=1) + decay(3) + accessBoost(×1)
+    expect(score).toBeCloseTo(7, 0);
+  });
+
+  it('半減期経過時にスコアが半減する', () => {
+    const halfLife = HALF_LIFE_MS.fact; // 60日
+    const fresh = makeMemory({ updatedAt: now });
+    const aged = makeMemory({ updatedAt: now - halfLife });
+
+    const freshScore = scoreMemory(fresh, now);
+    const agedScore = scoreMemory(aged, now);
+
+    // 減衰部分が半分になる → fresh は +3、aged は +1.5
+    const decayDiff = freshScore - agedScore;
+    expect(decayDiff).toBeCloseTo(1.5, 1);
+  });
+
+  it('personality カテゴリは最大カテゴリボーナスを得る', () => {
+    const personality = makeMemory({ category: 'personality' });
+    const other = makeMemory({ category: 'other' });
+    expect(scoreMemory(personality, now)).toBeGreaterThan(scoreMemory(other, now));
+  });
+
+  it('accessCount が高いとスコアがブーストされる', () => {
+    const low = makeMemory({ accessCount: 0 });
+    const high = makeMemory({ accessCount: 10 });
+    expect(scoreMemory(high, now)).toBeGreaterThan(scoreMemory(low, now));
+  });
+
+  it('accessCount ブーストは 10 で上限', () => {
+    const ten = makeMemory({ accessCount: 10 });
+    const twenty = makeMemory({ accessCount: 20 });
+    expect(scoreMemory(ten, now)).toBe(scoreMemory(twenty, now));
+  });
 });
 
 describe('saveMemory', () => {
@@ -43,6 +142,9 @@ describe('saveMemory', () => {
     expect(memory.tags).toEqual([]);
     expect(memory.createdAt).toBeGreaterThan(0);
     expect(memory.updatedAt).toBe(memory.createdAt);
+    expect(memory.accessCount).toBe(0);
+    expect(memory.lastAccessedAt).toBe(memory.createdAt);
+    expect(memory.contentHash).toHaveLength(64);
   });
 
   it('importance を指定して保存できる', async () => {
@@ -72,7 +174,7 @@ describe('saveMemory', () => {
     expect(memory.tags).toEqual([]);
   });
 
-  it('新カテゴリ（routine, goal, personality）で保存できる', async () => {
+  it('新カテゴリ（routine, goal, personality, reflection）で保存できる', async () => {
     const routine = await saveMemory('毎朝7時にニュース確認', 'routine');
     expect(routine.category).toBe('routine');
 
@@ -81,11 +183,30 @@ describe('saveMemory', () => {
 
     const personality = await saveMemory('敬語で話して', 'personality');
     expect(personality.category).toBe('personality');
+
+    const reflection = await saveMemory('ユーザーは朝方に活発', 'reflection');
+    expect(reflection.category).toBe('reflection');
   });
 
-  it('MAX_MEMORIES を超えたとき最古が削除される', async () => {
-    // 100件保存
-    for (let i = 0; i < 100; i++) {
+  it('同一コンテンツの重複保存時は既存メモリを更新する', async () => {
+    const first = await saveMemory('同じ内容です', 'fact', { importance: 2, tags: ['a'] });
+    const second = await saveMemory('同じ内容です', 'fact', { importance: 4, tags: ['b'] });
+
+    // 同じ ID が返る
+    expect(second.id).toBe(first.id);
+    // importance は最大値を採用
+    expect(second.importance).toBe(4);
+    // tags はマージされる
+    expect(second.tags).toEqual(expect.arrayContaining(['a', 'b']));
+
+    // DB 上は 1 件のみ
+    const all = await listMemories();
+    expect(all).toHaveLength(1);
+  });
+
+  it('MAX_MEMORIES を超えたとき低スコアの記憶がアーカイブされる', async () => {
+    // 200件保存
+    for (let i = 0; i < 200; i++) {
       const m = await saveMemory(`メモリ ${i}`, 'other');
       // updatedAt を手動で設定して順序を保証
       const db = (await import('./__mocks__/db')).getDB;
@@ -98,12 +219,12 @@ describe('saveMemory', () => {
     }
 
     const before = await listMemories();
-    expect(before).toHaveLength(100);
+    expect(before).toHaveLength(200);
 
-    // 101件目を保存 → 最古が削除される
+    // 201件目を保存 → 低スコアがアーカイブされる
     await saveMemory('新しいメモリ', 'other');
     const after = await listMemories();
-    expect(after).toHaveLength(100);
+    expect(after).toHaveLength(200);
     expect(after.find((m) => m.content === '新しいメモリ')).toBeDefined();
   });
 });
@@ -267,7 +388,77 @@ describe('getRelevantMemories', () => {
     await saveMemory('メモリB', 'fact', { importance: 1 });
 
     const results = await getRelevantMemories('', 2);
-    // preference(+2) + importance(5) = 7 > fact(+1) + importance(1) = 2
+    // preference(+2) + importance(5) > fact(+1) + importance(1)
     expect(results[0].content).toBe('メモリA');
+  });
+});
+
+describe('getRecentMemoriesForReflection', () => {
+  it('直近24時間の記憶を取得する', async () => {
+    const m1 = await saveMemory('最近のメモリ', 'fact');
+    const m2 = await saveMemory('古いメモリ', 'fact');
+
+    // m2 を 2 日前に設定
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const stored = await mockDb.get('memories', m2.id);
+    if (stored) {
+      stored.updatedAt = Date.now() - 2 * 24 * 60 * 60 * 1000;
+      await mockDb.put('memories', stored);
+    }
+
+    const { recent, topAccessed } = await getRecentMemoriesForReflection();
+    expect(recent.find((r) => r.id === m1.id)).toBeDefined();
+    expect(recent.find((r) => r.id === m2.id)).toBeUndefined();
+    expect(topAccessed).toHaveLength(2); // 全 2 件
+  });
+
+  it('アクセス上位 10 件を返す', async () => {
+    for (let i = 0; i < 15; i++) {
+      const m = await saveMemory(`メモリ ${i}`, 'fact');
+      // accessCount を手動設定
+      const { getDB: db } = await import('./__mocks__/db');
+      const mockDb = await db();
+      const stored = await mockDb.get('memories', m.id);
+      if (stored) {
+        stored.accessCount = i;
+        await mockDb.put('memories', stored);
+      }
+    }
+
+    const { topAccessed } = await getRecentMemoriesForReflection();
+    expect(topAccessed).toHaveLength(10);
+    // 降順ソート
+    expect(topAccessed[0].accessCount).toBeGreaterThanOrEqual(topAccessed[9].accessCount);
+  });
+});
+
+describe('cleanupLowScoredMemories', () => {
+  it('指定件数分の低スコア記憶をアーカイブする', async () => {
+    for (let i = 0; i < 10; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+
+    const before = await listMemories();
+    expect(before).toHaveLength(10);
+
+    const archived = await cleanupLowScoredMemories(3);
+    expect(archived).toBe(3);
+
+    const after = await listMemories();
+    expect(after).toHaveLength(7);
+  });
+
+  it('personality と routine はアーカイブされない', async () => {
+    await saveMemory('性格情報', 'personality');
+    await saveMemory('日課情報', 'routine');
+    await saveMemory('その他', 'other');
+
+    const archived = await cleanupLowScoredMemories(2);
+    expect(archived).toBe(1); // other のみアーカイブ
+
+    const after = await listMemories();
+    expect(after).toHaveLength(2);
+    expect(after.map((m) => m.category)).toEqual(expect.arrayContaining(['personality', 'routine']));
   });
 });

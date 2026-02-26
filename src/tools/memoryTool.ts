@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { saveMemory, searchMemories, listMemories, deleteMemory } from '../store/memoryStore';
 import type { MemoryCategory } from '../types';
 
-const validCategories: MemoryCategory[] = ['preference', 'fact', 'context', 'routine', 'goal', 'personality', 'other'];
+const validCategories: MemoryCategory[] = ['preference', 'fact', 'context', 'routine', 'goal', 'personality', 'reflection', 'other'];
 
 export const memoryTool = tool({
   name: 'memory',
@@ -21,15 +21,16 @@ category:
 - routine: ユーザーの日課・習慣（例: 「毎朝7時にニュース確認」）
 - goal: ユーザーの目標（例: 「3月末までにレポート提出」）
 - personality: エージェントの振る舞い指示（例: 「敬語で話して」）
+- reflection: 振り返りで得た洞察やパターン
 - other: その他`,
   parameters: z.object({
     action: z.enum(['save', 'search', 'list', 'delete']),
     content: z.string().describe('保存するメモリの内容。save 時に必須、他は空文字'),
-    category: z.string().describe('カテゴリ（preference/fact/context/routine/goal/personality/other）。save 時に必須、list 時はフィルタ用、他は空文字'),
+    category: z.string().describe('カテゴリ（preference/fact/context/routine/goal/personality/reflection/other）。save 時に必須、list 時はフィルタ用、他は空文字'),
     query: z.string().describe('検索キーワード。search 時に必須、他は空文字'),
     id: z.string().describe('削除対象のメモリID。delete 時に必須、他は空文字'),
-    importance: z.string().optional().describe('重要度（1-5）。save 時のみ有効、省略時はデフォルト 3'),
-    tags: z.string().optional().describe('タグ（カンマ区切り）。save 時のみ有効、省略時は空'),
+    importance: z.string().describe('重要度（1-5）。save 時のみ有効、不要時は空文字'),
+    tags: z.string().describe('タグ（カンマ区切り）。save 時のみ有効、不要時は空文字'),
   }),
   execute: async ({ action, content, category, query, id, importance, tags }) => {
     if (action === 'save') {
