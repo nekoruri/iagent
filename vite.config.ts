@@ -43,6 +43,29 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom/') || id.includes('node_modules/react/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/@openai/') || id.includes('node_modules/openai/')) {
+            return 'vendor-agent';
+          }
+          if (id.includes('node_modules/@modelcontextprotocol/')) {
+            return 'vendor-mcp';
+          }
+          if (id.includes('node_modules/zod/')) {
+            return 'vendor-zod';
+          }
+          if (id.includes('node_modules/marked/') || id.includes('node_modules/dompurify/')) {
+            return 'vendor-markdown';
+          }
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api/brave': {
