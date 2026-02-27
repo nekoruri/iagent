@@ -134,6 +134,29 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ---
 
+## 対応済み（PR-E で修正）
+
+### DNS Rebind / 内部向けレコード対策 [セキュリティ]
+- **PR**: #12 (Copilot), PR-E で修正
+- **内容**: ドメインがプライベート IP に解決されるケースの SSRF 対策
+- **修正**: クライアント側 `validateUrl()` に `isPrivateIP()` チェック追加（`server/src/proxy.ts` から移植）。DNS rebinding はブラウザ JS では原理的に検出不可だが、CORS プロキシ経由アーキテクチャ + サーバー側 `isPrivateIP()` で多層防御済み
+
+---
+
+## 対応済み（PR-F で修正）
+
+### MCP ツール許可キーの server-qualified 化 [コード品質]
+- **PR**: #13 (chatgpt-codex-connector, Copilot), PR-F で修正
+- **内容**: `allowedMcpTools` が `toolName` のみで、複数サーバーの同名ツールが区別不可
+- **修正**: `allowedMcpTools` の値を `"serverName/toolName"` 形式に変更。`agent.ts` の static `toolFilter` を callable `toolFilter` に変更し、サーバー名+ツール名でフィルタリング。`/` なしのレガシーエントリは後方互換で任意サーバーにマッチ
+
+### MCP ツール許可のタスク単位制御 [コード品質]
+- **PR**: #13 (Copilot), PR-F で修正
+- **内容**: タスクごとに許可した MCP ツールが他タスクでも利用可能
+- **修正**: `heartbeat.ts` にタスクグループ化関数 `groupTasksByMcpTools` を追加。同一 `allowedMcpTools` セットのタスクをグループ化し、グループごとに個別の Agent を作成・実行。異なるツールセットのタスク間でツールが混在しない
+
+---
+
 ## 調査の結果問題なし
 
 ### Push サーバー URL バリデーション [セキュリティ]
@@ -184,16 +207,6 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ## 将来対応
 
-### MCP ツール許可キーの server-qualified 化 [コード品質]
-- **PR**: #13 (chatgpt-codex-connector, Copilot)
-- **内容**: `allowedMcpTools` が `toolName` のみで、複数サーバーの同名ツールが区別不可
-- **優先度**: 中（現状は MCP サーバー 1-2 台の利用を想定）
-
-### MCP ツール許可のタスク単位制御 [コード品質]
-- **PR**: #13 (Copilot)
-- **内容**: タスクごとに許可した MCP ツールが他タスクでも利用可能
-- **優先度**: 中
-
 ### Notification API パーミッション再レンダリング [UX]
 - **PR**: #1 (Copilot)
 - **内容**: 通知許可後に UI が即座に更新されない
@@ -223,11 +236,6 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 - **PR**: #3 (Copilot)
 - **内容**: 展開可能なステップに視覚的なインジケーターなし
 - **優先度**: 低
-
-### DNS Rebind / 内部向けレコード対策 [セキュリティ]
-- **PR**: #12 (Copilot)
-- **内容**: ドメインがプライベート IP に解決されるケースの SSRF 対策
-- **優先度**: 中（サーバーサイドで allowlist 運用を推奨）
 
 ### KV レート制限の強整合化 [パフォーマンス]
 - **PR**: #12 (Copilot)

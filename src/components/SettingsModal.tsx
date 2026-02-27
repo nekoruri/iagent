@@ -350,7 +350,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     className="mcp-server-name"
                     type="text"
                     value={server.name}
-                    onChange={(e) => updateMCPServer(server.id, { name: e.target.value })}
+                    onChange={(e) => updateMCPServer(server.id, { name: e.target.value.replace(/\//g, '') })}
                     placeholder="サーバー名"
                   />
                   <span className={`mcp-status ${statusClass}`}>{statusText}</span>
@@ -635,22 +635,32 @@ export function SettingsModal({ open, onClose }: Props) {
                       <div className="hb-mcp-tools-section">
                         <span className="hb-schedule-label">MCP ツール許可:</span>
                         <div className="hb-mcp-tools-list">
-                          {readOnlyTools.map((t) => (
-                            <label key={`${t.serverName}/${t.toolName}`} className="mcp-toggle-label hb-mcp-tool-label">
+                          {readOnlyTools.map((t) => {
+                            const qualifiedName = `${t.serverName}/${t.toolName}`;
+                            // レガシー（"/" なし toolName のみ）も checked 判定に含める
+                            const isChecked = allowedTools.includes(qualifiedName)
+                              || allowedTools.includes(t.toolName);
+                            return (
+                            <label key={qualifiedName} className="mcp-toggle-label hb-mcp-tool-label">
                               <input
                                 type="checkbox"
-                                checked={allowedTools.includes(t.toolName)}
+                                checked={isChecked}
                                 onChange={(e) => {
+                                  // レガシーエントリを除去して qualified 形式に正規化
+                                  const withoutLegacy = allowedTools.filter(
+                                    (n) => n !== qualifiedName && n !== t.toolName,
+                                  );
                                   const newAllowed = e.target.checked
-                                    ? [...allowedTools, t.toolName]
-                                    : allowedTools.filter((n) => n !== t.toolName);
+                                    ? [...withoutLegacy, qualifiedName]
+                                    : withoutLegacy;
                                   updateHeartbeatTask(task.id, { allowedMcpTools: newAllowed });
                                 }}
                               />
                               <span className="hb-mcp-tool-name">{t.toolName}</span>
                               <span className="hb-mcp-tool-server">({t.serverName})</span>
                             </label>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );

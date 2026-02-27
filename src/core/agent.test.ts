@@ -20,10 +20,12 @@ vi.mock('@openai/agents', () => {
       name: string;
       instructions: string;
       tools: unknown[];
-      constructor(opts: { name: string; instructions: string; tools: unknown[] }) {
+      mcpServers: unknown[];
+      constructor(opts: { name: string; instructions: string; tools: unknown[]; mcpServers?: unknown[] }) {
         this.name = opts.name;
         this.instructions = opts.instructions;
         this.tools = opts.tools;
+        this.mcpServers = opts.mcpServers ?? [];
       }
     },
     tool: vi.fn((opts) => ({ ...opts, __isTool: true })),
@@ -166,5 +168,59 @@ describe('createHeartbeatAgent', () => {
     expect(agent.instructions).toContain('"taskId"');
     expect(agent.instructions).toContain('"hasChanges"');
     expect(agent.instructions).toContain('JSON形式');
+  });
+
+  it('allowedMcpToolNames を渡すとサーバーに callable toolFilter が設定される', async () => {
+    const mockServer = { name: 'srv-a', toolFilter: undefined };
+    const agent = await createHeartbeatAgent(
+      [mockServer as any],
+      ['srv-a/list_items', 'srv-b/get_data'],
+    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+
+    expect(agent.mcpServers).toHaveLength(1);
+    expect(typeof agent.mcpServers[0].toolFilter).toBe('function');
+  });
+
+  it('callable toolFilter が qualified 名でフィルタする', async () => {
+    const mockServer = { name: 'srv-a', toolFilter: undefined };
+    const agent = await createHeartbeatAgent(
+      [mockServer as any],
+      ['srv-a/list_items'],
+    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+
+    const filter = agent.mcpServers[0].toolFilter;
+    // srv-a の list_items → 許可
+    expect(await filter({ serverName: 'srv-a' }, { name: 'list_items' })).toBe(true);
+    // srv-a の get_data → 拒否
+    expect(await filter({ serverName: 'srv-a' }, { name: 'get_data' })).toBe(false);
+    // srv-b の list_items → 拒否（サーバー名不一致）
+    expect(await filter({ serverName: 'srv-b' }, { name: 'list_items' })).toBe(false);
+  });
+
+  it('レガシー形式（/ なし）は任意サーバーにマッチする', async () => {
+    const mockServer = { name: 'any-server', toolFilter: undefined };
+    const agent = await createHeartbeatAgent(
+      [mockServer as any],
+      ['list_items'],
+    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+
+    const filter = agent.mcpServers[0].toolFilter;
+    // 任意サーバーの list_items → 許可
+    expect(await filter({ serverName: 'any-server' }, { name: 'list_items' })).toBe(true);
+    expect(await filter({ serverName: 'other-server' }, { name: 'list_items' })).toBe(true);
+    // 名前不一致 → 拒否
+    expect(await filter({ serverName: 'any-server' }, { name: 'get_data' })).toBe(false);
+  });
+
+  it('qualified ツール名が instructions の MCP 制限ノートに含まれる', async () => {
+    const mockServer = { name: 'srv-a', toolFilter: undefined };
+    const agent = await createHeartbeatAgent(
+      [mockServer as any],
+      ['srv-a/list_items', 'srv-b/get_data'],
+    ) as unknown as { instructions: string };
+
+    expect(agent.instructions).toContain('list_items (srv-a)');
+    expect(agent.instructions).toContain('get_data (srv-b)');
+    expect(agent.instructions).toContain('MCP ツール使用制限');
   });
 });
