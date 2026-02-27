@@ -207,23 +207,27 @@ describe('getTasksDue', () => {
     expect(due).toHaveLength(0);
   });
 
-  it('fixed-time: 対象時刻前は due なし', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-28T07:59:00'));
-    const config = makeConfig({ tasks: [fixedTimeTask] });
-    const due = await getTasksDue(config);
-    expect(due).toHaveLength(0);
-    vi.useRealTimers();
-  });
+  describe('fixed-time スケジュール', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-  it('fixed-time: 対象時刻以降で今日未実行なら due', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-28T08:01:00'));
-    const config = makeConfig({ tasks: [fixedTimeTask] });
-    const due = await getTasksDue(config);
-    expect(due).toHaveLength(1);
-    expect(due[0].id).toBe('fixed-task');
-    vi.useRealTimers();
+    it('対象時刻前は due なし', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-02-28T07:59:00'));
+      const config = makeConfig({ tasks: [fixedTimeTask] });
+      const due = await getTasksDue(config);
+      expect(due).toHaveLength(0);
+    });
+
+    it('対象時刻以降で今日未実行なら due', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-02-28T08:01:00'));
+      const config = makeConfig({ tasks: [fixedTimeTask] });
+      const due = await getTasksDue(config);
+      expect(due).toHaveLength(1);
+      expect(due[0].id).toBe('fixed-task');
+    });
   });
 
   it('固定時刻タスクは同日2回実行されない', async () => {

@@ -82,7 +82,8 @@ const mockDB = {
               if (query === undefined) {
                 return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
               }
-              const queryValue = query instanceof IDBKeyRange ? (query as unknown as { _value: unknown })._value : query;
+              const queryValue = (typeof globalThis.IDBKeyRange !== 'undefined' && query instanceof IDBKeyRange)
+                ? (query as unknown as { _value: unknown })._value : query;
               const values = [...store.values()].filter((v) => {
                 return (v as Record<string, unknown>)[idxName] === queryValue;
               });
