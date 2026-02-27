@@ -67,6 +67,7 @@ export interface HeartbeatResult {
   hasChanges: boolean;
   summary: string;
   source?: HeartbeatSource;
+  pinned?: boolean;
 }
 
 export interface HeartbeatState {

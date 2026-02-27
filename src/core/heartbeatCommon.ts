@@ -109,7 +109,11 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   console.log(`[Heartbeat:${label}] ${results.length} 件のタスクを実行`);
 
   for (const r of results) {
-    const tagged = { ...r, source };
+    const tagged = {
+      ...r,
+      source,
+      pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection',
+    };
     await addHeartbeatResult(tagged);
     await updateTaskLastRun(r.taskId, now);
     if (r.hasChanges) {

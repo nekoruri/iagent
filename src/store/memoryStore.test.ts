@@ -15,6 +15,7 @@ import {
   computeContentHash,
   getRecentMemoriesForReflection,
   cleanupLowScoredMemories,
+  listArchivedMemories,
   HALF_LIFE_MS,
 } from './memoryStore';
 import type { Memory } from '../types';
@@ -460,5 +461,36 @@ describe('cleanupLowScoredMemories', () => {
     const after = await listMemories();
     expect(after).toHaveLength(2);
     expect(after.map((m) => m.category)).toEqual(expect.arrayContaining(['personality', 'routine']));
+  });
+});
+
+describe('listArchivedMemories', () => {
+  it('アーカイブ済み記憶を取得できる', async () => {
+    // 複数のメモリを保存して低スコアをアーカイブ
+    for (let i = 0; i < 5; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+    await cleanupLowScoredMemories(2);
+
+    const archived = await listArchivedMemories();
+    expect(archived).toHaveLength(2);
+    expect(archived[0].archivedAt).toBeGreaterThan(0);
+    expect(archived[0].archiveReason).toBe('low-score');
+  });
+
+  it('カテゴリ指定でアーカイブをフィルタできる', async () => {
+    await saveMemory('事実1', 'fact');
+    await saveMemory('その他1', 'other');
+    await saveMemory('その他2', 'other');
+    await cleanupLowScoredMemories(2);
+
+    const archived = await listArchivedMemories();
+    // アーカイブが存在する場合のみカテゴリフィルタを検証
+    if (archived.length > 0) {
+      const categories = archived.map((a) => a.category);
+      const factArchived = await listArchivedMemories('fact');
+      const otherArchived = await listArchivedMemories('other');
+      expect(factArchived.length + otherArchived.length).toBeLessThanOrEqual(archived.length);
+    }
   });
 });

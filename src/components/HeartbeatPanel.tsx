@@ -7,6 +7,7 @@ interface HeartbeatPanelProps {
   unreadCount: number;
   onToggle: () => void;
   onClose: () => void;
+  onTogglePin: (taskId: string, timestamp: number) => void;
 }
 
 function formatTime(ts: number): string {
@@ -19,7 +20,7 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose }: HeartbeatPanelProps) {
+export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose, onTogglePin }: HeartbeatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // パネル外クリックで閉じる
@@ -57,9 +58,20 @@ export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose
               results.map((r, i) => (
                 <div
                   key={`${r.taskId}-${r.timestamp}-${i}`}
-                  className={`heartbeat-result-item${r.hasChanges ? ' heartbeat-result-changed' : ''}`}
+                  className={`heartbeat-result-item${r.hasChanges ? ' heartbeat-result-changed' : ''}${r.pinned ? ' heartbeat-result-pinned' : ''}`}
                 >
-                  <div className="heartbeat-result-summary">{r.summary || '変化なし'}</div>
+                  <div className="heartbeat-result-header">
+                    <div className="heartbeat-result-summary">{r.summary || '変化なし'}</div>
+                    <button
+                      className="btn-pin"
+                      onClick={() => onTogglePin(r.taskId, r.timestamp)}
+                      title={r.pinned ? 'ピン留め解除' : 'ピン留め'}
+                    >
+                      <span className={`heartbeat-pin-icon${r.pinned ? ' pinned' : ''}`}>
+                        {r.pinned ? '📌' : '📍'}
+                      </span>
+                    </button>
+                  </div>
                   <div className="heartbeat-result-meta">
                     <span>{r.taskId}</span>
                     <span>{formatTime(r.timestamp)}</span>

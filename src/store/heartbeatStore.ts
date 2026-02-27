@@ -45,8 +45,21 @@ export async function addHeartbeatResult(result: HeartbeatResult): Promise<void>
   const state = await loadHeartbeatState();
   state.recentResults.unshift(result);
   if (state.recentResults.length > MAX_RECENT_RESULTS) {
-    state.recentResults = state.recentResults.slice(0, MAX_RECENT_RESULTS);
+    const pinned = state.recentResults.filter(r => r.pinned);
+    const unpinned = state.recentResults.filter(r => !r.pinned);
+    const unpinnedLimit = MAX_RECENT_RESULTS - pinned.length;
+    state.recentResults = [...pinned, ...unpinned.slice(0, Math.max(0, unpinnedLimit))];
+    state.recentResults.sort((a, b) => b.timestamp - a.timestamp);
   }
   state.lastChecked = result.timestamp;
   await saveHeartbeatState(state);
+}
+
+export async function togglePinHeartbeatResult(taskId: string, timestamp: number): Promise<void> {
+  const state = await loadHeartbeatState();
+  const target = state.recentResults.find(r => r.taskId === taskId && r.timestamp === timestamp);
+  if (target) {
+    target.pinned = !target.pinned;
+    await saveHeartbeatState(state);
+  }
 }

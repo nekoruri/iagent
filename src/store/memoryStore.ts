@@ -269,6 +269,17 @@ export async function getRelevantMemories(
   return result;
 }
 
+/** アーカイブ済み記憶の一覧を取得 */
+export async function listArchivedMemories(category?: MemoryCategory): Promise<ArchivedMemory[]> {
+  const db = await getDB();
+  if (category) {
+    const results = await db.getAllFromIndex(ARCHIVE_STORE_NAME, 'category', category);
+    return (results as ArchivedMemory[]).sort((a, b) => b.archivedAt - a.archivedAt);
+  }
+  const all = await db.getAll(ARCHIVE_STORE_NAME);
+  return (all as ArchivedMemory[]).sort((a, b) => b.archivedAt - a.archivedAt);
+}
+
 /** 直近 24 時間の記憶 + アクセス上位の記憶を取得（ふりかえり用） */
 export async function getRecentMemoriesForReflection(): Promise<{ recent: Memory[]; topAccessed: Memory[] }> {
   const all = await listMemories();

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { loadHeartbeatState } from '../store/heartbeatStore';
+import { loadHeartbeatState, togglePinHeartbeatResult } from '../store/heartbeatStore';
 import type { HeartbeatResult } from '../types';
 
 const LAST_READ_KEY = 'iagent-heartbeat-last-read';
@@ -36,6 +36,11 @@ export function useHeartbeatPanel() {
     setIsOpen(false);
   }, []);
 
+  const togglePin = useCallback(async (taskId: string, timestamp: number) => {
+    await togglePinHeartbeatResult(taskId, timestamp);
+    await refresh();
+  }, [refresh]);
+
   // 初回マウント時にデータ読み込み（非同期の外部ストア同期）
   useEffect(() => {
     loadHeartbeatState().then((state) => {
@@ -43,5 +48,5 @@ export function useHeartbeatPanel() {
     });
   }, []);
 
-  return { isOpen, results, unreadCount, toggle, close, markAsRead, refresh };
+  return { isOpen, results, unreadCount, toggle, close, markAsRead, refresh, togglePin };
 }

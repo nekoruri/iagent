@@ -198,6 +198,7 @@ export class HeartbeatEngine {
           timestamp: now,
           hasChanges: r.hasChanges,
           summary: r.summary || '',
+          pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection',
         };
         await addHeartbeatResult(hbResult);
         await updateTaskLastRun(r.taskId, now);

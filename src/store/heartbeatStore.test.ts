@@ -10,6 +10,7 @@ import {
   addHeartbeatResult,
   updateTaskLastRun,
   getTaskLastRun,
+  togglePinHeartbeatResult,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
 
@@ -108,6 +109,93 @@ describe('addHeartbeatResult', () => {
     expect(state.recentResults).toHaveLength(50);
     // 最新が先頭
     expect(state.recentResults[0].taskId).toBe('task-54');
+  });
+});
+
+describe('addHeartbeatResult (pinned 保護)', () => {
+  it('pinned 結果が FIFO で押し出されない', async () => {
+    // pinned 結果を 3 件追加
+    for (let i = 0; i < 3; i++) {
+      await addHeartbeatResult({
+        taskId: `pinned-${i}`,
+        timestamp: i * 1000,
+        hasChanges: true,
+        summary: `ピン留め ${i}`,
+        pinned: true,
+      });
+    }
+    // unpinned 結果を 50 件追加（上限超過を引き起こす）
+    for (let i = 0; i < 50; i++) {
+      await addHeartbeatResult({
+        taskId: `unpinned-${i}`,
+        timestamp: (i + 100) * 1000,
+        hasChanges: false,
+        summary: `通常 ${i}`,
+      });
+    }
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults).toHaveLength(50);
+    // pinned 結果がすべて残っている
+    const pinnedResults = state.recentResults.filter(r => r.pinned);
+    expect(pinnedResults).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      expect(pinnedResults.find(r => r.taskId === `pinned-${i}`)).toBeDefined();
+    }
+  });
+
+  it('pinned が上限を超えてもすべて保持される', async () => {
+    // pinned 結果を 55 件追加
+    for (let i = 0; i < 55; i++) {
+      await addHeartbeatResult({
+        taskId: `pinned-${i}`,
+        timestamp: i * 1000,
+        hasChanges: true,
+        summary: `ピン留め ${i}`,
+        pinned: true,
+      });
+    }
+
+    const state = await loadHeartbeatState();
+    // すべての pinned が保持される（上限超えても pinned は削除されない）
+    expect(state.recentResults.length).toBeGreaterThanOrEqual(55);
+    const pinnedResults = state.recentResults.filter(r => r.pinned);
+    expect(pinnedResults).toHaveLength(55);
+  });
+});
+
+describe('togglePinHeartbeatResult', () => {
+  it('結果のピン状態を切り替えできる', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    // ピン留め
+    await togglePinHeartbeatResult('task-1', 1000);
+    let state = await loadHeartbeatState();
+    expect(state.recentResults[0].pinned).toBe(true);
+
+    // ピン解除
+    await togglePinHeartbeatResult('task-1', 1000);
+    state = await loadHeartbeatState();
+    expect(state.recentResults[0].pinned).toBe(false);
+  });
+
+  it('存在しない結果に対しては何もしない', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    await togglePinHeartbeatResult('nonexistent', 9999);
+    const state = await loadHeartbeatState();
+    expect(state.recentResults).toHaveLength(1);
+    expect(state.recentResults[0].pinned).toBeUndefined();
   });
 });
 

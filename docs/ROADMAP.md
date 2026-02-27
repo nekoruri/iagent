@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
-- テスト 450 件
+- テスト 468 件
 
 ---
 
@@ -115,7 +115,7 @@
 - [x] 結果の専用パネル（チャットとの分離）
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
 - [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
-- [ ] 重要な通知のピン留め／保護（ブリーフィング等が recentResults の FIFO で押し出されない仕組み）
+- [x] 重要な通知のピン留め／保護（ブリーフィング等が recentResults の FIFO で押し出されない仕組み）
 
 ### Web Push 信頼性向上
 - [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
@@ -172,7 +172,7 @@
 - [x] DB_VERSION 9→10（contentHash/lastAccessedAt インデックス + memories_archive ストア）
 - [x] ふりかえりタスク — reflection ビルトインタスク（23:00 固定スケジュール）+ Worker ツール 3 種（getRecentMemoriesForReflection/saveReflection/cleanupMemories）
 - [x] reflection カテゴリ — MemoryCategory に追加 + instructionBuilder で「振り返りからの洞察」分離表示
-- [ ] ふりかえり UI — reflection 記憶の閲覧・管理画面
+- [x] ふりかえり UI — reflection 記憶の閲覧・管理画面（MemoryPanel コンポーネント）
 - [ ] アーカイブ閲覧 UI — memories_archive の参照・復元機能
 
 ### エージェント自律性強化
@@ -218,3 +218,4 @@
 - [x] 外部情報収集ツール Phase C — クリッピング（clipTool + clipStore）、RSS フィード（feedTool + feedParser + feedStore + Heartbeat 連携）、Web ページ監視（webMonitorTool + monitorStore + Heartbeat 連携）、MCP Heartbeat 対応（read-only ツール許可 + 設定 UI）。DB_VERSION 7→8、4 新ストア追加。テスト 263→369 件。（2026-02-26）
 - [x] アイデンティティ + 記憶フレームワーク Phase D — 構造化記憶（importance/tags/新カテゴリ + 関連性ベース取得 + normalizeMemory 後方互換）、Agent Persona（PersonaConfig + 設定 UI + 動的 instructionBuilder）、全コンポーネント統合（agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts）。DB_VERSION 8→9。テスト 369→422 件。（2026-02-26）
 - [x] 日次ブリーフィング Phase F-1 — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加。テスト 448→450 件。（2026-02-27）
+- [x] 通知ピン留め + ふりかえり UI — HeartbeatResult pinned フィールド + FIFO 保護 + togglePin + 自動ピン付与（briefing-*/reflection）+ HeartbeatPanel ピン UI + MemoryPanel（記憶管理パネル: カテゴリフィルタ・削除）+ listArchivedMemories。テスト 450→468 件。（2026-02-27）
