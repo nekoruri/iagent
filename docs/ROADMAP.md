@@ -128,7 +128,7 @@
 - [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
 - [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
 - [ ] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
-- [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加
+- [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（→ フェーズ 3 スマートフォン対応強化に統合）
 - [ ] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
 - [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
 
@@ -136,17 +136,26 @@
 
 ## フェーズ 3: UX 改善
 
+> 詳細: [docs/PROPOSAL-mobile-enhancement.md](PROPOSAL-mobile-enhancement.md)
+
 ### UI
 - [x] 初回セットアップウィザード（API キー入力の導線改善）
 - [x] ライト/ダークテーマ切替
-- [ ] レスポンシブ改善（モバイル最適化）
+
+### スマートフォン対応強化
+- [x] iOS キーボード対応（`dvh` + VisualViewport API）— 入力バーがキーボードに隠れる問題の修正
+- [ ] iOS PWA インストール案内 UI — Push 通知に必須のインストールへの導線
+- [ ] タップターゲットサイズの統一（44x44px 最小保証）
+- [ ] SettingsModal のモバイル最適化（フルスクリーン化 + セクション折りたたみ）
+- [ ] サイドバーのスワイプジェスチャ（左端スワイプで開閉）
+- [ ] ストレージ永続化（`navigator.storage.persist()` + 容量表示）
 
 ### ビルド最適化
 - [x] バンドルサイズ削減 — `manualChunks` でベンダーチャンク分離 + `isReadOnlyTool` 依存切断 + `React.lazy()` で SettingsModal 遅延ロード（950KB → 全チャンク 500KB 未満）
 
 ### オフライン対応
+- [ ] オフラインフォールバック UI（オンライン状態検知 + バナー表示 + 送信無効化）
 - [ ] Service Worker キャッシュ戦略の改善
-- [ ] オフライン時のフォールバック UI
 
 ---
 
