@@ -574,6 +574,12 @@ body {
   display: block;
 }
 
+@media (max-width: 768px) {
+  .sidebar-item-delete {
+    display: block;
+  }
+}
+
 .sidebar-empty {
   text-align: center;
   color: var(--text-muted);
