@@ -1078,7 +1078,7 @@ body {
 
 .heartbeat-pin-icon {
   font-size: 12px;
-  opacity: 0.4;
+  opacity: 0.7;
   transition: opacity 0.15s;
 }
 
@@ -1090,12 +1090,13 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 8px;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.btn-pin:hover .heartbeat-pin-icon {
+.btn-pin:hover .heartbeat-pin-icon,
+.btn-pin:focus-visible .heartbeat-pin-icon {
   opacity: 1;
 }
 
@@ -1221,8 +1222,8 @@ body {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 12px;
+  padding: 6px 12px;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.15s;
@@ -1302,7 +1303,8 @@ body {
   color: #f87171;
 }
 
-.memory-card:hover .memory-delete-btn {
+.memory-card:hover .memory-delete-btn,
+.memory-card:focus-within .memory-delete-btn {
   display: block;
 }
 
@@ -1347,10 +1349,18 @@ body {
 @media (display-mode: standalone) {
   .app-header {
     padding-top: env(safe-area-inset-top, 12px);
+    padding-left: max(16px, env(safe-area-inset-left, 0));
+    padding-right: max(16px, env(safe-area-inset-right, 0));
   }
 
   .input-bar {
     padding-bottom: env(safe-area-inset-bottom, 12px);
+    padding-left: max(16px, env(safe-area-inset-left, 0));
+    padding-right: max(16px, env(safe-area-inset-right, 0));
+  }
+
+  .sidebar {
+    padding-left: env(safe-area-inset-left, 0);
   }
 }
 
@@ -1393,6 +1403,14 @@ body {
   .memory-dropdown {
     width: calc(100vw - 32px);
     right: -8px;
+  }
+
+  .memory-delete-btn {
+    display: block;
+  }
+
+  .modal {
+    padding: 16px;
   }
 }
 

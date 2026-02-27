@@ -235,3 +235,4 @@
 - [x] MCP ツール許可改善 PR-F — `allowedMcpTools` を `"serverName/toolName"` 形式に変更（server-qualified 化）+ callable `toolFilter` でサーバー単位フィルタリング + `groupTasksByMcpTools` でタスク単位のツール分離（グループごとに個別 Agent 実行）。（2026-02-28）
 - [x] getAllFromIndex モック正確性改善 PR-G — `__mocks__/db.ts` の `getAllFromIndex` / `transaction.index().getAll()` で multiEntry インデックス（配列フィールド）対応（`Array.isArray` + `includes` 判定）。clipStore.test.ts にタグフィルタ検証テスト追加。（2026-02-28）
 - [x] ConversationSidebar アクセシビリティ改善 PR-H — 会話行を `<div onClick>` → `<button>` に変更（`aria-current` でアクティブ状態通知）、削除ボタンに `aria-label`（会話名含む）、`:focus-within` / `:focus-visible` でキーボード操作対応。（2026-02-28）
+- [x] モバイル UX 総合改善 PR-I — memory-delete-btn モバイル常時表示 + focus-within 対応、btn-pin hover 依存解消 + タップターゲット拡大、memory-tab サイズ拡大、viewport meta 修正（viewport-fit=cover、ズーム制限解除）、safe-area 左右対応、モーダル padding 縮小、MemoryPanel 削除ボタン aria-label 化。（2026-02-28）

@@ -223,6 +223,15 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ---
 
+## 対応済み（PR-I で修正）
+
+### モバイルでのメモリ削除ボタン [UX]
+- **PR**: #22 (chatgpt-codex-connector), PR-I で修正
+- **内容**: hover のみで表示されるため、タッチデバイスで到達不可
+- **修正**: `.memory-card:focus-within` で削除ボタン表示 + `@media (max-width: 768px)` で常時表示 + `title` → `aria-label` に変更（PR-H パターン踏襲）。併せて `.btn-pin` の hover 依存解消、タップターゲット拡大、viewport/safe-area 修正、モーダル padding 縮小を実施
+
+---
+
 ## 将来対応
 
 ### Notification API パーミッション再レンダリング [UX]
@@ -274,11 +283,6 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 - **PR**: #20 (Copilot)
 - **内容**: 「通知する価値がある情報のみ hasChanges: true」と「ブリーフィングは必ず true」の矛盾
 - **優先度**: 低
-
-### モバイルでのメモリ削除ボタン [UX]
-- **PR**: #22 (chatgpt-codex-connector)
-- **内容**: hover のみで表示されるため、タッチデバイスで到達不可
-- **優先度**: 中
 
 ### HeartbeatPanel ピン / 変更ありスタイル競合 [UX]
 - **PR**: #22 (Copilot)
