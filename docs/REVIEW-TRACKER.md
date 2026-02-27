@@ -138,7 +138,7 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ### Push サーバー URL バリデーション [セキュリティ]
 - **PR**: #11 (Copilot)
-- **根拠**: `pushSubscription.ts` の全 fetch 呼び出し箇所で `validateUrl()` を使用済み（L6, 10, 45, 61, 104）。HTTPS 強制 + プライベート IP ブロックが適用されている
+- **根拠**: `pushSubscription.ts` の全 fetch 呼び出し箇所（Subscription の登録・更新・削除処理など）で `validateUrl()` を使用済み。HTTPS 強制 + プライベート IP ブロックが適用されている
 
 ### Push 一時的エラーでの Subscription 削除 [バグ]
 - **PR**: #11 (chatgpt-codex-connector)
