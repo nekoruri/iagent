@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
+import { MemoryPanel } from './components/MemoryPanel';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
 );
@@ -9,6 +10,7 @@ import { useAgentChat } from './hooks/useAgentChat';
 import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
+import { useMemoryPanel } from './hooks/useMemoryPanel';
 import { isConfigured, getConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
@@ -37,6 +39,7 @@ export default function App() {
     useAgentChat(activeConversationId);
 
   const heartbeatPanel = useHeartbeatPanel();
+  const memoryPanel = useMemoryPanel();
 
   const handleHeartbeatNotification = useCallback((notification: HeartbeatNotification) => {
     if (!activeConversationId) return;
@@ -173,6 +176,16 @@ export default function App() {
             <button className="btn-icon" onClick={handleSidebarCreate} title="新しい会話">
               +
             </button>
+            <MemoryPanel
+              isOpen={memoryPanel.isOpen}
+              memories={memoryPanel.memories}
+              selectedCategory={memoryPanel.selectedCategory}
+              isLoading={memoryPanel.isLoading}
+              onToggle={memoryPanel.toggle}
+              onClose={memoryPanel.close}
+              onChangeCategory={memoryPanel.changeCategory}
+              onDelete={memoryPanel.handleDelete}
+            />
             {heartbeatEnabled && (
               <HeartbeatPanel
                 isOpen={heartbeatPanel.isOpen}
@@ -180,6 +193,7 @@ export default function App() {
                 unreadCount={heartbeatPanel.unreadCount}
                 onToggle={heartbeatPanel.toggle}
                 onClose={heartbeatPanel.close}
+                onTogglePin={heartbeatPanel.togglePin}
               />
             )}
             <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="設定">
