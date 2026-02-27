@@ -34,10 +34,29 @@ function proxyError(status: number, message: string): Response {
 /** IP アドレスがプライベートレンジかどうかを判定 */
 export function isPrivateIP(hostname: string): boolean {
   // localhost
-  if (hostname === 'localhost' || hostname === '[::1]') return true;
+  if (hostname === 'localhost') return true;
+
+  // IPv6: 角括弧を除去して正規化
+  const cleanHost = hostname.replace(/^\[|\]$/g, '');
+
+  // IPv6 プライベートレンジ
+  if (cleanHost.includes(':')) {
+    // ::1 (ループバック)
+    if (cleanHost === '::1') return true;
+    // :: (未指定アドレス)
+    if (cleanHost === '::') return true;
+    // fc00::/7 (ULA — Unique Local Address)
+    if (/^f[cd]/i.test(cleanHost)) return true;
+    // fe80::/10 (リンクローカル)
+    if (/^fe[89ab]/i.test(cleanHost)) return true;
+    // ::ffff:x.x.x.x (IPv4-mapped IPv6) → IPv4 部分を再チェック
+    const v4Mapped = cleanHost.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+    if (v4Mapped) return isPrivateIP(v4Mapped[1]);
+    return false;
+  }
 
   // IPv4 プライベートレンジ
-  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  const ipv4Match = cleanHost.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4Match) {
     const [, a, b] = ipv4Match.map(Number);
     // 127.0.0.0/8

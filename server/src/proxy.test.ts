@@ -45,6 +45,41 @@ describe('isPrivateIP', () => {
     expect(isPrivateIP('203.0.113.1')).toBe(false);
     expect(isPrivateIP('example.com')).toBe(false);
   });
+
+  // IPv6 テスト
+  it('IPv6 ループバック (::1) を検出する', () => {
+    expect(isPrivateIP('::1')).toBe(true);
+    expect(isPrivateIP('[::1]')).toBe(true);
+  });
+
+  it('IPv6 未指定アドレス (::) を検出する', () => {
+    expect(isPrivateIP('::')).toBe(true);
+  });
+
+  it('IPv6 ULA (fc00::/7) を検出する', () => {
+    expect(isPrivateIP('fc00::1')).toBe(true);
+    expect(isPrivateIP('fd12:3456:789a::1')).toBe(true);
+  });
+
+  it('IPv6 リンクローカル (fe80::/10) を検出する', () => {
+    expect(isPrivateIP('fe80::1')).toBe(true);
+    expect(isPrivateIP('fe80::a1:b2c3')).toBe(true);
+  });
+
+  it('IPv4-mapped IPv6 のプライベート IP を検出する', () => {
+    expect(isPrivateIP('::ffff:192.168.1.1')).toBe(true);
+    expect(isPrivateIP('::ffff:10.0.0.1')).toBe(true);
+    expect(isPrivateIP('::ffff:127.0.0.1')).toBe(true);
+  });
+
+  it('IPv4-mapped IPv6 のパブリック IP を許可する', () => {
+    expect(isPrivateIP('::ffff:8.8.8.8')).toBe(false);
+  });
+
+  it('IPv6 パブリックアドレスを許可する', () => {
+    expect(isPrivateIP('2001:db8::1')).toBe(false);
+    expect(isPrivateIP('2607:f8b0:4004:800::200e')).toBe(false);
+  });
 });
 
 // --- validateProxyUrl ---

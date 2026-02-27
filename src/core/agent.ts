@@ -53,7 +53,7 @@ export async function createHeartbeatAgent(
     : undefined;
 
   const mcpToolNote = allowedMcpToolNames && allowedMcpToolNames.length > 0
-    ? `\n\n利用可能な MCP ツール: ${allowedMcpToolNames.join(', ')}\n注意: 上記のツールのみ使用可能です。他の MCP ツールは使用しないでください。`
+    ? `\n\n## MCP ツール使用制限\n利用可能な MCP ツール: ${allowedMcpToolNames.join(', ')}\n【重要】上記リスト以外の MCP ツールを呼び出さないでください。許可されていないツール呼び出しは無視されます。`
     : '';
 
   return new Agent({

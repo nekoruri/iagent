@@ -6,7 +6,7 @@
 
 ---
 
-## 現状（2026-02-26 時点）
+## 現状（2026-02-27 時点）
 
 - チャット UI（ストリーミング対応）
 - ビルトインツール 7 種（カレンダー、Web 検索、デバイス情報、メモリ、クリッピング、RSS フィード、Web ページ監視）
@@ -21,9 +21,9 @@
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
-- CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
-- セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
-- テスト 468 件
+- CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
+- セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
+- テスト 468 件（クライアント） + 29 件（サーバー）
 
 ---
 
@@ -86,6 +86,9 @@
 ### セキュリティ基盤
 - [x] MCP URL バリデーション（HTTPS 強制 + localhost 例外）— 共有ユーティリティ化 + コア層/UI 層の 2 層バリデーション
 - [x] CSP ヘッダー導入 — 本番ビルド時のみ meta タグ注入（Vite プラグイン）
+- [x] プロンプトインジェクション対策 — メモリ注入セクションにガード文追加（instructions/heartbeat 両方）
+- [x] SSRF 防止 IPv6 対応 — isPrivateIP に IPv6 ループバック/ULA/リンクローカル/IPv4-mapped 判定追加
+- [x] MCP ツールアクセス制限ガード文強化
 
 ---
 
@@ -155,6 +158,7 @@
 ### MCP エコシステム活用
 - [x] MCP ツールの Heartbeat 対応（read-only ツール許可リスト + 設定 UI）
 - [ ] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
+- [ ] MCP ツールフィルタリングラッパー — SDK レベルでのツール単位アクセス制御（現状は instruction ベースのみ）
 
 ### エージェントアイデンティティ + 記憶フレームワーク（Phase D）
 - [x] Memory Enhancement — 構造化記憶（importance/tags/新カテゴリ）+ 関連性ベース取得 + 後方互換
@@ -219,3 +223,4 @@
 - [x] アイデンティティ + 記憶フレームワーク Phase D — 構造化記憶（importance/tags/新カテゴリ + 関連性ベース取得 + normalizeMemory 後方互換）、Agent Persona（PersonaConfig + 設定 UI + 動的 instructionBuilder）、全コンポーネント統合（agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts）。DB_VERSION 8→9。テスト 369→422 件。（2026-02-26）
 - [x] 日次ブリーフィング Phase F-1 — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加。テスト 448→450 件。（2026-02-27）
 - [x] 通知ピン留め + ふりかえり UI — HeartbeatResult pinned フィールド + FIFO 保護 + togglePin + 自動ピン付与（briefing-*/reflection）+ HeartbeatPanel ピン UI + MemoryPanel（記憶管理パネル: カテゴリフィルタ・削除）+ listArchivedMemories。テスト 450→468 件。（2026-02-27）
+- [x] セキュリティ + クリティカルバグ修正 PR-A — プロンプトインジェクション対策（メモリガード文）、SSRF IPv6 対応、MCP ツール制限強化、Worker エラー時リトライ暴走防止、Push 再登録エラーハンドリング、MCPServer 接続エラー個別ハンドリング、fetchFeeds 上限ガード追加、Heartbeat スケジュール飢餓修正（taskLastRun 個別追跡）、固定時刻見逃し防止、package.json private フラグ追加。（2026-02-27）
