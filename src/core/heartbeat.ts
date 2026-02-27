@@ -6,7 +6,7 @@ import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
-import { addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, getAllTaskLastRun, updateTaskLastRun, batchUpdateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -35,19 +35,21 @@ export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTas
   const enabledTasks = config.tasks.filter((t) => t.enabled);
   const dueTasks: HeartbeatTask[] = [];
 
+  // state を1回ロードして全タスクの lastRun を参照（N+1 防止）
+  const taskLastRunMap = await getAllTaskLastRun();
+
   for (const task of enabledTasks) {
     const schedule = task.schedule;
+    const lastRun = taskLastRunMap[task.id] ?? 0;
 
     if (!schedule || schedule.type === 'global') {
       // グローバル間隔: taskLastRun で個別追跡（飢餓防止）
-      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = config.intervalMinutes * 60_000;
       if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
       }
     } else if (schedule.type === 'interval') {
       // タスク独自間隔
-      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = (schedule.intervalMinutes ?? config.intervalMinutes) * 60_000;
       if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
@@ -59,7 +61,6 @@ export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTas
       const currentTotalMinutes = currentHour * 60 + currentMinute;
       const targetTotalMinutes = targetHour * 60 + targetMinute;
       if (currentTotalMinutes >= targetTotalMinutes) {
-        const lastRun = await getTaskLastRun(task.id);
         const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
         if (lastRun < todayStart) {
           dueTasks.push(task);
@@ -219,8 +220,8 @@ export class HeartbeatEngine {
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
       trace.rootSpan.endWithError(error);
-      // エラー時も lastChecked を更新して即リトライを防止
-      await updateLastChecked(Date.now()).catch(() => {});
+      // エラー時も taskLastRun を更新して即リトライを防止
+      await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now()).catch(() => {});
     } finally {
       await trace.finish().catch(() => {});
       this.isExecuting = false;

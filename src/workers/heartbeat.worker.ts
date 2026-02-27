@@ -3,7 +3,7 @@
 import type { WorkerCommand, WorkerEvent, HeartbeatWorkerConfig } from './heartbeatWorkerProtocol';
 import { isQuietHours } from '../core/heartbeat';
 import { loadFreshConfig, getTasksDueFromIDB, executeHeartbeatAndStore } from '../core/heartbeatCommon';
-import { updateTaskLastRun } from '../store/heartbeatStore';
+import { batchUpdateTaskLastRun } from '../store/heartbeatStore';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -43,11 +43,8 @@ async function tick(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[Heartbeat Worker] エラー:', message);
     postEvent({ type: 'error', message });
-    // エラー時も taskLastRun を更新してリトライ暴走を防止
-    const now = Date.now();
-    for (const task of tasks) {
-      await updateTaskLastRun(task.id, now).catch(() => {});
-    }
+    // エラー時も taskLastRun を一括更新してリトライ暴走を防止
+    await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now()).catch(() => {});
   } finally {
     isExecuting = false;
   }

@@ -41,6 +41,22 @@ export async function getTaskLastRun(taskId: string): Promise<number> {
   return state.taskLastRun?.[taskId] ?? 0;
 }
 
+/** state を1回ロードして全タスクの lastRun を取得 */
+export async function getAllTaskLastRun(): Promise<Record<string, number>> {
+  const state = await loadHeartbeatState();
+  return state.taskLastRun ?? {};
+}
+
+/** 複数タスクの lastRun を1回の state 保存で更新 */
+export async function batchUpdateTaskLastRun(taskIds: string[], timestamp: number): Promise<void> {
+  const state = await loadHeartbeatState();
+  if (!state.taskLastRun) state.taskLastRun = {};
+  for (const id of taskIds) {
+    state.taskLastRun[id] = timestamp;
+  }
+  await saveHeartbeatState(state);
+}
+
 export async function addHeartbeatResult(result: HeartbeatResult): Promise<void> {
   const state = await loadHeartbeatState();
   state.recentResults.unshift(result);

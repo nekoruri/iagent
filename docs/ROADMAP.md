@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 468 件（クライアント） + 29 件（サーバー）
+- テスト 472 件（クライアント） + 31 件（サーバー）
 
 ---
 
@@ -87,7 +87,7 @@
 - [x] MCP URL バリデーション（HTTPS 強制 + localhost 例外）— 共有ユーティリティ化 + コア層/UI 層の 2 層バリデーション
 - [x] CSP ヘッダー導入 — 本番ビルド時のみ meta タグ注入（Vite プラグイン）
 - [x] プロンプトインジェクション対策 — メモリ注入セクションにガード文追加（instructions/heartbeat 両方）
-- [x] SSRF 防止 IPv6 対応 — isPrivateIP に IPv6 ループバック/ULA/リンクローカル/IPv4-mapped 判定追加
+- [x] SSRF 防止 IPv6 対応 — isPrivateIP に IPv6 ループバック/ULA/リンクローカル/IPv4-mapped（16進表記含む）判定追加
 - [x] MCP ツールアクセス制限ガード文強化
 
 ---
@@ -224,3 +224,4 @@
 - [x] 日次ブリーフィング Phase F-1 — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加。テスト 448→450 件。（2026-02-27）
 - [x] 通知ピン留め + ふりかえり UI — HeartbeatResult pinned フィールド + FIFO 保護 + togglePin + 自動ピン付与（briefing-*/reflection）+ HeartbeatPanel ピン UI + MemoryPanel（記憶管理パネル: カテゴリフィルタ・削除）+ listArchivedMemories。テスト 450→468 件。（2026-02-27）
 - [x] セキュリティ + クリティカルバグ修正 PR-A — プロンプトインジェクション対策（メモリガード文）、SSRF IPv6 対応、MCP ツール制限強化、Worker エラー時リトライ暴走防止、Push 再登録エラーハンドリング、MCPServer 接続エラー個別ハンドリング、fetchFeeds 上限ガード追加、Heartbeat スケジュール飢餓修正（taskLastRun 個別追跡）、固定時刻見逃し防止、package.json private フラグ追加。（2026-02-27）
+- [x] PR#23 レビュー対応 + パフォーマンス改善 PR-B — SSRF IPv4-mapped IPv6 16進表記対応、フォアグラウンド Heartbeat エラー時リトライ暴走修正（batchUpdateTaskLastRun）、heartbeatStore バッチ API（getAllTaskLastRun/batchUpdateTaskLastRun で N+1 IDB アクセス解消）、Push catch ログ改善、fixed-time テスト時刻固定（vi.useFakeTimers）、clearMessages/markExported トランザクション化。テスト 468→472 件（クライアント）+ 29→31 件（サーバー）。（2026-02-28）

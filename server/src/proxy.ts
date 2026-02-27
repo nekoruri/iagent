@@ -49,9 +49,21 @@ export function isPrivateIP(hostname: string): boolean {
     if (/^f[cd]/i.test(cleanHost)) return true;
     // fe80::/10 (リンクローカル)
     if (/^fe[89ab]/i.test(cleanHost)) return true;
-    // ::ffff:x.x.x.x (IPv4-mapped IPv6) → IPv4 部分を再チェック
-    const v4Mapped = cleanHost.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (v4Mapped) return isPrivateIP(v4Mapped[1]);
+    // ::ffff:0:0/96 (IPv4-mapped IPv6) → IPv4 部分を再チェック
+    if (/^::ffff:/i.test(cleanHost)) {
+      const tail = cleanHost.slice('::ffff:'.length);
+      // ドット区切り: ::ffff:192.168.1.1
+      const v4Dotted = tail.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+      if (v4Dotted) return isPrivateIP(v4Dotted[1]);
+      // 16進表記: ::ffff:c0a8:0101 / ::ffff:7f00:1
+      const v4Hex = tail.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+      if (v4Hex) {
+        const hi = parseInt(v4Hex[1], 16);
+        const lo = parseInt(v4Hex[2], 16);
+        const ipv4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+        return isPrivateIP(ipv4);
+      }
+    }
     return false;
   }
 

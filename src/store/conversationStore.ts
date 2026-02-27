@@ -17,10 +17,12 @@ export async function saveMessage(message: ChatMessage): Promise<void> {
 
 export async function clearMessages(conversationId: string): Promise<void> {
   const db = await getDB();
-  const messages = await db.getAllFromIndex(STORE_NAME, 'conversationId', conversationId);
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const messages = await tx.store.index('conversationId').getAll(conversationId);
   for (const msg of messages) {
-    await db.delete(STORE_NAME, (msg as ChatMessage).id);
+    tx.store.delete((msg as ChatMessage).id);
   }
+  await tx.done;
 }
 
 /**

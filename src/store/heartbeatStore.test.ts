@@ -10,6 +10,8 @@ import {
   addHeartbeatResult,
   updateTaskLastRun,
   getTaskLastRun,
+  getAllTaskLastRun,
+  batchUpdateTaskLastRun,
   togglePinHeartbeatResult,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
@@ -218,6 +220,29 @@ describe('updateTaskLastRun / getTaskLastRun', () => {
     await updateTaskLastRun('task-a', 5000);
 
     expect(await getTaskLastRun('task-a')).toBe(5000);
+  });
+
+  it('getAllTaskLastRun で全タスクの lastRun を一括取得できる', async () => {
+    await updateTaskLastRun('task-a', 1000);
+    await updateTaskLastRun('task-b', 2000);
+    await updateTaskLastRun('task-c', 3000);
+
+    const map = await getAllTaskLastRun();
+    expect(map).toEqual({ 'task-a': 1000, 'task-b': 2000, 'task-c': 3000 });
+  });
+
+  it('getAllTaskLastRun は未登録時に空オブジェクトを返す', async () => {
+    const map = await getAllTaskLastRun();
+    expect(map).toEqual({});
+  });
+
+  it('batchUpdateTaskLastRun で複数タスクを一括更新できる', async () => {
+    await updateTaskLastRun('task-a', 1000);
+    await batchUpdateTaskLastRun(['task-a', 'task-b', 'task-c'], 5000);
+
+    expect(await getTaskLastRun('task-a')).toBe(5000);
+    expect(await getTaskLastRun('task-b')).toBe(5000);
+    expect(await getTaskLastRun('task-c')).toBe(5000);
   });
 
   it('taskLastRun は他の状態に影響しない', async () => {

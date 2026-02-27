@@ -1,6 +1,6 @@
 import { isQuietHours } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
-import { addHeartbeatResult, updateTaskLastRun, getTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, updateTaskLastRun, getAllTaskLastRun } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getDefaultPersonaConfig } from './config';
@@ -34,18 +34,20 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
   const enabledTasks = hbConfig.tasks.filter((t) => t.enabled);
   const dueTasks: HeartbeatTask[] = [];
 
+  // state を1回ロードして全タスクの lastRun を参照（N+1 防止）
+  const taskLastRunMap = await getAllTaskLastRun();
+
   for (const task of enabledTasks) {
     const schedule = task.schedule;
+    const lastRun = taskLastRunMap[task.id] ?? 0;
 
     if (!schedule || schedule.type === 'global') {
       // グローバル間隔: taskLastRun で個別追跡（飢餓防止）
-      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = hbConfig.intervalMinutes * 60_000;
       if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
       }
     } else if (schedule.type === 'interval') {
-      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = (schedule.intervalMinutes ?? hbConfig.intervalMinutes) * 60_000;
       if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
@@ -57,7 +59,6 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
       const currentTotalMinutes = currentHour * 60 + currentMinute;
       const targetTotalMinutes = targetHour * 60 + targetMinute;
       if (currentTotalMinutes >= targetTotalMinutes) {
-        const lastRun = await getTaskLastRun(task.id);
         const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
         if (lastRun < todayStart) {
           dueTasks.push(task);

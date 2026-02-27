@@ -48,9 +48,12 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: existingSub.toJSON() }),
       });
-    } catch {
+    } catch (e) {
       // サーバー再登録失敗はサイレント — ローカル Subscription は有効
-      console.warn('[Push] サーバー再登録失敗（既存 Subscription を継続利用）');
+      console.warn(
+        '[Push] サーバー再登録失敗（既存 Subscription を継続利用）:',
+        e instanceof Error ? e.message : String(e),
+      );
     }
     return existingSub;
   }

@@ -76,6 +76,16 @@ describe('isPrivateIP', () => {
     expect(isPrivateIP('::ffff:8.8.8.8')).toBe(false);
   });
 
+  it('IPv4-mapped IPv6 の16進表記プライベート IP を検出する', () => {
+    expect(isPrivateIP('::ffff:c0a8:0101')).toBe(true);  // 192.168.1.1
+    expect(isPrivateIP('::ffff:7f00:1')).toBe(true);      // 127.0.0.1
+    expect(isPrivateIP('::ffff:0a00:1')).toBe(true);      // 10.0.0.1
+  });
+
+  it('IPv4-mapped IPv6 の16進表記パブリック IP を許可する', () => {
+    expect(isPrivateIP('::ffff:0808:0808')).toBe(false);  // 8.8.8.8
+  });
+
   it('IPv6 パブリックアドレスを許可する', () => {
     expect(isPrivateIP('2001:db8::1')).toBe(false);
     expect(isPrivateIP('2607:f8b0:4004:800::200e')).toBe(false);
