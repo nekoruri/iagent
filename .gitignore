@@ -30,6 +30,7 @@ dist-ssr
 
 # Wrangler
 .wrangler/
+server/wrangler.toml
 
 # Test outputs
 coverage/
