@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション）
-- テスト 448 件
+- テスト 450 件
 
 ---
 
@@ -115,6 +115,7 @@
 - [x] 結果の専用パネル（チャットとの分離）
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
 - [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
+- [ ] 重要な通知のピン留め／保護（ブリーフィング等が recentResults の FIFO で押し出されない仕組み）
 
 ### Web Push 信頼性向上
 - [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
@@ -175,8 +176,9 @@
 - [ ] アーカイブ閲覧 UI — memories_archive の参照・復元機能
 
 ### エージェント自律性強化
-- [ ] 情報収集ワークフロー（RSS ダイジェスト、ニュースブリーフィング等の Heartbeat タスク）
-- [ ] プロアクティブ提案エンジン（日次ブリーフィング、関連情報サジェスト）
+- [x] 日次ブリーフィング — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加
+- [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
+- [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
 
 ### 横断的課題
@@ -215,3 +217,4 @@
 - [x] CORS プロキシ — Cloudflare Workers 拡張（トークン認証 + SSRF 防止 + レート制限 + クライアント設定 UI）（2026-02-26）
 - [x] 外部情報収集ツール Phase C — クリッピング（clipTool + clipStore）、RSS フィード（feedTool + feedParser + feedStore + Heartbeat 連携）、Web ページ監視（webMonitorTool + monitorStore + Heartbeat 連携）、MCP Heartbeat 対応（read-only ツール許可 + 設定 UI）。DB_VERSION 7→8、4 新ストア追加。テスト 263→369 件。（2026-02-26）
 - [x] アイデンティティ + 記憶フレームワーク Phase D — 構造化記憶（importance/tags/新カテゴリ + 関連性ベース取得 + normalizeMemory 後方互換）、Agent Persona（PersonaConfig + 設定 UI + 動的 instructionBuilder）、全コンポーネント統合（agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts）。DB_VERSION 8→9。テスト 369→422 件。（2026-02-26）
+- [x] 日次ブリーフィング Phase F-1 — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加。テスト 448→450 件。（2026-02-27）
