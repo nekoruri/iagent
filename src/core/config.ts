@@ -1,4 +1,4 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, ThemeMode } from '../types';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -103,7 +103,7 @@ function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig(), persona: getDefaultPersonaConfig() };
+    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig(), persona: getDefaultPersonaConfig(), theme: 'system' };
   }
   const parsed = JSON.parse(raw) as Partial<AppConfig>;
   const heartbeat = parsed.heartbeat
@@ -127,6 +127,9 @@ export function getConfig(): AppConfig {
     persona: parsed.persona
       ? { ...getDefaultPersonaConfig(), ...parsed.persona }
       : getDefaultPersonaConfig(),
+    theme: (['light', 'dark', 'system'].includes(parsed.theme as string)
+      ? parsed.theme as ThemeMode
+      : 'system'),
   };
 }
 

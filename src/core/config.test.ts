@@ -225,6 +225,51 @@ describe('persona in getConfig', () => {
   });
 });
 
+describe('theme in getConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('theme 未設定時にデフォルト system が返る', () => {
+    const config = getConfig();
+    expect(config.theme).toBe('system');
+  });
+
+  it('theme が dark の場合 dark が返る', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      theme: 'dark',
+    }));
+    const config = getConfig();
+    expect(config.theme).toBe('dark');
+  });
+
+  it('theme が light の場合 light が返る', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      theme: 'light',
+    }));
+    const config = getConfig();
+    expect(config.theme).toBe('light');
+  });
+
+  it('不正な theme 値の場合 system にフォールバックする', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      theme: 'invalid-value',
+    }));
+    const config = getConfig();
+    expect(config.theme).toBe('system');
+  });
+
+  it('saveConfig でテーマが保存される', () => {
+    const config = getConfig();
+    saveConfig({ ...config, theme: 'light' });
+    const loaded = getConfig();
+    expect(loaded.theme).toBe('light');
+  });
+});
+
 describe('isConfigured', () => {
   beforeEach(() => {
     localStorage.clear();

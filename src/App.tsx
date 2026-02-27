@@ -11,6 +11,7 @@ import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
+import { useTheme } from './hooks/useTheme';
 import { isConfigured, getConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
@@ -40,6 +41,7 @@ export default function App() {
 
   const heartbeatPanel = useHeartbeatPanel();
   const memoryPanel = useMemoryPanel();
+  useTheme(); // system モードの OS 設定変更リスニング
 
   const handleHeartbeatNotification = useCallback((notification: HeartbeatNotification) => {
     if (!activeConversationId) return;
