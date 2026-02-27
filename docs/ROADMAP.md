@@ -233,3 +233,4 @@
 - [x] Push 通知信頼性改善 PR-D — subscribePush 既存 Subscription 再登録時の response.ok チェック追加（4xx はデータ不正として新規作成、5xx/ネットワークエラーは既存継続）、Push 関連レビュー項目 3 件のステータス更新（2 件は既に対応済み確認 + 1 件修正）。テスト 474→477 件。（2026-02-28）
 - [x] クライアント側 SSRF 防止 PR-E — `isPrivateIP()` を `server/src/proxy.ts` から `src/core/urlValidation.ts` に移植、`validateUrl()` でプライベート IP ブロック（localhost 除外）。DNS rebinding はブラウザ JS では原理的に検出不可だが CORS プロキシ + サーバー側で多層防御済み。（2026-02-28）
 - [x] MCP ツール許可改善 PR-F — `allowedMcpTools` を `"serverName/toolName"` 形式に変更（server-qualified 化）+ callable `toolFilter` でサーバー単位フィルタリング + `groupTasksByMcpTools` でタスク単位のツール分離（グループごとに個別 Agent 実行）。（2026-02-28）
+- [x] getAllFromIndex モック正確性改善 PR-G — `__mocks__/db.ts` の `getAllFromIndex` / `transaction.index().getAll()` で multiEntry インデックス（配列フィールド）対応（`Array.isArray` + `includes` 判定）。clipStore.test.ts にタグフィルタ検証テスト追加。（2026-02-28）

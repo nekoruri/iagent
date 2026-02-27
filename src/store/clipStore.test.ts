@@ -156,6 +156,27 @@ describe('listClips', () => {
     expect(all[1].title).toBe('A');
   });
 
+  it('タグフィルタで該当クリップのみ返す（multiEntry 対応）', async () => {
+    await saveClip({ url: 'https://a.com', title: 'A', content: 'A', tags: ['frontend', 'react'] });
+    await saveClip({ url: 'https://b.com', title: 'B', content: 'B', tags: ['backend', 'node'] });
+    await saveClip({ url: 'https://c.com', title: 'C', content: 'C', tags: ['frontend', 'vue'] });
+
+    // 'frontend' タグで検索 → A, C がヒット
+    const frontend = await listClips('frontend');
+    expect(frontend).toHaveLength(2);
+    expect(frontend.map((c) => c.title).sort()).toEqual(['A', 'C']);
+
+    // 'react' タグで検索 → A のみヒット
+    const react = await listClips('react');
+    expect(react).toHaveLength(1);
+    expect(react[0].title).toBe('A');
+
+    // 'backend' タグで検索 → B のみヒット（frontend タグのクリップは含まれない）
+    const backend = await listClips('backend');
+    expect(backend).toHaveLength(1);
+    expect(backend[0].title).toBe('B');
+  });
+
   it('limit で件数制限できる', async () => {
     for (let i = 0; i < 5; i++) {
       await saveClip({ url: `https://${i}.com`, title: `記事${i}`, content: `内容${i}` });
