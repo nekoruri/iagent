@@ -73,6 +73,46 @@ describe('subscribePush', () => {
     }));
   });
 
+  it('既存 Subscription のサーバー再登録が HTTP エラーの場合、新規 Subscription を作成する', async () => {
+    const newSubscription = {
+      toJSON: vi.fn().mockReturnValue({ endpoint: 'https://push.example.com/sub2', keys: {} }),
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    };
+
+    // 1回目: 既存 Subscription あり
+    mockPushManager.getSubscription.mockResolvedValue(mockSubscription);
+    // 既存の再登録 → HTTP 500
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    // VAPID 公開鍵取得
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ publicKey: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkDs-1xJDLfJB3oh0HRVNYoYEI2PxVCXQ78wIxRBNk' }),
+    });
+    // 新規 Subscription のサーバー登録 → 成功
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    mockPushManager.subscribe.mockResolvedValue(newSubscription);
+
+    const result = await subscribePush('https://server.example.com');
+
+    // 既存 Subscription が unsubscribe される
+    expect(mockSubscription.unsubscribe).toHaveBeenCalled();
+    // 新規 Subscription が返される
+    expect(result).toBe(newSubscription);
+    // fetch 3回: 再登録失敗 + VAPID取得 + 新規登録
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('既存 Subscription のサーバー再登録がネットワークエラーの場合、既存を継続利用する', async () => {
+    mockPushManager.getSubscription.mockResolvedValue(mockSubscription);
+    mockFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const result = await subscribePush('https://server.example.com');
+
+    expect(result).toBe(mockSubscription);
+    expect(mockSubscription.unsubscribe).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('VAPID 公開鍵取得失敗でエラーをスローする', async () => {
     mockPushManager.getSubscription.mockResolvedValue(null);
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });

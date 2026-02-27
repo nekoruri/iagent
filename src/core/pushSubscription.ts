@@ -43,19 +43,27 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
     // 既存 Subscription もサーバーに再登録して TTL を延長
     try {
       const url = validateUrl(serverUrl);
-      await fetch(`${url}/subscribe`, {
+      const response = await fetch(`${url}/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: existingSub.toJSON() }),
       });
+      if (response.ok) {
+        return existingSub;
+      }
+      // HTTP エラー: サーバー側で拒否 → 既存を破棄して新規作成にフォールスルー
+      console.warn(
+        `[Push] サーバー再登録失敗 (${response.status})。新規 Subscription を作成します。`,
+      );
+      await existingSub.unsubscribe();
     } catch (e) {
-      // サーバー再登録失敗はサイレント — ローカル Subscription は有効
+      // ネットワークエラー: サーバー到達不可 → 既存 Subscription を継続利用
       console.warn(
         '[Push] サーバー再登録失敗（既存 Subscription を継続利用）:',
         e instanceof Error ? e.message : String(e),
       );
+      return existingSub;
     }
-    return existingSub;
   }
 
   const validatedUrl = validateUrl(serverUrl);
