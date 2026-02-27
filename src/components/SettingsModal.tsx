@@ -350,7 +350,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     className="mcp-server-name"
                     type="text"
                     value={server.name}
-                    onChange={(e) => updateMCPServer(server.id, { name: e.target.value })}
+                    onChange={(e) => updateMCPServer(server.id, { name: e.target.value.replace(/\//g, '') })}
                     placeholder="サーバー名"
                   />
                   <span className={`mcp-status ${statusClass}`}>{statusText}</span>
@@ -637,15 +637,22 @@ export function SettingsModal({ open, onClose }: Props) {
                         <div className="hb-mcp-tools-list">
                           {readOnlyTools.map((t) => {
                             const qualifiedName = `${t.serverName}/${t.toolName}`;
+                            // レガシー（"/" なし toolName のみ）も checked 判定に含める
+                            const isChecked = allowedTools.includes(qualifiedName)
+                              || allowedTools.includes(t.toolName);
                             return (
                             <label key={qualifiedName} className="mcp-toggle-label hb-mcp-tool-label">
                               <input
                                 type="checkbox"
-                                checked={allowedTools.includes(qualifiedName)}
+                                checked={isChecked}
                                 onChange={(e) => {
+                                  // レガシーエントリを除去して qualified 形式に正規化
+                                  const withoutLegacy = allowedTools.filter(
+                                    (n) => n !== qualifiedName && n !== t.toolName,
+                                  );
                                   const newAllowed = e.target.checked
-                                    ? [...allowedTools, qualifiedName]
-                                    : allowedTools.filter((n) => n !== qualifiedName);
+                                    ? [...withoutLegacy, qualifiedName]
+                                    : withoutLegacy;
                                   updateHeartbeatTask(task.id, { allowedMcpTools: newAllowed });
                                 }}
                               />
