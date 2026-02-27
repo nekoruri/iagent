@@ -635,22 +635,25 @@ export function SettingsModal({ open, onClose }: Props) {
                       <div className="hb-mcp-tools-section">
                         <span className="hb-schedule-label">MCP ツール許可:</span>
                         <div className="hb-mcp-tools-list">
-                          {readOnlyTools.map((t) => (
-                            <label key={`${t.serverName}/${t.toolName}`} className="mcp-toggle-label hb-mcp-tool-label">
+                          {readOnlyTools.map((t) => {
+                            const qualifiedName = `${t.serverName}/${t.toolName}`;
+                            return (
+                            <label key={qualifiedName} className="mcp-toggle-label hb-mcp-tool-label">
                               <input
                                 type="checkbox"
-                                checked={allowedTools.includes(t.toolName)}
+                                checked={allowedTools.includes(qualifiedName)}
                                 onChange={(e) => {
                                   const newAllowed = e.target.checked
-                                    ? [...allowedTools, t.toolName]
-                                    : allowedTools.filter((n) => n !== t.toolName);
+                                    ? [...allowedTools, qualifiedName]
+                                    : allowedTools.filter((n) => n !== qualifiedName);
                                   updateHeartbeatTask(task.id, { allowedMcpTools: newAllowed });
                                 }}
                               />
                               <span className="hb-mcp-tool-name">{t.toolName}</span>
                               <span className="hb-mcp-tool-server">({t.serverName})</span>
                             </label>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );

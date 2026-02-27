@@ -90,6 +90,9 @@
 - [x] プロンプトインジェクション対策 — メモリ注入セクションにガード文追加（instructions/heartbeat 両方）
 - [x] SSRF 防止 IPv6 対応 — isPrivateIP に IPv6 ループバック/ULA/リンクローカル/IPv4-mapped（16進表記含む）判定追加
 - [x] MCP ツールアクセス制限ガード文強化
+- [x] クライアント側 SSRF 防止 — `isPrivateIP()` を `server/src/proxy.ts` から `src/core/urlValidation.ts` に移植、`validateUrl()` でプライベート IP ブロック（多層防御）
+- [x] MCP ツール許可キー server-qualified 化 — `allowedMcpTools` を `"serverName/toolName"` 形式に変更 + callable `toolFilter` でサーバー単位フィルタリング
+- [x] MCP ツール許可タスク単位制御 — `groupTasksByMcpTools` でタスクをツールセット別にグループ化、グループごとに Agent を個別実行
 
 ---
 
@@ -228,3 +231,5 @@
 - [x] PR#23 レビュー対応 + パフォーマンス改善 PR-B — SSRF IPv4-mapped IPv6 16進表記対応、フォアグラウンド Heartbeat エラー時リトライ暴走修正（batchUpdateTaskLastRun）、heartbeatStore バッチ API（getAllTaskLastRun/batchUpdateTaskLastRun で N+1 IDB アクセス解消）、Push catch ログ改善、fixed-time テスト時刻固定（vi.useFakeTimers）、clearMessages/markExported トランザクション化。テスト 468→472 件（クライアント）+ 29→31 件（サーバー）。（2026-02-28）
 - [x] セキュリティ + 重要バグ修正 + レビュードキュメント化 PR-C — MCP ツール SDK レベルフィルタリング（toolFilter）、updatePersona/updateProxy クロージャ修正、Worker heartbeat メモリ関連性スコアリング適用、MAX_MEMORIES 飽和安全弁、全 PR レビューコメント一元管理（docs/REVIEW-TRACKER.md）。テスト 472→474 件。（2026-02-28）
 - [x] Push 通知信頼性改善 PR-D — subscribePush 既存 Subscription 再登録時の response.ok チェック追加（4xx はデータ不正として新規作成、5xx/ネットワークエラーは既存継続）、Push 関連レビュー項目 3 件のステータス更新（2 件は既に対応済み確認 + 1 件修正）。テスト 474→477 件。（2026-02-28）
+- [x] クライアント側 SSRF 防止 PR-E — `isPrivateIP()` を `server/src/proxy.ts` から `src/core/urlValidation.ts` に移植、`validateUrl()` でプライベート IP ブロック（localhost 除外）。DNS rebinding はブラウザ JS では原理的に検出不可だが CORS プロキシ + サーバー側で多層防御済み。（2026-02-28）
+- [x] MCP ツール許可改善 PR-F — `allowedMcpTools` を `"serverName/toolName"` 形式に変更（server-qualified 化）+ callable `toolFilter` でサーバー単位フィルタリング + `groupTasksByMcpTools` でタスク単位のツール分離（グループごとに個別 Agent 実行）。（2026-02-28）

@@ -3,7 +3,7 @@ import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
 
-import { isQuietHours, getTasksDue, HeartbeatEngine } from './heartbeat';
+import { isQuietHours, getTasksDue, groupTasksByMcpTools, HeartbeatEngine } from './heartbeat';
 import { updateLastChecked, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
@@ -789,5 +789,54 @@ describe('HeartbeatEngine - runNow', () => {
 
     expect(mockRunFn).toHaveBeenCalledTimes(1);
     engine.stop();
+  });
+});
+
+// --- groupTasksByMcpTools ---
+
+describe('groupTasksByMcpTools', () => {
+  const makeTask = (id: string, allowedMcpTools?: string[]): HeartbeatTask => ({
+    id,
+    name: id,
+    description: '',
+    enabled: true,
+    type: 'custom',
+    allowedMcpTools,
+  });
+
+  it('MCP ツールなしのタスクは 1 グループにまとまる', () => {
+    const tasks = [makeTask('a'), makeTask('b'), makeTask('c')];
+    const groups = groupTasksByMcpTools(tasks);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].tasks).toHaveLength(3);
+    expect(groups[0].allowedMcpTools).toEqual([]);
+  });
+
+  it('同じ allowedMcpTools を持つタスクは同グループ', () => {
+    const tasks = [
+      makeTask('a', ['srv/tool-x', 'srv/tool-y']),
+      makeTask('b', ['srv/tool-y', 'srv/tool-x']), // 順序違いでも同一
+    ];
+    const groups = groupTasksByMcpTools(tasks);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].tasks).toHaveLength(2);
+    expect(groups[0].allowedMcpTools).toEqual(['srv/tool-x', 'srv/tool-y']);
+  });
+
+  it('異なる allowedMcpTools を持つタスクは別グループ', () => {
+    const tasks = [
+      makeTask('a', ['srv-a/tool-1']),
+      makeTask('b', ['srv-b/tool-2']),
+      makeTask('c'),
+    ];
+    const groups = groupTasksByMcpTools(tasks);
+    expect(groups).toHaveLength(3);
+  });
+
+  it('空配列と undefined は同じグループになる', () => {
+    const tasks = [makeTask('a', []), makeTask('b')];
+    const groups = groupTasksByMcpTools(tasks);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].tasks).toHaveLength(2);
   });
 });

@@ -48,17 +48,35 @@ export async function createHeartbeatAgent(
   });
 
   // MCP ツールが指定されていない場合は MCP サーバーを渡さない
-  // SDK レベルの toolFilter で許可ツールのみに制限（プロンプト記述 + SDK フィルタの二重防御）
+  // SDK レベルの callable toolFilter でサーバー名+ツール名を検証（プロンプト記述 + SDK フィルタの二重防御）
+  // allowedMcpToolNames は "serverName/toolName" 形式。"/" なしはレガシー互換（任意サーバーにマッチ）
   const filteredMcpServers = allowedMcpToolNames && allowedMcpToolNames.length > 0
     ? mcpServers?.map((server) =>
       Object.assign(Object.create(Object.getPrototypeOf(server)), server, {
-        toolFilter: { allowedToolNames: allowedMcpToolNames },
+        toolFilter: async (
+          context: { serverName: string },
+          tool: { name: string },
+        ) => {
+          return allowedMcpToolNames.some((entry) => {
+            const sep = entry.indexOf('/');
+            if (sep >= 0) {
+              // qualified: "serverName/toolName"
+              return entry.slice(0, sep) === context.serverName
+                && entry.slice(sep + 1) === tool.name;
+            }
+            // レガシー: "toolName" のみ → 任意サーバーにマッチ
+            return entry === tool.name;
+          });
+        },
       }),
     )
     : undefined;
 
   const mcpToolNote = allowedMcpToolNames && allowedMcpToolNames.length > 0
-    ? `\n\n## MCP ツール使用制限\n利用可能な MCP ツール: ${allowedMcpToolNames.join(', ')}\n【重要】上記リスト以外の MCP ツールを呼び出さないでください。許可されていないツール呼び出しは無視されます。`
+    ? `\n\n## MCP ツール使用制限\n利用可能な MCP ツール: ${allowedMcpToolNames.map((e) => {
+        const sep = e.indexOf('/');
+        return sep >= 0 ? `${e.slice(sep + 1)} (${e.slice(0, sep)})` : e;
+      }).join(', ')}\n【重要】上記リスト以外の MCP ツールを呼び出さないでください。許可されていないツール呼び出しは無視されます。`
     : '';
 
   return new Agent({

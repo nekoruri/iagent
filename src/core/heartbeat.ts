@@ -15,6 +15,24 @@ export type HeartbeatNotification = {
 
 type Listener = (notification: HeartbeatNotification) => void;
 
+/** タスクを allowedMcpTools の内容でグループ化する */
+export function groupTasksByMcpTools(
+  tasks: HeartbeatTask[],
+): Array<{ tasks: HeartbeatTask[]; allowedMcpTools: string[] }> {
+  const map = new Map<string, { tasks: HeartbeatTask[]; allowedMcpTools: string[] }>();
+  for (const task of tasks) {
+    const tools = [...(task.allowedMcpTools ?? [])].sort();
+    const key = tools.join('\0');
+    const existing = map.get(key);
+    if (existing) {
+      existing.tasks.push(task);
+    } else {
+      map.set(key, { tasks: [task], allowedMcpTools: tools });
+    }
+  }
+  return [...map.values()];
+}
+
 /** 現在がサイレント時間帯かどうかを判定する */
 export function isQuietHours(config: HeartbeatConfig, now?: Date): boolean {
   const hour = (now ?? new Date()).getHours();
@@ -151,71 +169,23 @@ export class HeartbeatEngine {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
       setDefaultOpenAIClient(client);
 
-      // タスクに許可された MCP ツール名を集約
-      const allowedMcpToolNames = new Set<string>();
-      for (const task of tasks) {
-        if (task.allowedMcpTools) {
-          for (const toolName of task.allowedMcpTools) {
-            allowedMcpToolNames.add(toolName);
-          }
-        }
-      }
-
+      // タスクを allowedMcpTools のセットでグループ化し、グループごとに Agent を実行
+      const groups = groupTasksByMcpTools(tasks);
       const mcpServers = this.getMCPServers();
-      const agent = await createHeartbeatAgent(
-        mcpServers,
-        allowedMcpToolNames.size > 0 ? [...allowedMcpToolNames] : undefined,
-      );
+      const allHeartbeatResults: HeartbeatResult[] = [];
 
-      const taskDescriptions = tasks.map((t) =>
-        `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
-      ).join('\n');
-
-      const prompt = `以下のタスクについてチェックを実行してください:\n${taskDescriptions}`;
-
-      const result = await run(agent, [user(prompt)], { stream: false });
-      const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
-
-      if (typeof finalOutput !== 'string') {
-        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_string_output' });
-        return;
+      for (const group of groups) {
+        const results = await this.executeGroup(
+          group.tasks,
+          mcpServers,
+          group.allowedMcpTools.length > 0 ? group.allowedMcpTools : undefined,
+          trace,
+        );
+        allHeartbeatResults.push(...results);
       }
 
-      // JSON部分を抽出
-      const jsonMatch = finalOutput.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_json_match' });
-        return;
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]) as {
-        results: Array<{ taskId: string; hasChanges: boolean; summary: string }>;
-      };
-
-      const now = Date.now();
-      const heartbeatResults: HeartbeatResult[] = [];
-
-      for (const r of parsed.results) {
-        const hbResult: HeartbeatResult = {
-          taskId: r.taskId,
-          timestamp: now,
-          hasChanges: r.hasChanges,
-          summary: r.summary || '',
-          pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection',
-        };
-        await addHeartbeatResult(hbResult);
-        await updateTaskLastRun(r.taskId, now);
-        trace.rootSpan.addEvent('heartbeat.task.result', {
-          [HEARTBEAT_ATTRS.TASK_ID]: r.taskId,
-          [HEARTBEAT_ATTRS.HAS_CHANGES]: r.hasChanges,
-        });
-        if (r.hasChanges) {
-          heartbeatResults.push(hbResult);
-        }
-      }
-
-      if (heartbeatResults.length > 0) {
-        this.notify({ results: heartbeatResults });
+      if (allHeartbeatResults.length > 0) {
+        this.notify({ results: allHeartbeatResults });
       }
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
@@ -226,5 +196,64 @@ export class HeartbeatEngine {
       await trace.finish().catch(() => {});
       this.isExecuting = false;
     }
+  }
+
+  /** グループ単位で Agent を作成・実行し、hasChanges=true の結果を返す */
+  private async executeGroup(
+    tasks: HeartbeatTask[],
+    mcpServers: MCPServer[],
+    allowedMcpTools: string[] | undefined,
+    trace: ReturnType<typeof tracer.startTrace>,
+  ): Promise<HeartbeatResult[]> {
+    const agent = await createHeartbeatAgent(mcpServers, allowedMcpTools);
+
+    const taskDescriptions = tasks.map((t) =>
+      `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
+    ).join('\n');
+
+    const prompt = `以下のタスクについてチェックを実行してください:\n${taskDescriptions}`;
+
+    const result = await run(agent, [user(prompt)], { stream: false });
+    const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
+
+    if (typeof finalOutput !== 'string') {
+      trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_string_output' });
+      return [];
+    }
+
+    // JSON部分を抽出
+    const jsonMatch = finalOutput.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_json_match' });
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      results: Array<{ taskId: string; hasChanges: boolean; summary: string }>;
+    };
+
+    const now = Date.now();
+    const heartbeatResults: HeartbeatResult[] = [];
+
+    for (const r of parsed.results) {
+      const hbResult: HeartbeatResult = {
+        taskId: r.taskId,
+        timestamp: now,
+        hasChanges: r.hasChanges,
+        summary: r.summary || '',
+        pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection',
+      };
+      await addHeartbeatResult(hbResult);
+      await updateTaskLastRun(r.taskId, now);
+      trace.rootSpan.addEvent('heartbeat.task.result', {
+        [HEARTBEAT_ATTRS.TASK_ID]: r.taskId,
+        [HEARTBEAT_ATTRS.HAS_CHANGES]: r.hasChanges,
+      });
+      if (r.hasChanges) {
+        heartbeatResults.push(hbResult);
+      }
+    }
+
+    return heartbeatResults;
   }
 }
