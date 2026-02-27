@@ -125,7 +125,7 @@ export function MemoryPanel({
                     <button
                       className="memory-delete-btn"
                       onClick={() => onDelete(m.id)}
-                      title="削除"
+                      aria-label={`メモリを削除: ${m.content.slice(0, 20)}`}
                     >
                       ×
                     </button>

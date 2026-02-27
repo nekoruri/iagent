@@ -57,7 +57,7 @@ describe('MemoryPanel', () => {
     const memories = [makeMemory({ id: 'mem-1', content: '削除対象メモリ' })];
     render(<MemoryPanel {...baseProps} memories={memories} onDelete={onDelete} />);
 
-    const deleteBtn = screen.getByTitle('削除');
+    const deleteBtn = screen.getByLabelText('メモリを削除: 削除対象メモリ');
     await userEvent.click(deleteBtn);
 
     expect(onDelete).toHaveBeenCalledWith('mem-1');
