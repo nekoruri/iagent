@@ -1,6 +1,6 @@
 import { isQuietHours } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
-import { loadHeartbeatState, addHeartbeatResult, updateTaskLastRun, getTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, updateTaskLastRun, getTaskLastRun } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getDefaultPersonaConfig } from './config';
@@ -38,9 +38,10 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
     const schedule = task.schedule;
 
     if (!schedule || schedule.type === 'global') {
-      const state = await loadHeartbeatState();
+      // グローバル間隔: taskLastRun で個別追跡（飢餓防止）
+      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = hbConfig.intervalMinutes * 60_000;
-      if (now - state.lastChecked >= intervalMs) {
+      if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
       }
     } else if (schedule.type === 'interval') {
@@ -50,9 +51,12 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
         dueTasks.push(task);
       }
     } else if (schedule.type === 'fixed-time') {
+      // 固定時刻: 対象時刻を過ぎていて今日まだ未実行（±1分ウィンドウだと見逃す可能性があるため）
       const targetHour = schedule.hour ?? 8;
       const targetMinute = schedule.minute ?? 0;
-      if (currentHour === targetHour && Math.abs(currentMinute - targetMinute) <= 1) {
+      const currentTotalMinutes = currentHour * 60 + currentMinute;
+      const targetTotalMinutes = targetHour * 60 + targetMinute;
+      if (currentTotalMinutes >= targetTotalMinutes) {
         const lastRun = await getTaskLastRun(task.id);
         const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
         if (lastRun < todayStart) {

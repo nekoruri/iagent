@@ -122,7 +122,7 @@ export class MCPManager {
       }
     }
 
-    // 新規・変更された接続を開始
+    // 新規・変更された接続を開始（個別にエラーハンドリングして他サーバーへの影響を防止）
     for (const config of configs) {
       if (!config.enabled) continue;
       const existing = this.servers.get(config.id);
@@ -130,7 +130,11 @@ export class MCPManager {
         // URL が変わっていなければ再接続不要
         continue;
       }
-      await this.connectServer(config);
+      try {
+        await this.connectServer(config);
+      } catch (e) {
+        console.error(`[MCP] サーバー接続失敗 (${config.name}):`, e instanceof Error ? e.message : String(e));
+      }
     }
   }
 }

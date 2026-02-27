@@ -186,7 +186,7 @@ describe('getTasksDue', () => {
   });
 
   it('グローバルタスクは間隔内だと実行されない', async () => {
-    await updateLastChecked(Date.now());
+    await updateTaskLastRun('global-task', Date.now());
     const config = makeConfig({ tasks: [globalTask] });
     const due = await getTasksDue(config);
     expect(due).toHaveLength(0);
@@ -207,13 +207,15 @@ describe('getTasksDue', () => {
     expect(due).toHaveLength(0);
   });
 
-  it('schedule.type=fixed-time のタスクは指定時刻でのみ判定される', async () => {
-    // 現在時刻が8:00でない限り実行されない
+  it('schedule.type=fixed-time のタスクは指定時刻以降で判定される', async () => {
+    // 対象時刻(8:00)を過ぎていて今日まだ未実行なら due
     const config = makeConfig({ tasks: [fixedTimeTask] });
     const now = new Date();
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    const targetTotalMinutes = 8 * 60; // 8:00
     const due = await getTasksDue(config);
 
-    if (now.getHours() === 8 && Math.abs(now.getMinutes() - 0) <= 1) {
+    if (currentTotalMinutes >= targetTotalMinutes) {
       expect(due).toHaveLength(1);
     } else {
       expect(due).toHaveLength(0);

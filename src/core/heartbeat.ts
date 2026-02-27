@@ -6,7 +6,7 @@ import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
-import { loadHeartbeatState, addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, updateLastChecked, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -39,10 +39,10 @@ export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTas
     const schedule = task.schedule;
 
     if (!schedule || schedule.type === 'global') {
-      // 既存動作: グローバル間隔
-      const state = await loadHeartbeatState();
+      // グローバル間隔: taskLastRun で個別追跡（飢餓防止）
+      const lastRun = await getTaskLastRun(task.id);
       const intervalMs = config.intervalMinutes * 60_000;
-      if (now - state.lastChecked >= intervalMs) {
+      if (now - lastRun >= intervalMs) {
         dueTasks.push(task);
       }
     } else if (schedule.type === 'interval') {
@@ -53,10 +53,12 @@ export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTas
         dueTasks.push(task);
       }
     } else if (schedule.type === 'fixed-time') {
-      // 固定時刻: 今が指定時刻の ±1分 かつ今日まだ実行していない
+      // 固定時刻: 対象時刻を過ぎていて今日まだ未実行（±1分ウィンドウだと見逃す可能性があるため）
       const targetHour = schedule.hour ?? 8;
       const targetMinute = schedule.minute ?? 0;
-      if (currentHour === targetHour && Math.abs(currentMinute - targetMinute) <= 1) {
+      const currentTotalMinutes = currentHour * 60 + currentMinute;
+      const targetTotalMinutes = targetHour * 60 + targetMinute;
+      if (currentTotalMinutes >= targetTotalMinutes) {
         const lastRun = await getTaskLastRun(task.id);
         const todayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
         if (lastRun < todayStart) {

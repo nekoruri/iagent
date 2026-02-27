@@ -5,6 +5,8 @@ import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
 import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories } from '../store/memoryStore';
 
+const MAX_ITEMS_PER_FEED = 100;
+
 /** OpenAI function calling 形式のツールスキーマ */
 export const WORKER_TOOLS = [
   {
@@ -192,8 +194,19 @@ export async function executeWorkerTool(
             });
           }
 
+          // 上限超過分を削除（古い順）
+          const allItems: FeedItem[] = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+          if (allItems.length > MAX_ITEMS_PER_FEED) {
+            const sorted = [...allItems].sort((a, b) => a.publishedAt - b.publishedAt);
+            const toDelete = sorted.slice(0, allItems.length - MAX_ITEMS_PER_FEED);
+            for (const item of toDelete) {
+              await db.delete('feed-items', item.id);
+            }
+          }
+
           // feed の lastFetchedAt 更新
-          await db.put('feeds', { ...feed, lastFetchedAt: now, itemCount: existingItems.length + newItems.length });
+          const finalCount = Math.min(existingItems.length + newItems.length, MAX_ITEMS_PER_FEED);
+          await db.put('feeds', { ...feed, lastFetchedAt: now, itemCount: finalCount });
 
           results.push({
             feedId: feed.id,
