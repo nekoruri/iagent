@@ -24,6 +24,8 @@ export interface ToolCallInfo {
   result?: string;
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -115,6 +117,7 @@ export interface AppConfig {
   proxy?: ProxyConfig;
   otel?: OtelConfig;
   persona?: PersonaConfig;
+  theme?: ThemeMode;
 }
 
 export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'reflection' | 'other';

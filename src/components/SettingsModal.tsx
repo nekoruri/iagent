@@ -6,7 +6,8 @@ import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSy
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig } from '../types';
+import { applyTheme } from '../core/theme';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode } from '../types';
 
 interface Props {
   open: boolean;
@@ -25,6 +26,12 @@ function statusLabel(status: MCPConnectionStatus): { text: string; className: st
       return { text: '未接続', className: 'mcp-status-disconnected' };
   }
 }
+
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'dark', label: 'ダーク' },
+  { value: 'light', label: 'ライト' },
+  { value: 'system', label: 'システム' },
+];
 
 export function SettingsModal({ open, onClose }: Props) {
   const [config, setConfig] = useState<AppConfig>(getConfig);
@@ -250,6 +257,29 @@ export function SettingsModal({ open, onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>設定</h2>
+
+        <div className="theme-section">
+          <span className="theme-section-label">テーマ</span>
+          <div className="theme-selector">
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={(config.theme ?? 'system') === opt.value ? 'active' : ''}
+                onClick={() => {
+                  setConfig((prev) => {
+                    const next = { ...prev, theme: opt.value };
+                    saveConfig(next);
+                    return next;
+                  });
+                  applyTheme(opt.value);
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <label>
           OpenAI API Key <span className="required">*必須</span>

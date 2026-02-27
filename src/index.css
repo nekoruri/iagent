@@ -18,6 +18,39 @@
   --assistant-bubble: #242424;
   --border: #333;
   --radius: 12px;
+  --status-success: #4ade80;
+  --status-warning: #fbbf24;
+  --status-error: #f87171;
+  --status-success-bg: #1a3a2a;
+  --status-warning-bg: #3a2a1a;
+  --status-error-bg: #3a1a1a;
+  --code-bg: #1a1a2e;
+  --code-inline-bg: rgba(255, 255, 255, 0.1);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e5e5e5;
+  --text: #1a1a1a;
+  --text-muted: #666;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --user-bubble: #2563eb;
+  --assistant-bubble: #f0f0f0;
+  --border: #d4d4d4;
+  --status-success: #16a34a;
+  --status-warning: #d97706;
+  --status-error: #dc2626;
+  --status-success-bg: #dcfce7;
+  --status-warning-bg: #fef3c7;
+  --status-error-bg: #fee2e2;
+  --code-bg: #f1f5f9;
+  --code-inline-bg: rgba(0, 0, 0, 0.06);
+  --overlay: rgba(0, 0, 0, 0.3);
+  --shadow: rgba(0, 0, 0, 0.15);
 }
 
 html, body, #root {
@@ -84,7 +117,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4ade80;
+  background: var(--status-success);
   animation: heartbeat-pulse 2s ease-in-out infinite;
 }
 
@@ -235,7 +268,7 @@ body {
 }
 
 .message-content.markdown pre {
-  background: #1a1a2e;
+  background: var(--code-bg);
   border-radius: 8px;
   padding: 12px;
   overflow-x: auto;
@@ -247,11 +280,11 @@ body {
   padding: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #e8e8e8;
+  color: var(--text);
 }
 
 .message-content.markdown code {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--code-inline-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.9em;
@@ -332,18 +365,18 @@ body {
 }
 
 .tool-completed {
-  background: #1a3a2a;
-  color: #4ade80;
+  background: var(--status-success-bg);
+  color: var(--status-success);
 }
 
 .tool-running {
-  background: #3a2a1a;
-  color: #fbbf24;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
 }
 
 .tool-error {
-  background: #3a1a1a;
-  color: #f87171;
+  background: var(--status-error-bg);
+  color: var(--status-error);
 }
 
 /* Tool indicator */
@@ -561,7 +594,7 @@ body {
 }
 
 .sidebar-item-delete:hover {
-  color: #f87171;
+  color: var(--status-error);
 }
 
 .sidebar-item-delete:focus-visible {
@@ -599,7 +632,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -635,7 +668,7 @@ body {
 }
 
 .required {
-  color: #f87171;
+  color: var(--status-error);
   font-size: 12px;
   margin-left: 4px;
 }
@@ -760,18 +793,18 @@ body {
 }
 
 .mcp-status-connected {
-  background: #1a3a2a;
-  color: #4ade80;
+  background: var(--status-success-bg);
+  color: var(--status-success);
 }
 
 .mcp-status-connecting {
-  background: #3a2a1a;
-  color: #fbbf24;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
 }
 
 .mcp-status-error {
-  background: #3a1a1a;
-  color: #f87171;
+  background: var(--status-error-bg);
+  color: var(--status-error);
 }
 
 .mcp-status-disconnected {
@@ -781,7 +814,7 @@ body {
 
 .mcp-error-text {
   font-size: 11px;
-  color: #f87171;
+  color: var(--status-error);
   line-height: 1.3;
 }
 
@@ -813,8 +846,8 @@ body {
 
 .btn-danger {
   background: transparent;
-  color: #f87171;
-  border: 1px solid #f8717133;
+  color: var(--status-error);
+  border: 1px solid color-mix(in srgb, var(--status-error) 20%, transparent);
   padding: 4px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -822,7 +855,7 @@ body {
 }
 
 .btn-danger:hover {
-  background: #3a1a1a;
+  background: var(--status-error-bg);
 }
 
 /* Heartbeat settings */
@@ -955,7 +988,7 @@ body {
 
 .hb-notification-denied {
   font-size: 11px;
-  color: #f87171;
+  color: var(--status-error);
   line-height: 1.3;
 }
 
@@ -995,7 +1028,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -1042,7 +1075,7 @@ body {
 }
 
 .heartbeat-result-changed {
-  border-left: 3px solid #4ade80;
+  border-left: 3px solid var(--status-success);
 }
 
 .heartbeat-result-summary {
@@ -1102,7 +1135,7 @@ body {
 
 /* Heartbeat message badge */
 .message-heartbeat .message-bubble {
-  border-left: 3px solid #4ade80;
+  border-left: 3px solid var(--status-success);
 }
 
 /* Task Progress */
@@ -1137,7 +1170,7 @@ body {
 }
 
 .task-step-running {
-  color: #fbbf24;
+  color: var(--status-warning);
 }
 
 .task-step-completed {
@@ -1145,7 +1178,7 @@ body {
 }
 
 .task-step-error {
-  color: #f87171;
+  color: var(--status-error);
 }
 
 .task-step-icon {
@@ -1186,7 +1219,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -1300,7 +1333,7 @@ body {
 }
 
 .memory-delete-btn:hover {
-  color: #f87171;
+  color: var(--status-error);
 }
 
 .memory-card:hover .memory-delete-btn,
@@ -1343,6 +1376,49 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
   margin-left: auto;
+}
+
+/* Theme selector */
+.theme-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theme-section-label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.theme-selector {
+  display: flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.theme-selector button {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.theme-selector button:hover {
+  color: var(--text);
+}
+
+.theme-selector button.active {
+  background: var(--accent);
+  color: white;
 }
 
 /* PWA standalone mode */
@@ -1391,7 +1467,7 @@ body {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     z-index: 150;
   }
 

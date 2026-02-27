@@ -90,6 +90,12 @@ vi.mock('../core/notifier', () => ({
 describe('SettingsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
   });
 
   it('open=false のとき何もレンダリングされない', () => {
