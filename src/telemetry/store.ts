@@ -38,13 +38,15 @@ export async function getUnexportedTraces(limit = 10): Promise<TraceRecord[]> {
 /** 指定トレースをエクスポート済みにマーク */
 export async function markExported(traceIds: string[]): Promise<void> {
   const db = await getDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
   for (const id of traceIds) {
-    const record = await db.get(STORE_NAME, id) as TraceRecord | undefined;
+    const record = await tx.store.get(id) as TraceRecord | undefined;
     if (record) {
       record.exported = true;
-      await db.put(STORE_NAME, record);
+      tx.store.put(record);
     }
   }
+  await tx.done;
 }
 
 /** 全トレースを削除 */

@@ -58,42 +58,47 @@ const mockDB = {
   /** transaction モック — objectStore ベースの操作をサポート */
   transaction(storeNames: string | string[], _mode?: string) {
     const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+    function makeStoreAccessor(name: string) {
+      const store = getStore(name);
+      return {
+        put(value: Record<string, unknown>) {
+          const key = (value as Record<string, unknown>).traceId ??
+                      (value as Record<string, unknown>).key ??
+                      (value as Record<string, unknown>).id;
+          store.set(key as string | number, structuredClone(value));
+        },
+        get(key: string | number) {
+          return Promise.resolve(store.get(key) ?? undefined);
+        },
+        getAll() {
+          return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
+        },
+        delete(key: string | number) {
+          store.delete(key);
+        },
+        index(idxName: string) {
+          return {
+            getAll(query?: IDBKeyRange | string | number) {
+              if (query === undefined) {
+                return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
+              }
+              const queryValue = query instanceof IDBKeyRange ? (query as unknown as { _value: unknown })._value : query;
+              const values = [...store.values()].filter((v) => {
+                return (v as Record<string, unknown>)[idxName] === queryValue;
+              });
+              return Promise.resolve(values.map((v) => structuredClone(v)));
+            },
+          };
+        },
+      };
+    }
     const tx = {
       objectStore(name: string) {
         if (!names.includes(name)) throw new Error(`Store "${name}" not in transaction`);
-        const store = getStore(name);
-        return {
-          put(value: Record<string, unknown>) {
-            const key = (value as Record<string, unknown>).traceId ??
-                        (value as Record<string, unknown>).key ??
-                        (value as Record<string, unknown>).id;
-            store.set(key as string | number, structuredClone(value));
-          },
-          get(key: string | number) {
-            return Promise.resolve(store.get(key) ?? undefined);
-          },
-          getAll() {
-            return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
-          },
-          delete(key: string | number) {
-            store.delete(key);
-          },
-          index(idxName: string) {
-            return {
-              getAll(query?: IDBKeyRange | string | number) {
-                if (query === undefined) {
-                  return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
-                }
-                const queryValue = query instanceof IDBKeyRange ? (query as unknown as { _value: unknown })._value : query;
-                const values = [...store.values()].filter((v) => {
-                  return (v as Record<string, unknown>)[idxName] === queryValue;
-                });
-                return Promise.resolve(values.map((v) => structuredClone(v)));
-              },
-            };
-          },
-        };
+        return makeStoreAccessor(name);
       },
+      // idb の単一ストアトランザクション用ショートカット
+      store: makeStoreAccessor(names[0]),
       done: Promise.resolve(),
     };
     return tx;

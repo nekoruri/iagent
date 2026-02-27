@@ -207,19 +207,23 @@ describe('getTasksDue', () => {
     expect(due).toHaveLength(0);
   });
 
-  it('schedule.type=fixed-time のタスクは指定時刻以降で判定される', async () => {
-    // 対象時刻(8:00)を過ぎていて今日まだ未実行なら due
+  it('fixed-time: 対象時刻前は due なし', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-28T07:59:00'));
     const config = makeConfig({ tasks: [fixedTimeTask] });
-    const now = new Date();
-    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-    const targetTotalMinutes = 8 * 60; // 8:00
     const due = await getTasksDue(config);
+    expect(due).toHaveLength(0);
+    vi.useRealTimers();
+  });
 
-    if (currentTotalMinutes >= targetTotalMinutes) {
-      expect(due).toHaveLength(1);
-    } else {
-      expect(due).toHaveLength(0);
-    }
+  it('fixed-time: 対象時刻以降で今日未実行なら due', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-28T08:01:00'));
+    const config = makeConfig({ tasks: [fixedTimeTask] });
+    const due = await getTasksDue(config);
+    expect(due).toHaveLength(1);
+    expect(due[0].id).toBe('fixed-task');
+    vi.useRealTimers();
   });
 
   it('固定時刻タスクは同日2回実行されない', async () => {
@@ -265,6 +269,7 @@ describe('HeartbeatEngine - executeCheck', () => {
   let mockAddHeartbeatResult: ReturnType<typeof vi.fn>;
   let mockUpdateLastCheckedFn: ReturnType<typeof vi.fn>;
   let mockUpdateTaskLastRunFn: ReturnType<typeof vi.fn>;
+  let mockBatchUpdateTaskLastRunFn: ReturnType<typeof vi.fn>;
 
   function setupMocks(configOverrides?: Partial<{ openaiApiKey: string; heartbeat: HeartbeatConfig }>) {
     mockRun = vi.fn();
@@ -273,6 +278,7 @@ describe('HeartbeatEngine - executeCheck', () => {
     mockAddHeartbeatResult = vi.fn().mockResolvedValue(undefined);
     mockUpdateLastCheckedFn = vi.fn().mockResolvedValue(undefined);
     mockUpdateTaskLastRunFn = vi.fn().mockResolvedValue(undefined);
+    mockBatchUpdateTaskLastRunFn = vi.fn().mockResolvedValue(undefined);
 
     vi.resetModules();
 
@@ -331,6 +337,8 @@ describe('HeartbeatEngine - executeCheck', () => {
       updateLastChecked: mockUpdateLastCheckedFn,
       updateTaskLastRun: mockUpdateTaskLastRunFn,
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: mockBatchUpdateTaskLastRunFn,
     }));
   }
 
@@ -443,7 +451,7 @@ describe('HeartbeatEngine - executeCheck', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('Agent 実行エラーで lastChecked を更新する（無限リトライ防止）', async () => {
+  it('Agent 実行エラーで taskLastRun を更新する（無限リトライ防止）', async () => {
     setupMocks();
     mockRun.mockRejectedValue(new Error('API エラー'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -456,7 +464,7 @@ describe('HeartbeatEngine - executeCheck', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalled();
     expect(mockEndWithError).toHaveBeenCalled();
-    expect(mockUpdateLastCheckedFn).toHaveBeenCalled();
+    expect(mockBatchUpdateTaskLastRunFn).toHaveBeenCalled();
 
     engine.stop();
     consoleErrorSpy.mockRestore();
@@ -538,6 +546,8 @@ describe('HeartbeatEngine - tick', () => {
       updateLastChecked: vi.fn().mockResolvedValue(undefined),
       updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -593,6 +603,8 @@ describe('HeartbeatEngine - tick', () => {
       updateLastChecked: vi.fn().mockResolvedValue(undefined),
       updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -643,6 +655,8 @@ describe('HeartbeatEngine - tick', () => {
       updateLastChecked: vi.fn().mockResolvedValue(undefined),
       updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -692,6 +706,8 @@ describe('HeartbeatEngine - tick', () => {
       updateLastChecked: vi.fn().mockResolvedValue(undefined),
       updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -757,6 +773,8 @@ describe('HeartbeatEngine - runNow', () => {
       updateLastChecked: vi.fn().mockResolvedValue(undefined),
       updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
       getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
