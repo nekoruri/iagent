@@ -87,14 +87,14 @@ export function SettingsModal({ open, onClose }: Props) {
   const updatePersona = (patch: Partial<PersonaConfig>) => {
     setConfig((prev) => ({
       ...prev,
-      persona: { ...persona, ...patch },
+      persona: { ...(prev.persona ?? getDefaultPersonaConfig()), ...patch },
     }));
   };
 
   const updateProxy = (patch: Partial<ProxyConfig>) => {
     setConfig((prev) => ({
       ...prev,
-      proxy: { ...proxy, ...patch },
+      proxy: { ...(prev.proxy ?? getDefaultProxyConfig()), ...patch },
     }));
   };
 

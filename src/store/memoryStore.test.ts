@@ -15,6 +15,7 @@ import {
   computeContentHash,
   getRecentMemoriesForReflection,
   cleanupLowScoredMemories,
+  archiveLowestScored,
   listArchivedMemories,
   HALF_LIFE_MS,
 } from './memoryStore';
@@ -461,6 +462,49 @@ describe('cleanupLowScoredMemories', () => {
     const after = await listMemories();
     expect(after).toHaveLength(2);
     expect(after.map((m) => m.category)).toEqual(expect.arrayContaining(['personality', 'routine']));
+  });
+});
+
+describe('archiveLowestScored 安全弁', () => {
+  it('保護カテゴリのみで飽和した場合も最低スコアをアーカイブする', async () => {
+    // personality と routine のみを保存
+    await saveMemory('性格A', 'personality', { importance: 5 });
+    await saveMemory('性格B', 'personality', { importance: 1 });
+    await saveMemory('日課A', 'routine', { importance: 5 });
+
+    const before = await listMemories();
+    expect(before).toHaveLength(3);
+
+    // archiveLowestScored を直接呼び出し（保護カテゴリのみ）
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const all = (await mockDb.getAll('memories')).map(normalizeMemory);
+    await archiveLowestScored(mockDb as any, all);
+
+    const after = await listMemories();
+    expect(after).toHaveLength(2);
+
+    const archived = await listArchivedMemories();
+    expect(archived).toHaveLength(1);
+    expect(archived[0].archiveReason).toBe('low-score');
+  });
+
+  it('保護カテゴリのみの場合 console.warn が出力される', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await saveMemory('性格のみ', 'personality');
+    await saveMemory('日課のみ', 'routine');
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const all = (await mockDb.getAll('memories')).map(normalizeMemory);
+    await archiveLowestScored(mockDb as any, all);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('保護カテゴリのみで MAX_MEMORIES 到達'),
+    );
+
+    warnSpy.mockRestore();
   });
 });
 
