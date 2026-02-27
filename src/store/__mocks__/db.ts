@@ -49,7 +49,9 @@ const mockDB = {
     const store = getStore(storeName);
     if (query !== undefined) {
       const filtered = [...store.values()].filter((v) => {
-        return (v as Record<string, unknown>)[indexName] === query;
+        const value = (v as Record<string, unknown>)[indexName];
+        // multiEntry インデックス対応: 配列フィールドの場合は includes で判定
+        return Array.isArray(value) ? value.includes(query) : value === query;
       });
       return Promise.resolve(filtered.map((v) => structuredClone(v)));
     }
@@ -85,7 +87,9 @@ const mockDB = {
               const queryValue = (typeof globalThis.IDBKeyRange !== 'undefined' && query instanceof IDBKeyRange)
                 ? (query as unknown as { _value: unknown })._value : query;
               const values = [...store.values()].filter((v) => {
-                return (v as Record<string, unknown>)[idxName] === queryValue;
+                const value = (v as Record<string, unknown>)[idxName];
+                // multiEntry インデックス対応: 配列フィールドの場合は includes で判定
+                return Array.isArray(value) ? value.includes(queryValue) : value === queryValue;
               });
               return Promise.resolve(values.map((v) => structuredClone(v)));
             },

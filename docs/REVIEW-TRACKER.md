@@ -205,6 +205,15 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ---
 
+## 対応済み（PR-G で修正）
+
+### getAllFromIndex モックの正確性改善 [テスト]
+- **PR**: #2 (Copilot), PR-G で修正
+- **内容**: `__mocks__/db.ts` の `getAllFromIndex` が multiEntry インデックス（配列フィールド）に非対応
+- **修正**: `getAllFromIndex` と `transaction.index().getAll()` のフィルタで `Array.isArray(value) ? value.includes(query) : value === query` に変更。clipStore.test.ts に multiEntry タグフィルタの検証テスト追加
+
+---
+
 ## 将来対応
 
 ### Notification API パーミッション再レンダリング [UX]
@@ -216,11 +225,6 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 - **PR**: #1 (Copilot)
 - **内容**: デスクトップ通知に icon プロパティ未設定
 - **優先度**: 低
-
-### getAllFromIndex モックの正確性改善 [テスト]
-- **PR**: #2 (Copilot)
-- **内容**: `__mocks__/db.ts` の `getAllFromIndex` が indexName を無視
-- **優先度**: 中
 
 ### memoryTool category バリデーション [コード品質]
 - **PR**: #2 (Copilot)
