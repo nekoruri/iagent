@@ -11,7 +11,7 @@ import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
-import { useTheme } from './hooks/useTheme';
+import { applyTheme, getStoredThemeMode } from './core/theme';
 import { isConfigured, getConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
@@ -41,7 +41,18 @@ export default function App() {
 
   const heartbeatPanel = useHeartbeatPanel();
   const memoryPanel = useMemoryPanel();
-  useTheme(); // system モードの OS 設定変更リスニング
+
+  // system モード時の OS テーマ変更リスニング
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (getStoredThemeMode() === 'system') {
+        applyTheme('system');
+      }
+    };
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
 
   const handleHeartbeatNotification = useCallback((notification: HeartbeatNotification) => {
     if (!activeConversationId) return;

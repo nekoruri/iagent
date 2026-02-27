@@ -6,7 +6,7 @@ import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSy
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
-import { useTheme } from '../hooks/useTheme';
+import { applyTheme } from '../core/theme';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode } from '../types';
 
 interface Props {
@@ -36,7 +36,6 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
 export function SettingsModal({ open, onClose }: Props) {
   const [config, setConfig] = useState<AppConfig>(getConfig);
   const [, setTick] = useState(0);
-  const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   // MCPManager の状態変更をリッスン
   useEffect(() => {
@@ -266,8 +265,11 @@ export function SettingsModal({ open, onClose }: Props) {
               <button
                 key={opt.value}
                 type="button"
-                className={themeMode === opt.value ? 'active' : ''}
-                onClick={() => setThemeMode(opt.value)}
+                className={(config.theme ?? 'system') === opt.value ? 'active' : ''}
+                onClick={() => {
+                  setConfig((prev) => ({ ...prev, theme: opt.value }));
+                  applyTheme(opt.value);
+                }}
               >
                 {opt.label}
               </button>
