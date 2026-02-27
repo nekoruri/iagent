@@ -40,6 +40,16 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     type: 'builtin',
     schedule: { type: 'fixed-time', hour: 23, minute: 0 },
   },
+  {
+    id: 'briefing-morning',
+    name: '朝のブリーフィング',
+    description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'
+      + 'ツールを使って情報を収集し、優先度をつけて簡潔なサマリーを作成してください。'
+      + '必ず hasChanges: true を返し、summary にブリーフィングテキストを含めてください。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 7, minute: 0 },
+  },
 ];
 
 export function getDefaultProxyConfig(): ProxyConfig {

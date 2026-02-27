@@ -30,6 +30,15 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     expect(weather!.enabled).toBe(false);
     expect(weather!.type).toBe('builtin');
   });
+
+  it('briefing-morning が無効で定義され、fixed-time 07:00 スケジュールを持つ', () => {
+    const briefing = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'briefing-morning');
+    expect(briefing).toBeDefined();
+    expect(briefing!.enabled).toBe(false);
+    expect(briefing!.type).toBe('builtin');
+    expect(briefing!.schedule).toEqual({ type: 'fixed-time', hour: 7, minute: 0 });
+    expect(briefing!.description).toContain('ブリーフィング');
+  });
 });
 
 describe('getDefaultHeartbeatConfig', () => {

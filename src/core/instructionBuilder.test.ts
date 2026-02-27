@@ -216,6 +216,13 @@ describe('buildHeartbeatInstructions', () => {
     expect(result).not.toContain('ユーザーについての記憶');
     expect(result).not.toContain('振り返りからの洞察');
   });
+
+  it('ブリーフィングタスク用ルールを含む', () => {
+    const result = buildHeartbeatInstructions(makeContext());
+    expect(result).toContain('ブリーフィングタスク');
+    expect(result).toContain('briefing-');
+    expect(result).toContain('総合サマリー');
+  });
 });
 
 describe('buildWorkerHeartbeatPrompt', () => {

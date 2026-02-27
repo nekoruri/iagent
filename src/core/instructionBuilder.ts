@@ -112,7 +112,8 @@ export function buildHeartbeatInstructions(ctx: InstructionContext): string {
 ルール:
 - hasChanges が false の場合、summary は空文字列にしてください
 - 通知する価値がある情報のみ hasChanges: true にしてください
-- 日本語で summary を書いてください`);
+- 日本語で summary を書いてください
+- ブリーフィングタスク（タスクIDが "briefing-" で始まるもの）は必ず hasChanges: true とし、複数のツールで収集した情報を統合した総合サマリーを summary に含めてください`);
 
   // メモリ
   const hbRegularMemories = ctx.memories.filter((m) => m.category !== 'reflection');
