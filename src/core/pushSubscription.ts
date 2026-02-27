@@ -43,19 +43,42 @@ export async function subscribePush(serverUrl: string): Promise<PushSubscription
     // 既存 Subscription もサーバーに再登録して TTL を延長
     try {
       const url = validateUrl(serverUrl);
-      await fetch(`${url}/subscribe`, {
+      const response = await fetch(`${url}/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: existingSub.toJSON() }),
       });
+      if (response.ok) {
+        return existingSub;
+      }
+      // 4xx: データ不正の可能性 → 既存を破棄して新規作成にフォールスルー
+      if (response.status >= 400 && response.status < 500) {
+        console.warn(
+          `[Push] サーバー再登録拒否 (${response.status})。新規 Subscription を作成します。`,
+        );
+        await existingSub.unsubscribe();
+      } else {
+        // 5xx 等: サーバー側の一時的障害 → 既存 Subscription を継続利用
+        console.warn(
+          `[Push] サーバー再登録失敗 (${response.status})。既存 Subscription を継続利用します。`,
+        );
+        return existingSub;
+      }
     } catch (e) {
-      // サーバー再登録失敗はサイレント — ローカル Subscription は有効
+      if (e instanceof TypeError) {
+        // ネットワークエラー: サーバー到達不可 → 既存 Subscription を継続利用
+        console.warn(
+          '[Push] サーバー再登録失敗（ネットワークエラーのため既存 Subscription を継続利用）:',
+          e.message,
+        );
+        return existingSub;
+      }
+      // その他のエラー（URL 検証失敗、unsubscribe 失敗等）→ 新規作成にフォールスルー
       console.warn(
-        '[Push] サーバー再登録失敗（既存 Subscription を継続利用）:',
+        '[Push] サーバー再登録処理中にエラーが発生しました。新規 Subscription を作成します:',
         e instanceof Error ? e.message : String(e),
       );
     }
-    return existingSub;
   }
 
   const validatedUrl = validateUrl(serverUrl);
