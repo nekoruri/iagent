@@ -1,6 +1,5 @@
 import type { ThemeMode } from '../types';
-
-const STORAGE_KEY = 'iagent-config';
+import { getConfig } from './config';
 
 export const THEME_COLORS = {
   dark: '#0f0f0f',
@@ -26,18 +25,7 @@ export function applyTheme(mode: ThemeMode): void {
   }
 }
 
-/** localStorage から保存済みテーマモードを取得（デフォルト: 'system'） */
+/** 保存済みテーマモードを取得（デフォルト: 'system'） */
 export function getStoredThemeMode(): ThemeMode {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return 'system';
-    const parsed = JSON.parse(raw);
-    const theme = parsed?.theme;
-    if (theme === 'light' || theme === 'dark' || theme === 'system') {
-      return theme;
-    }
-  } catch {
-    // パースエラー時はデフォルト
-  }
-  return 'system';
+  return getConfig().theme ?? 'system';
 }

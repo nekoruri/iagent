@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../store/configStore', () => ({
+  saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { resolveTheme, applyTheme, getStoredThemeMode, THEME_COLORS } from './theme';
 
 describe('resolveTheme', () => {
@@ -24,7 +29,6 @@ describe('resolveTheme', () => {
 describe('applyTheme', () => {
   beforeEach(() => {
     document.documentElement.dataset.theme = '';
-    // theme-color meta タグを作成
     let meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -84,11 +88,6 @@ describe('getStoredThemeMode', () => {
 
   it('不正な theme 値のとき system を返す', () => {
     localStorage.setItem('iagent-config', JSON.stringify({ theme: 'invalid' }));
-    expect(getStoredThemeMode()).toBe('system');
-  });
-
-  it('不正な JSON のとき system を返す', () => {
-    localStorage.setItem('iagent-config', 'not-json');
     expect(getStoredThemeMode()).toBe('system');
   });
 

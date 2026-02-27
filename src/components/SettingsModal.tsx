@@ -267,7 +267,11 @@ export function SettingsModal({ open, onClose }: Props) {
                 type="button"
                 className={(config.theme ?? 'system') === opt.value ? 'active' : ''}
                 onClick={() => {
-                  setConfig((prev) => ({ ...prev, theme: opt.value }));
+                  setConfig((prev) => {
+                    const next = { ...prev, theme: opt.value };
+                    saveConfig(next);
+                    return next;
+                  });
                   applyTheme(opt.value);
                 }}
               >

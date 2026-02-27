@@ -90,7 +90,7 @@ vi.mock('../core/notifier', () => ({
 describe('SettingsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // useTheme が matchMedia を使用するためモックが必要
+    // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false,
       addEventListener: vi.fn(),
