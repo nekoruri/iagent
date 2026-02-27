@@ -1522,3 +1522,152 @@ body {
     border-radius: var(--radius) var(--radius) 0 0;
   }
 }
+
+/* ===== Setup Wizard ===== */
+
+.wizard-modal {
+  max-width: 520px;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-steps {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.wizard-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s;
+}
+
+.wizard-step-dot.active {
+  background: var(--accent);
+}
+
+.wizard-step-dot.completed {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.wizard-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wizard-content h2 {
+  font-size: 22px;
+  text-align: center;
+  margin: 0;
+}
+
+.wizard-description {
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.wizard-optional {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.wizard-optional summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.wizard-optional label {
+  margin-top: 12px;
+}
+
+.wizard-preset-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-preset-label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.wizard-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-preset-btn {
+  background: var(--bg-tertiary);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.wizard-preset-btn:hover {
+  background: var(--border);
+}
+
+.wizard-preset-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.wizard-heartbeat-intro {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-heartbeat-intro p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wizard-heartbeat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.wizard-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+.wizard-nav {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  align-items: center;
+}
+
+.wizard-nav-spacer {
+  flex: 1;
+}

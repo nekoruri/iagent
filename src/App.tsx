@@ -6,6 +6,9 @@ import { MemoryPanel } from './components/MemoryPanel';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
 );
+const SetupWizard = lazy(() =>
+  import('./components/SetupWizard').then((m) => ({ default: m.SetupWizard }))
+);
 import { useAgentChat } from './hooks/useAgentChat';
 import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
@@ -22,6 +25,7 @@ const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const {
@@ -82,7 +86,7 @@ export default function App() {
 
   useEffect(() => {
     if (loaded && !isConfigured()) {
-      setSettingsOpen(true);
+      setShowWizard(true);
     }
   }, [loaded]);
 
@@ -127,6 +131,17 @@ export default function App() {
     if (isStreaming) return;
     await remove(id);
   }, [isStreaming, remove]);
+
+  const handleWizardComplete = async () => {
+    setShowWizard(false);
+    syncHeartbeatConfig();
+    setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
+    localStorage.setItem(HEARTBEAT_HINT_KEY, '1');
+    // 初回セットアップ後に最初の会話を作成
+    if (!activeConversationId) {
+      await create();
+    }
+  };
 
   const handleSettingsClose = () => {
     setSettingsOpen(false);
@@ -224,6 +239,7 @@ export default function App() {
           />
         </main>
         <Suspense fallback={null}>
+          {showWizard && <SetupWizard onComplete={handleWizardComplete} />}
           <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />
         </Suspense>
       </div>

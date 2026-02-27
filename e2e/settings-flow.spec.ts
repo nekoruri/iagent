@@ -3,29 +3,33 @@ import { mockOpenAIResponses } from './fixtures/api-mocks';
 import { injectConfig, waitForAppReady, ensureConversation, sendChatMessage } from './fixtures/test-helpers';
 
 test.describe('初回起動 → API キー設定 → チャット送信フロー', () => {
-  test('API キー未設定の初回起動で設定モーダルが自動表示される', async ({ page }) => {
+  test('API キー未設定の初回起動でセットアップウィザードが表示される', async ({ page }) => {
     await page.goto('/');
     await waitForAppReady(page);
-    await expect(page.locator('.modal')).toBeVisible();
-    await expect(page.locator('.modal input[type="password"]').first()).toBeVisible();
+    await expect(page.locator('.wizard-modal')).toBeVisible();
+    await expect(page.locator('text=iAgent へようこそ')).toBeVisible();
   });
 
-  test('設定モーダルで OpenAI API キーを入力して保存できる', async ({ page }) => {
+  test('セットアップウィザードで API キーを設定して完了できる', async ({ page }) => {
     await page.goto('/');
     await waitForAppReady(page);
 
-    // 設定モーダルが表示されるまで待機
-    await expect(page.locator('.modal')).toBeVisible();
+    // Welcome → はじめる
+    await expect(page.locator('.wizard-modal')).toBeVisible();
+    await page.click('text=はじめる');
 
-    // API キーを入力
-    const apiKeyInput = page.locator('.modal input[type="password"]').first();
-    await apiKeyInput.fill('sk-test-1234567890');
+    // API Key 入力
+    await page.fill('input[placeholder="sk-..."]', 'sk-test-1234567890');
+    await page.click('text=次へ');
 
-    // 保存ボタンをクリック
-    await page.locator('.modal-actions .btn-primary').click();
+    // Persona → スキップ
+    await page.click('text=スキップ');
 
-    // モーダルが閉じることを確認
-    await expect(page.locator('.modal')).toBeHidden();
+    // Complete → 使い始める
+    await page.click('text=使い始める');
+
+    // ウィザードが閉じることを確認
+    await expect(page.locator('.wizard-modal')).toBeHidden();
   });
 
   test('API キー設定後にチャット画面が表示される', async ({ page }) => {
@@ -33,8 +37,8 @@ test.describe('初回起動 → API キー設定 → チャット送信フロー
     await page.goto('/');
     await waitForAppReady(page);
 
-    // 設定モーダルが表示されない
-    await expect(page.locator('.modal')).toBeHidden();
+    // ウィザードが表示されない
+    await expect(page.locator('.wizard-modal')).toBeHidden();
 
     // チャット UI が表示される
     await expect(page.locator('.chat-view')).toBeVisible();
