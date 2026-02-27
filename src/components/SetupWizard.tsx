@@ -3,7 +3,7 @@ import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConf
 import type { AppConfig, PersonaConfig, HeartbeatConfig } from '../types';
 
 interface Props {
-  onComplete: () => void;
+  onComplete: () => void | Promise<void>;
 }
 
 const PERSONA_PRESETS: { label: string; personality: string; tone: string }[] = [
@@ -55,9 +55,9 @@ export function SetupWizard({ onComplete }: Props) {
     setStep(3);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     saveConfig(config);
-    onComplete();
+    await onComplete();
   };
 
   const selectPreset = (index: number) => {

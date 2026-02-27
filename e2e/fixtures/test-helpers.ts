@@ -72,6 +72,7 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
  * セットアップウィザードを完了する（初回起動時）。
  */
 export async function completeSetupWizard(page: Page, apiKey = 'sk-test-1234567890'): Promise<void> {
+  await page.waitForSelector('.wizard-modal', { state: 'visible' });
   await page.click('text=はじめる');
   await page.fill('input[placeholder="sk-..."]', apiKey);
   await page.click('text=次へ');
