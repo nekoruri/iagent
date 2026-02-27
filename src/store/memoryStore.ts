@@ -99,7 +99,19 @@ export async function archiveLowestScored(db: Awaited<ReturnType<typeof getDB>>,
   const candidates = all.filter(
     (m) => m.category !== 'personality' && m.category !== 'routine',
   );
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) {
+    // 保護カテゴリのみで飽和: 全メモリから最低スコアをアーカイブ（安全弁）
+    console.warn('[Memory] 保護カテゴリのみで MAX_MEMORIES 到達。最低スコアの記憶をアーカイブします。');
+    const allScored = all.map((m) => ({ memory: m, score: scoreMemory(m, now) }));
+    allScored.sort((a, b) => a.score - b.score);
+    const target = allScored[0].memory;
+    const archived: ArchivedMemory = { ...normalizeMemory(target), archivedAt: now, archiveReason: 'low-score' };
+    const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
+    await tx.objectStore(ARCHIVE_STORE_NAME).put(archived);
+    await tx.objectStore(STORE_NAME).delete(target.id);
+    await tx.done;
+    return;
+  }
 
   // 減衰スコアで最低スコアの記憶を特定
   const scored = candidates.map((m) => ({

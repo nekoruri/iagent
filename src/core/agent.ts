@@ -48,8 +48,13 @@ export async function createHeartbeatAgent(
   });
 
   // MCP ツールが指定されていない場合は MCP サーバーを渡さない
+  // SDK レベルの toolFilter で許可ツールのみに制限（プロンプト記述 + SDK フィルタの二重防御）
   const filteredMcpServers = allowedMcpToolNames && allowedMcpToolNames.length > 0
-    ? mcpServers
+    ? mcpServers?.map((server) =>
+      Object.assign(Object.create(Object.getPrototypeOf(server)), server, {
+        toolFilter: { allowedToolNames: allowedMcpToolNames },
+      }),
+    )
     : undefined;
 
   const mcpToolNote = allowedMcpToolNames && allowedMcpToolNames.length > 0
