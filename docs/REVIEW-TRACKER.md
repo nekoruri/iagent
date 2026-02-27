@@ -214,6 +214,15 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 
 ---
 
+## 対応済み（PR-H で修正）
+
+### アクセシビリティ改善 (ConversationSidebar) [UX]
+- **PR**: #5 (Copilot), PR-H で修正
+- **内容**: 会話行が `<div onClick>` でキーボード操作不可。削除ボタンに aria-label なし
+- **修正**: 会話行を `<button>` に変更（`aria-current` でアクティブ状態通知）、削除ボタンに `aria-label` で会話名を含む識別情報追加、`:focus-within` でキーボードフォーカス時も削除ボタン表示、`:focus-visible` フォーカスリング追加
+
+---
+
 ## 将来対応
 
 ### Notification API パーミッション再レンダリング [UX]
@@ -230,11 +239,6 @@ PR#1〜#24 に付いた全レビューコメントを一元管理する。
 - **PR**: #2 (Copilot)
 - **内容**: `z.string()` で任意文字列を許容。`z.enum()` にすべき
 - **優先度**: 低
-
-### アクセシビリティ改善 (ConversationSidebar) [UX]
-- **PR**: #5 (Copilot)
-- **内容**: 会話行が `<div onClick>` でキーボード操作不可。削除ボタンに aria-label なし
-- **優先度**: 中
 
 ### TaskProgress クリック可能インジケーター [UX]
 - **PR**: #3 (Copilot)

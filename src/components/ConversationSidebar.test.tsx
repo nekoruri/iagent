@@ -52,7 +52,7 @@ describe('ConversationSidebar', () => {
     expect(onSelect).toHaveBeenCalledWith('conv-1');
   });
 
-  it('削除ボタンをクリックすると onDelete が呼ばれる（親要素の onSelect は呼ばれない）', async () => {
+  it('削除ボタンをクリックすると onDelete が呼ばれる（onSelect は呼ばれない）', async () => {
     const onSelect = vi.fn();
     const onDelete = vi.fn();
     const conversations = [makeConversation({ id: 'conv-1', title: 'テスト' })];
@@ -65,7 +65,7 @@ describe('ConversationSidebar', () => {
       />,
     );
 
-    await userEvent.click(screen.getByTitle('削除'));
+    await userEvent.click(screen.getByRole('button', { name: /テスト.*削除/ }));
     expect(onDelete).toHaveBeenCalledWith('conv-1');
     expect(onSelect).not.toHaveBeenCalled();
   });
@@ -86,7 +86,7 @@ describe('ConversationSidebar', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('アクティブな会話にアクティブクラスが適用される', () => {
+  it('アクティブな会話にアクティブクラスと aria-current が適用される', () => {
     const conversations = [
       makeConversation({ id: 'conv-1', title: '会話1' }),
       makeConversation({ id: 'conv-2', title: '会話2' }),
@@ -98,6 +98,14 @@ describe('ConversationSidebar', () => {
     const activeItems = container.querySelectorAll('.sidebar-item-active');
     expect(activeItems).toHaveLength(1);
     expect(activeItems[0]).toHaveTextContent('会話1');
+
+    // aria-current="true" がアクティブな選択ボタンに設定される
+    const conv1Button = screen.getByText('会話1').closest('button');
+    expect(conv1Button).toHaveAttribute('aria-current', 'true');
+
+    // 非アクティブな会話には aria-current がない
+    const conv2Button = screen.getByText('会話2').closest('button');
+    expect(conv2Button).not.toHaveAttribute('aria-current');
   });
 
   it('open=false ではサイドバーに sidebar-open クラスが付かない', () => {
@@ -105,5 +113,34 @@ describe('ConversationSidebar', () => {
 
     const aside = container.querySelector('aside');
     expect(aside?.classList.contains('sidebar-open')).toBe(false);
+  });
+
+  it('キーボード Tab → Enter で会話を選択できる', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const conversations = [
+      makeConversation({ id: 'conv-1', title: '会話A' }),
+      makeConversation({ id: 'conv-2', title: '会話B' }),
+    ];
+    render(
+      <ConversationSidebar {...defaultProps} conversations={conversations} onSelect={onSelect} />,
+    );
+
+    // Tab で選択ボタンにフォーカスし Enter で選択
+    const selectButton = screen.getByText('会話A').closest('button')!;
+    selectButton.focus();
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('削除ボタンの aria-label に会話名が含まれる', () => {
+    const conversations = [
+      makeConversation({ id: 'conv-1', title: '重要な会話' }),
+      makeConversation({ id: 'conv-2', title: '別の会話' }),
+    ];
+    render(<ConversationSidebar {...defaultProps} conversations={conversations} />);
+
+    expect(screen.getByLabelText('「重要な会話」を削除')).toBeInTheDocument();
+    expect(screen.getByLabelText('「別の会話」を削除')).toBeInTheDocument();
   });
 });

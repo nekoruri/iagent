@@ -45,19 +45,19 @@ export function ConversationSidebar({
           <div
             key={conv.id}
             className={`sidebar-item ${conv.id === activeId ? 'sidebar-item-active' : ''}`}
-            onClick={() => onSelect(conv.id)}
           >
-            <div className="sidebar-item-content">
+            <button
+              className="sidebar-item-select"
+              onClick={() => onSelect(conv.id)}
+              aria-current={conv.id === activeId ? 'true' : undefined}
+            >
               <span className="sidebar-item-title">{conv.title}</span>
               <span className="sidebar-item-meta">{formatDate(conv.updatedAt)}</span>
-            </div>
+            </button>
             <button
               className="sidebar-item-delete"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(conv.id);
-              }}
-              title="削除"
+              onClick={() => onDelete(conv.id)}
+              aria-label={`「${conv.title}」を削除`}
             >
               &times;
             </button>
