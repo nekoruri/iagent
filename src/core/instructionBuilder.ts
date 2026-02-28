@@ -195,6 +195,7 @@ function formatMemories(memories: Memory[]): string {
 export function formatGoalsWithDeadlines(goals: Memory[], currentDateTime: string): string {
   // currentDateTime（例: '2026/3/1 12:00:00'）から Date を生成
   const now = new Date(currentDateTime.replace(/\//g, '-'));
+  const nowMs = now.getTime();
   return goals.map((m) => {
     const tags = m.tags && m.tags.length > 0 ? ` #${m.tags.join(' #')}` : '';
     const importance = m.importance && m.importance !== 3 ? ` (重要度:${m.importance})` : '';
@@ -215,7 +216,6 @@ export function formatGoalsWithDeadlines(goals: Memory[], currentDateTime: strin
     // 活動状態ラベル (F11/F12)
     let inactivityLabel = '';
     let inactivityTag = '';
-    const nowMs = now.getTime();
     const goalAgeMs = nowMs - m.createdAt;
     const inactiveDaysMs = nowMs - m.updatedAt;
     const inactiveDays = Math.floor(inactiveDaysMs / DAY_MS);

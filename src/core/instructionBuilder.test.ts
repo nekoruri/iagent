@@ -323,7 +323,7 @@ describe('formatGoalsWithDeadlines', () => {
 
 describe('活動状態ラベル (F11/F12)', () => {
   const dateTime = '2026/3/1 12:00:00';
-  const nowMs = new Date('2026-3-1 12:00:00').getTime();
+  const nowMs = new Date(2026, 2, 1, 12, 0, 0).getTime();
   const DAY_MS = 24 * 60 * 60 * 1000;
 
   it('7日以上更新なしでナッジラベルが付く', () => {
@@ -449,7 +449,7 @@ describe('期日表示の統合テスト', () => {
 
 describe('活動状態ラベルの統合テスト (F11/F12)', () => {
   const DAY_MS = 24 * 60 * 60 * 1000;
-  const nowMs = new Date('2026-3-1 12:00:00').getTime();
+  const nowMs = new Date(2026, 2, 1, 12, 0, 0).getTime();
 
   it('Heartbeat: stale な goal にラベルと #stale が付く', () => {
     const memories = [
