@@ -107,8 +107,16 @@ export default function App() {
 
   // ストレージ永続化リクエスト（iOS Safari の 7日削除対策）
   useEffect(() => {
-    navigator.storage?.persist?.()
-      .catch(() => { /* 非対応環境では無視 */ });
+    (async () => {
+      try {
+        const persisted = await navigator.storage?.persisted?.();
+        if (persisted === false) {
+          await navigator.storage?.persist?.();
+        }
+      } catch {
+        // 非対応環境では無視
+      }
+    })();
   }, []);
 
   // メッセージ送信時にタイトル自動設定 & touch

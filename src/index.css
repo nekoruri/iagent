@@ -814,6 +814,11 @@ body {
   color: var(--status-error);
 }
 
+.mcp-status-warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+
 .mcp-status-disconnected {
   background: var(--bg-secondary);
   color: var(--text-muted);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 
 // 依存モジュールのモック
 vi.mock('./components/ChatView', () => ({
@@ -125,9 +125,30 @@ describe('App', () => {
     vi.restoreAllMocks();
   });
 
-  it('起動時に navigator.storage.persist() が呼ばれる', async () => {
+  it('未永続化の場合、起動時に navigator.storage.persist() が呼ばれる', async () => {
     const { default: App } = await import('./App');
     render(<App />);
-    expect(persistMock).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(persistMock).toHaveBeenCalled();
+    });
+  });
+
+  it('既に永続化済みの場合、persist() は呼ばれない', async () => {
+    Object.defineProperty(navigator, 'storage', {
+      value: {
+        persist: persistMock,
+        persisted: vi.fn(async () => true),
+        estimate: vi.fn(async () => ({ usage: 0, quota: 0 })),
+      },
+      writable: true,
+      configurable: true,
+    });
+    vi.resetModules();
+    const { default: App } = await import('./App');
+    render(<App />);
+    // persisted() が true を返すので persist() は呼ばれない
+    await waitFor(() => {
+      expect(persistMock).not.toHaveBeenCalled();
+    });
   });
 });

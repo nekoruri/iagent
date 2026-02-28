@@ -108,16 +108,23 @@ export function SettingsModal({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     (async () => {
-      if (!navigator.storage?.estimate) return;
-      const [persisted, estimate] = await Promise.all([
-        navigator.storage.persisted?.() ?? Promise.resolve(false),
-        navigator.storage.estimate(),
-      ]);
-      setStorageInfo({
-        persistent: persisted,
-        usage: estimate.usage ?? 0,
-        quota: estimate.quota ?? 0,
-      });
+      try {
+        if (!navigator.storage?.estimate) {
+          setStorageInfo(null);
+          return;
+        }
+        const [persisted, estimate] = await Promise.all([
+          navigator.storage.persisted?.() ?? Promise.resolve(false),
+          navigator.storage.estimate(),
+        ]);
+        setStorageInfo({
+          persistent: persisted,
+          usage: estimate.usage ?? 0,
+          quota: estimate.quota ?? 0,
+        });
+      } catch {
+        setStorageInfo(null);
+      }
     })();
   }, [open]);
 
