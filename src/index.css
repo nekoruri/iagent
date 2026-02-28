@@ -655,7 +655,6 @@ body {
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -700,6 +699,7 @@ body {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+  flex-shrink: 0;
 }
 
 .btn-primary {
@@ -731,13 +731,58 @@ body {
   background: var(--border);
 }
 
-/* MCP Settings */
-.mcp-section {
+/* Settings accordion sections */
+.settings-section {
+  border-top: 1px solid var(--border);
+}
+
+.settings-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  list-style: none;
+}
+
+.settings-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section > summary::before {
+  content: '\25B6';
+  font-size: 10px;
+  transition: transform 0.2s;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.settings-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.settings-section-content {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-bottom: 4px;
+}
+
+/* Modal 3-layer structure */
+.modal-header {
+  flex-shrink: 0;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mcp-header {
@@ -1450,6 +1495,16 @@ body {
   .sidebar {
     padding-left: env(safe-area-inset-left, 0);
   }
+
+  .modal {
+    padding-top: max(24px, env(safe-area-inset-top, 0));
+    padding-left: max(24px, env(safe-area-inset-left, 0));
+    padding-right: max(24px, env(safe-area-inset-right, 0));
+  }
+
+  .modal-actions {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 }
 
 /* Responsive */
@@ -1497,8 +1552,23 @@ body {
     display: block;
   }
 
+  .modal-overlay {
+    padding: 0;
+  }
+
   .modal {
+    max-width: 100%;
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
     padding: 16px;
+  }
+
+  .modal-actions {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 0;
   }
 }
 
