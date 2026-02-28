@@ -105,7 +105,9 @@ export default function App() {
     };
   }, []);
 
-  // ストレージ永続化リクエスト（iOS Safari の 7日削除対策）
+  // ストレージ永続化リクエスト
+  // iOS Safari 7日削除対策が主目的だが、全ブラウザで有効（Chrome は自動許可、Firefox はプロンプト表示）。
+  // persisted() で確認し、未永続化の場合のみ persist() を呼ぶ。
   useEffect(() => {
     (async () => {
       try {

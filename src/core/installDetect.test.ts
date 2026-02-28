@@ -30,6 +30,7 @@ function mockStandalone(value: boolean | undefined) {
 describe('installDetect', () => {
   const originalUA = navigator.userAgent;
   const originalTouchPoints = navigator.maxTouchPoints;
+  const originalStandalone = (navigator as { standalone?: boolean }).standalone;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,6 +51,7 @@ describe('installDetect', () => {
       writable: true,
       configurable: true,
     });
+    mockStandalone(originalStandalone);
     vi.restoreAllMocks();
   });
 

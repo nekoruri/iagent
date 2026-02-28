@@ -896,11 +896,12 @@ export function SettingsModal({ open, onClose }: Props) {
             <div className="storage-usage">{formatBytes(storageInfo.usage)} / {formatBytes(storageInfo.quota)}</div>
             <div
               className="storage-bar"
-              role="progressbar"
+              role={storageInfo.quota > 0 ? 'progressbar' : undefined}
               aria-label="ストレージ使用量"
-              aria-valuenow={storageInfo.usage}
-              aria-valuemin={0}
-              aria-valuemax={storageInfo.quota}
+              aria-valuenow={storageInfo.quota > 0 ? Math.min(storageInfo.usage, storageInfo.quota) : undefined}
+              aria-valuemin={storageInfo.quota > 0 ? 0 : undefined}
+              aria-valuemax={storageInfo.quota > 0 ? storageInfo.quota : undefined}
+              aria-valuetext={storageInfo.quota > 0 ? undefined : 'ストレージ使用量: 不明'}
             >
               <div
                 className="storage-bar-fill"

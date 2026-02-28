@@ -52,7 +52,7 @@ describe('InstallPrompt', () => {
     expect(screen.queryByText('ホーム画面に追加して快適に使おう')).not.toBeInTheDocument();
   });
 
-  it('閉じるボタンは 44x44px 以上のタップターゲットを持つ', () => {
+  it('閉じるボタンに install-prompt-close クラスが付与される', () => {
     vi.mocked(shouldShowInstallPrompt).mockReturnValue(true);
     render(<InstallPrompt />);
     const closeButton = screen.getByRole('button', { name: 'インストール案内を閉じる' });
