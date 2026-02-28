@@ -281,6 +281,74 @@ export async function getRelevantMemories(
   return result;
 }
 
+/** ブリーフィング用の記憶取得（goal/context を含む拡張版） */
+export async function getMemoriesForBriefing(limit: number = 15): Promise<Memory[]> {
+  const all = await listMemories();
+  const now = Date.now();
+
+  // スコアリング
+  const scored = all.map((m) => ({
+    memory: m,
+    score: scoreMemory(m, now),
+  }));
+
+  // mustInclude: personality, routine, goal を先に抽出
+  const mustInclude = scored.filter(
+    (s) => s.memory.category === 'personality'
+      || s.memory.category === 'routine'
+      || s.memory.category === 'goal',
+  );
+  const contextItems = scored.filter((s) => s.memory.category === 'context');
+  const others = scored.filter(
+    (s) => s.memory.category !== 'personality'
+      && s.memory.category !== 'routine'
+      && s.memory.category !== 'goal'
+      && s.memory.category !== 'context',
+  );
+
+  // スコア降順ソート
+  mustInclude.sort((a, b) => b.score - a.score);
+  contextItems.sort((a, b) => b.score - a.score);
+  others.sort((a, b) => b.score - a.score);
+
+  // context が存在する場合は 1 枠予約し、mustInclude の上限を調整
+  const hasContext = contextItems.length > 0;
+  const mustIncludeLimit = hasContext ? limit - 1 : limit;
+
+  // 必須メモリを優先し、context を最低1件確保、残り枠を others から埋める
+  const result: Memory[] = [];
+  const usedIds = new Set<string>();
+
+  for (const s of mustInclude) {
+    if (result.length >= mustIncludeLimit) break;
+    result.push(s.memory);
+    usedIds.add(s.memory.id);
+  }
+
+  // context カテゴリから最低 1 件を確保（あれば）
+  if (hasContext && result.length < limit) {
+    result.push(contextItems[0].memory);
+    usedIds.add(contextItems[0].memory.id);
+  }
+
+  // 残り枠を others + 残りの context から埋める
+  const remainingContext = contextItems.filter((s) => !usedIds.has(s.memory.id));
+  const remaining = [...remainingContext, ...others].sort((a, b) => b.score - a.score);
+
+  for (const s of remaining) {
+    if (result.length >= limit) break;
+    if (!usedIds.has(s.memory.id)) {
+      result.push(s.memory);
+      usedIds.add(s.memory.id);
+    }
+  }
+
+  // アクセスメトリクス更新（non-blocking）
+  updateAccessMetrics(result.map((m) => m.id)).catch(() => {});
+
+  return result;
+}
+
 /** アーカイブ済み記憶の一覧を取得 */
 export async function listArchivedMemories(category?: MemoryCategory): Promise<ArchivedMemory[]> {
   const db = await getDB();

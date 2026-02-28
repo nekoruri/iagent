@@ -3,7 +3,7 @@ import { loadConfigFromIDB } from '../store/configStore';
 import { addHeartbeatResult, updateTaskLastRun, getAllTaskLastRun } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
-import { getRelevantMemories } from '../store/memoryStore';
+import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getDefaultPersonaConfig } from './config';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent } from '../types';
 
@@ -95,7 +95,10 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
   const db = await getDB();
   const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
-  const memories = await getRelevantMemories('', 5);
+  const hasBriefing = tasks.some((t) => t.id.startsWith('briefing-'));
+  const memories = hasBriefing
+    ? await getMemoriesForBriefing(15)
+    : await getRelevantMemories('', 5);
 
   // persona を取得（未設定時はデフォルト）
   const persona = freshConfig?.persona ?? getDefaultPersonaConfig();

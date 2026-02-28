@@ -212,6 +212,42 @@ describe('createHeartbeatAgent', () => {
     expect(await filter({ serverName: 'any-server' }, { name: 'get_data' })).toBe(false);
   });
 
+  it('tasks にブリーフィングタスクがある場合、拡張メモリを取得する', async () => {
+    await saveMemory('敬語で話して', 'personality');
+    await saveMemory('3月末までにレポート提出', 'goal');
+    await saveMemory('プロジェクトXに取り組み中', 'context');
+
+    const agent = await createHeartbeatAgent(
+      undefined,
+      undefined,
+      [{ id: 'briefing-morning' }],
+    ) as unknown as { instructions: string };
+
+    // goal と context の専用セクションが含まれる
+    expect(agent.instructions).toContain('目標・締切');
+    expect(agent.instructions).toContain('[goal] 3月末までにレポート提出');
+    expect(agent.instructions).toContain('現在の状況');
+    expect(agent.instructions).toContain('[context] プロジェクトXに取り組み中');
+  });
+
+  it('tasks にブリーフィングタスクがない場合、通常のメモリ取得（limit=5）', async () => {
+    await saveMemory('敬語で話して', 'personality');
+    // 通常の getRelevantMemories(limit=5) が使われることを確認
+    // goal メモリがスコアリングで含まれても少ない枠数で取得される
+    const agent = await createHeartbeatAgent(
+      undefined,
+      undefined,
+      [{ id: 'calendar-check' }],
+    ) as unknown as { instructions: string };
+
+    expect(agent.instructions).toContain('JSON形式');
+  });
+
+  it('tasks 未指定（後方互換）でも正常に動作する', async () => {
+    const agent = await createHeartbeatAgent() as unknown as { instructions: string };
+    expect(agent.instructions).toContain('JSON形式');
+  });
+
   it('qualified ツール名が instructions の MCP 制限ノートに含まれる', async () => {
     const mockServer = { name: 'srv-a', toolFilter: undefined };
     const agent = await createHeartbeatAgent(

@@ -194,6 +194,8 @@
 
 ### エージェント自律性強化
 - [x] 日次ブリーフィング — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加
+- [x] ブリーフィング高度化 — goal/context メモリ参照（`getMemoriesForBriefing` 拡張取得）+ instructionBuilder にメモリ4グループ分離表示（目標・締切/現在の状況/記憶/振り返り）+ ブリーフィングルール強化（目標参照・残り日数計算）
+- [x] 期日接近検出 — goal メモリの日本語日付パース（deadlineParser）+ 残り日数の事前計算注入（formatGoalsWithDeadlines）+ Main/Heartbeat 両方の goal セクション対応
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -248,3 +250,5 @@
 - [x] ライト/ダークテーマ切替 — ThemeMode 型（light/dark/system）、CSS 変数ライトテーマ定義 + ハードコード色変数化（約 20 箇所）、FOUC 防止（main.tsx 同期適用）、SettingsModal セグメントコントロール UI（即時反映 + 即時保存）、system モード OS 追従リスナー。（2026-02-28） — memory-delete-btn モバイル常時表示 + focus-within 対応、btn-pin hover 依存解消 + タップターゲット拡大、memory-tab サイズ拡大、viewport meta 修正（viewport-fit=cover、ズーム制限解除）、safe-area 左右対応、モーダル padding 縮小、MemoryPanel 削除ボタン aria-label 化。（2026-02-28）
 - [x] ストレージ永続化 — `navigator.storage.persist()` 起動時呼び出し（iOS Safari 7日削除対策）+ 設定画面にストレージ情報セクション（永続化ステータス・使用量プログレスバー・PWA インストール案内）。（2026-02-28）
 - [x] iOS PWA インストール案内 UI — iOS Safari 未インストール時にチャット画面上部にバナー表示（「共有→ホーム画面に追加」ステップ図解）、設定画面のストレージ・Push セクションにも iOS ガイド追加、dismiss で永続非表示。（2026-03-01）
+- [x] ブリーフィング高度化 F9 — `getMemoriesForBriefing()` 追加（mustInclude に goal 追加、context 最低1件確保、limit 15）、instructionBuilder メモリ4グループ分離（目標・締切/現在の状況/記憶/振り返り）、ブリーフィングルール強化（目標参照・残り日数計算）、`createHeartbeatAgent` に tasks 引数追加（briefing 判定で拡張メモリ取得）、heartbeat.ts/heartbeatCommon.ts タスクリスト渡し対応。テスト 599 件。（2026-03-01）
+- [x] 期日接近検出 F7 — deadlineParser（日本語日付パース 9パターン: 漢字年月日/スラッシュ/ハイフン/月末/月中旬/月上旬/今月末/来月末 + 年推定・重複排除）、formatGoalsWithDeadlines（残りN日/本日期限/期限超過N日 + #deadline タグ）、Main/Heartbeat 両方の goal セクションに残り日数事前計算注入。テスト 637 件。（2026-03-01）
