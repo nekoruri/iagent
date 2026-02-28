@@ -148,7 +148,7 @@
 - [ ] タップターゲットサイズの統一（44x44px 最小保証）
 - [ ] SettingsModal のモバイル最適化（フルスクリーン化 + セクション折りたたみ）
 - [ ] サイドバーのスワイプジェスチャ（左端スワイプで開閉）
-- [ ] ストレージ永続化（`navigator.storage.persist()` + 容量表示）
+- [x] ストレージ永続化（`navigator.storage.persist()` + 容量表示）
 
 ### ビルド最適化
 - [x] バンドルサイズ削減 — `manualChunks` でベンダーチャンク分離 + `isReadOnlyTool` 依存切断 + `React.lazy()` で SettingsModal 遅延ロード（950KB → 全チャンク 500KB 未満）
@@ -246,3 +246,4 @@
 - [x] ConversationSidebar アクセシビリティ改善 PR-H — 会話行を `<div onClick>` → `<button>` に変更（`aria-current` でアクティブ状態通知）、削除ボタンに `aria-label`（会話名含む）、`:focus-within` / `:focus-visible` でキーボード操作対応。（2026-02-28）
 - [x] モバイル UX 総合改善 PR-I
 - [x] ライト/ダークテーマ切替 — ThemeMode 型（light/dark/system）、CSS 変数ライトテーマ定義 + ハードコード色変数化（約 20 箇所）、FOUC 防止（main.tsx 同期適用）、SettingsModal セグメントコントロール UI（即時反映 + 即時保存）、system モード OS 追従リスナー。（2026-02-28） — memory-delete-btn モバイル常時表示 + focus-within 対応、btn-pin hover 依存解消 + タップターゲット拡大、memory-tab サイズ拡大、viewport meta 修正（viewport-fit=cover、ズーム制限解除）、safe-area 左右対応、モーダル padding 縮小、MemoryPanel 削除ボタン aria-label 化。（2026-02-28）
+- [x] ストレージ永続化 — `navigator.storage.persist()` 起動時呼び出し（iOS Safari 7日削除対策）+ 設定画面にストレージ情報セクション（永続化ステータス・使用量プログレスバー・PWA インストール案内）。（2026-02-28）

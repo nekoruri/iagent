@@ -14,6 +14,13 @@ interface Props {
   onClose: () => void;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 function statusLabel(status: MCPConnectionStatus): { text: string; className: string } {
   switch (status) {
     case 'connected':
@@ -62,6 +69,11 @@ export function SettingsModal({ open, onClose }: Props) {
   const [proxyError, setProxyError] = useState<string>('');
   const [proxyDomainsText, setProxyDomainsText] = useState(proxy.allowedDomains.join(', '));
   const [mcpToolsList, setMcpToolsList] = useState<Array<{ serverName: string; toolName: string }>>([]);
+  const [storageInfo, setStorageInfo] = useState<{
+    persistent: boolean;
+    usage: number;
+    quota: number;
+  } | null>(null);
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
@@ -89,6 +101,23 @@ export function SettingsModal({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     mcpManager.getAvailableTools().then(setMcpToolsList).catch(() => setMcpToolsList([]));
+  }, [open]);
+
+  // ストレージ情報を取得
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      if (!navigator.storage?.estimate) return;
+      const [persisted, estimate] = await Promise.all([
+        navigator.storage.persisted?.() ?? Promise.resolve(false),
+        navigator.storage.estimate(),
+      ]);
+      setStorageInfo({
+        persistent: persisted,
+        usage: estimate.usage ?? 0,
+        quota: estimate.quota ?? 0,
+      });
+    })();
   }, [open]);
 
   const updatePersona = (patch: Partial<PersonaConfig>) => {
@@ -836,6 +865,33 @@ export function SettingsModal({ open, onClose }: Props) {
             />
           </label>
         </div>
+
+        {/* ストレージ情報 */}
+        {storageInfo && (
+          <div className="mcp-section">
+            <div className="mcp-header">
+              <h3>ストレージ</h3>
+              <span className={`mcp-status ${storageInfo.persistent ? 'mcp-status-connected' : 'mcp-status-warning'}`}>
+                {storageInfo.persistent ? '永続化済み' : '未永続化'}
+              </span>
+            </div>
+            <p className="mcp-hint">
+              {storageInfo.persistent
+                ? 'ストレージは永続化されています。ブラウザによる自動削除から保護されます。'
+                : 'ストレージは永続化されていません。長期間未使用の場合、ブラウザがデータを自動削除する可能性があります。'}
+            </p>
+            <div className="storage-usage">{formatBytes(storageInfo.usage)} / {formatBytes(storageInfo.quota)}</div>
+            <div className="storage-bar">
+              <div
+                className="storage-bar-fill"
+                style={{ width: `${storageInfo.quota > 0 ? Math.min((storageInfo.usage / storageInfo.quota) * 100, 100) : 0}%` }}
+              />
+            </div>
+            {!storageInfo.persistent && (
+              <p className="storage-warning">PWA としてインストールすると永続化される可能性が高くなります。</p>
+            )}
+          </div>
+        )}
 
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>キャンセル</button>

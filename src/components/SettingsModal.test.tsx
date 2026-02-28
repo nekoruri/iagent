@@ -87,6 +87,26 @@ vi.mock('../core/notifier', () => ({
   requestNotificationPermission: vi.fn(async () => 'granted'),
 }));
 
+function mockStorage(opts: { persisted: boolean; usage: number; quota: number }) {
+  Object.defineProperty(navigator, 'storage', {
+    value: {
+      persist: vi.fn(async () => true),
+      persisted: vi.fn(async () => opts.persisted),
+      estimate: vi.fn(async () => ({ usage: opts.usage, quota: opts.quota })),
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+
+function removeStorage() {
+  Object.defineProperty(navigator, 'storage', {
+    value: undefined,
+    writable: true,
+    configurable: true,
+  });
+}
+
 describe('SettingsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -96,6 +116,8 @@ describe('SettingsModal', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     });
+    // デフォルトのストレージモック
+    mockStorage({ persisted: true, usage: 50 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
   });
 
   it('open=false のとき何もレンダリングされない', () => {
@@ -180,5 +202,41 @@ describe('SettingsModal', () => {
       await userEvent.click(overlay);
     }
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe('ストレージ情報', () => {
+    it('永続化済みの場合、ステータスバッジ「永続化済み」が表示される', async () => {
+      mockStorage({ persisted: true, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('永続化済み')).toBeInTheDocument();
+      expect(screen.getByText(/ストレージは永続化されています/)).toBeInTheDocument();
+      expect(screen.queryByText(/PWA としてインストール/)).not.toBeInTheDocument();
+    });
+
+    it('未永続化の場合、ステータスバッジ「未永続化」+ 注意文が表示される', async () => {
+      mockStorage({ persisted: false, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('未永続化')).toBeInTheDocument();
+      expect(screen.getByText(/ストレージは永続化されていません/)).toBeInTheDocument();
+      expect(screen.getByText(/PWA としてインストール/)).toBeInTheDocument();
+    });
+
+    it('API 未対応の場合、ストレージセクションが表示されない', () => {
+      removeStorage();
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.queryByText('ストレージ')).not.toBeInTheDocument();
+      expect(screen.queryByText('永続化済み')).not.toBeInTheDocument();
+      expect(screen.queryByText('未永続化')).not.toBeInTheDocument();
+    });
+
+    it('容量表示が正しくフォーマットされる', async () => {
+      mockStorage({ persisted: true, usage: 52428800, quota: 2147483648 }); // 50MB / 2GB
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('50.0 MB / 2.00 GB')).toBeInTheDocument();
+    });
   });
 });
