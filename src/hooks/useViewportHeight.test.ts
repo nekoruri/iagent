@@ -11,6 +11,7 @@ describe('useViewportHeight', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     document.documentElement.style.removeProperty('--app-height');
   });
 

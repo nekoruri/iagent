@@ -14,9 +14,10 @@ export function useViewportHeight(): void {
     updateHeight();
 
     // VisualViewport API 対応ブラウザ（iOS Safari, 主要モダンブラウザ）
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateHeight);
-      return () => window.visualViewport!.removeEventListener('resize', updateHeight);
+    const viewport = window.visualViewport;
+    if (viewport) {
+      viewport.addEventListener('resize', updateHeight);
+      return () => viewport.removeEventListener('resize', updateHeight);
     }
 
     // フォールバック: window resize

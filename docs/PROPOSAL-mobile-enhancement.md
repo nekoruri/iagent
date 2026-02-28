@@ -68,7 +68,7 @@ iAgent は「スマートフォンや PC 上でクライアントサイドの自
 
 **対策**:
 - `height: 100vh` → `height: 100dvh`（Dynamic Viewport Height）に変更
-- VisualViewport API の `resize` イベントで CSS カスタムプロパティ `--vh` を動的更新
+- VisualViewport API の `resize` イベントで CSS カスタムプロパティ `--app-height` を動的更新
 - `dvh` 未対応ブラウザ向けのフォールバック
 
 **変更対象**: `src/index.css`（`.app-container`, `.app`, `.app-main`）、`src/components/InputBar.tsx`
