@@ -456,6 +456,19 @@ describe('getMemoriesForBriefing', () => {
     const goalCount = results.filter((m) => m.category === 'goal').length;
     expect(goalCount).toBe(3);
   });
+
+  it('mustInclude が多くても context が最低1件確保される', async () => {
+    // limit=5 で goal を 5 件作成 → context 枠が予約されるか
+    for (let i = 0; i < 5; i++) {
+      await saveMemory(`目標${i}`, 'goal');
+    }
+    await saveMemory('現在の状況', 'context');
+
+    const results = await getMemoriesForBriefing(5);
+    expect(results).toHaveLength(5);
+    const categories = results.map((m) => m.category);
+    expect(categories).toContain('context');
+  });
 });
 
 describe('getRecentMemoriesForReflection', () => {

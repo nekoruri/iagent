@@ -133,12 +133,11 @@ export function parseDeadline(text: string, now?: Date): DeadlineInfo | null {
     });
   }
 
-  // パターン4: M月末（今月/来月 以外）
-  const p4 = /(?<!今|来)(\d{1,2})月末/g;
-  while ((m = p4.exec(normalized)) !== null) {
-    const month = Number(m[1]);
+  // パターン4a: YYYY年M月末（明示年）
+  const p4a = /(\d{4})年(\d{1,2})月末/g;
+  while ((m = p4a.exec(normalized)) !== null) {
+    const [year, month] = [Number(m[1]), Number(m[2])];
     if (month < 1 || month > 12) continue;
-    const year = estimateYear(month, lastDayOfMonth(ref.getFullYear(), month), ref);
     const day = lastDayOfMonth(year, month);
     matches.push({
       date: normalizeToEndOfDay(new Date(year, month - 1, day)),
@@ -148,12 +147,11 @@ export function parseDeadline(text: string, now?: Date): DeadlineInfo | null {
     });
   }
 
-  // パターン5: M月中旬（今月/来月 以外）
-  const p5 = /(?<!今|来)(\d{1,2})月中旬/g;
-  while ((m = p5.exec(normalized)) !== null) {
-    const month = Number(m[1]);
+  // パターン4b: YYYY年M月中旬（明示年）
+  const p4b = /(\d{4})年(\d{1,2})月中旬/g;
+  while ((m = p4b.exec(normalized)) !== null) {
+    const [year, month] = [Number(m[1]), Number(m[2])];
     if (month < 1 || month > 12) continue;
-    const year = estimateYear(month, 15, ref);
     matches.push({
       date: normalizeToEndOfDay(new Date(year, month - 1, 15)),
       original: m[0],
@@ -162,17 +160,69 @@ export function parseDeadline(text: string, now?: Date): DeadlineInfo | null {
     });
   }
 
-  // パターン6: M月上旬（今月/来月 以外）
-  const p6 = /(?<!今|来)(\d{1,2})月上旬/g;
+  // パターン4c: YYYY年M月上旬（明示年）
+  const p4c = /(\d{4})年(\d{1,2})月上旬/g;
+  while ((m = p4c.exec(normalized)) !== null) {
+    const [year, month] = [Number(m[1]), Number(m[2])];
+    if (month < 1 || month > 12) continue;
+    matches.push({
+      date: normalizeToEndOfDay(new Date(year, month - 1, 10)),
+      original: m[0],
+      start: m.index,
+      end: m.index + m[0].length,
+    });
+  }
+
+  // パターン4: M月末（今月/来月/YYYY年 以外）
+  const p4 = /(?<!今|来|\d)(\d{1,2})月末/g;
+  while ((m = p4.exec(normalized)) !== null) {
+    // YYYY年M月末 に既にマッチした部分はスキップ
+    const mStart = m.index;
+    const mEnd = m.index + m[0].length;
+    if (matches.some((e) => mStart >= e.start && mEnd <= e.end)) continue;
+    const month = Number(m[1]);
+    if (month < 1 || month > 12) continue;
+    const year = estimateYear(month, lastDayOfMonth(ref.getFullYear(), month), ref);
+    const day = lastDayOfMonth(year, month);
+    matches.push({
+      date: normalizeToEndOfDay(new Date(year, month - 1, day)),
+      original: m[0],
+      start: mStart,
+      end: mEnd,
+    });
+  }
+
+  // パターン5: M月中旬（今月/来月/YYYY年 以外）
+  const p5 = /(?<!今|来|\d)(\d{1,2})月中旬/g;
+  while ((m = p5.exec(normalized)) !== null) {
+    const mStart = m.index;
+    const mEnd = m.index + m[0].length;
+    if (matches.some((e) => mStart >= e.start && mEnd <= e.end)) continue;
+    const month = Number(m[1]);
+    if (month < 1 || month > 12) continue;
+    const year = estimateYear(month, 15, ref);
+    matches.push({
+      date: normalizeToEndOfDay(new Date(year, month - 1, 15)),
+      original: m[0],
+      start: mStart,
+      end: mEnd,
+    });
+  }
+
+  // パターン6: M月上旬（今月/来月/YYYY年 以外）
+  const p6 = /(?<!今|来|\d)(\d{1,2})月上旬/g;
   while ((m = p6.exec(normalized)) !== null) {
+    const mStart = m.index;
+    const mEnd = m.index + m[0].length;
+    if (matches.some((e) => mStart >= e.start && mEnd <= e.end)) continue;
     const month = Number(m[1]);
     if (month < 1 || month > 12) continue;
     const year = estimateYear(month, 10, ref);
     matches.push({
       date: normalizeToEndOfDay(new Date(year, month - 1, 10)),
       original: m[0],
-      start: m.index,
-      end: m.index + m[0].length,
+      start: mStart,
+      end: mEnd,
     });
   }
 
@@ -214,7 +264,7 @@ export function parseDeadline(text: string, now?: Date): DeadlineInfo | null {
 }
 
 /**
- * 期日までの残り日数を計算する（日単位、切り上げ）
+ * 期日までの残り日数を計算する（日単位）
  * 正: 未来、0: 当日、負: 過去
  */
 export function daysUntilDeadline(deadline: Date, now?: Date): number {

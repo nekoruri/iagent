@@ -311,34 +311,29 @@ export async function getMemoriesForBriefing(limit: number = 15): Promise<Memory
   contextItems.sort((a, b) => b.score - a.score);
   others.sort((a, b) => b.score - a.score);
 
+  // context が存在する場合は 1 枠予約し、mustInclude の上限を調整
+  const hasContext = contextItems.length > 0;
+  const mustIncludeLimit = hasContext ? limit - 1 : limit;
+
   // 必須メモリを優先し、context を最低1件確保、残り枠を others から埋める
   const result: Memory[] = [];
   const usedIds = new Set<string>();
 
   for (const s of mustInclude) {
-    if (result.length >= limit) break;
+    if (result.length >= mustIncludeLimit) break;
     result.push(s.memory);
     usedIds.add(s.memory.id);
   }
 
   // context カテゴリから最低 1 件を確保（あれば）
-  let contextAdded = false;
-  for (const s of contextItems) {
-    if (result.length >= limit) break;
-    if (!usedIds.has(s.memory.id)) {
-      result.push(s.memory);
-      usedIds.add(s.memory.id);
-      contextAdded = true;
-      break;
-    }
+  if (hasContext && result.length < limit) {
+    result.push(contextItems[0].memory);
+    usedIds.add(contextItems[0].memory.id);
   }
 
   // 残り枠を others + 残りの context から埋める
-  const remaining = [
-    ...(!contextAdded ? [] : contextItems.slice(1)),
-    ...(contextAdded ? contextItems.filter((s) => !usedIds.has(s.memory.id)) : contextItems),
-    ...others,
-  ].sort((a, b) => b.score - a.score);
+  const remainingContext = contextItems.filter((s) => !usedIds.has(s.memory.id));
+  const remaining = [...remainingContext, ...others].sort((a, b) => b.score - a.score);
 
   for (const s of remaining) {
     if (result.length >= limit) break;

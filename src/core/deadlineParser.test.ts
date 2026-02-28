@@ -65,6 +65,35 @@ describe('parseDeadline', () => {
     });
   });
 
+  describe('明示年付き月末/中旬/上旬', () => {
+    it('2027年3月末 → 2027年3月31日（年推定を上書き）', () => {
+      const result = parseDeadline('2027年3月末までに提出', NOW);
+      expect(result).not.toBeNull();
+      expect(result!.date.getFullYear()).toBe(2027);
+      expect(result!.date.getMonth()).toBe(2);
+      expect(result!.date.getDate()).toBe(31);
+      expect(result!.original).toBe('2027年3月末');
+    });
+
+    it('2026年6月中旬 → 2026年6月15日', () => {
+      const result = parseDeadline('2026年6月中旬に確認', NOW);
+      expect(result).not.toBeNull();
+      expect(result!.date.getFullYear()).toBe(2026);
+      expect(result!.date.getMonth()).toBe(5);
+      expect(result!.date.getDate()).toBe(15);
+      expect(result!.original).toBe('2026年6月中旬');
+    });
+
+    it('2026年4月上旬 → 2026年4月10日', () => {
+      const result = parseDeadline('2026年4月上旬までに', NOW);
+      expect(result).not.toBeNull();
+      expect(result!.date.getFullYear()).toBe(2026);
+      expect(result!.date.getMonth()).toBe(3);
+      expect(result!.date.getDate()).toBe(10);
+      expect(result!.original).toBe('2026年4月上旬');
+    });
+  });
+
   describe('月末/月中旬/月上旬', () => {
     it('3月末 → 3月31日', () => {
       const result = parseDeadline('3月末までにレポート提出', NOW);
