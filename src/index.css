@@ -56,6 +56,13 @@
 html, body, #root {
   height: 100%;
   width: 100%;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: var(--app-height, 100dvh);
+  }
 }
 
 body {

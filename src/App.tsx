@@ -14,6 +14,7 @@ import { useConversations } from './hooks/useConversations';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
+import { useViewportHeight } from './hooks/useViewportHeight';
 import { applyTheme, getStoredThemeMode } from './core/theme';
 import { isConfigured, getConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
@@ -24,6 +25,8 @@ import type { ChatMessage } from './types';
 const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
 
 export default function App() {
+  useViewportHeight();
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
