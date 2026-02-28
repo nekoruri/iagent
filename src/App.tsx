@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
+import { InstallPrompt } from './components/InstallPrompt';
 import { MemoryPanel } from './components/MemoryPanel';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -102,6 +103,22 @@ export default function App() {
     return () => {
       mcpManager.disconnectAll();
     };
+  }, []);
+
+  // ストレージ永続化リクエスト
+  // iOS Safari 7日削除対策が主目的だが、全ブラウザで有効（Chrome は自動許可、Firefox はプロンプト表示）。
+  // persisted() で確認し、未永続化の場合のみ persist() を呼ぶ。
+  useEffect(() => {
+    (async () => {
+      try {
+        const persisted = await navigator.storage?.persisted?.();
+        if (persisted === false) {
+          await navigator.storage?.persist?.();
+        }
+      } catch {
+        // 非対応環境では無視
+      }
+    })();
   }, []);
 
   // メッセージ送信時にタイトル自動設定 & touch
@@ -232,6 +249,7 @@ export default function App() {
             </button>
           </div>
         </header>
+        <InstallPrompt />
         <main className="app-main">
           <ChatView
             messages={messages}

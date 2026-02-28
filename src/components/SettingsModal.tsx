@@ -6,12 +6,20 @@ import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSy
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
+import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode } from '../types';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function statusLabel(status: MCPConnectionStatus): { text: string; className: string } {
@@ -62,6 +70,11 @@ export function SettingsModal({ open, onClose }: Props) {
   const [proxyError, setProxyError] = useState<string>('');
   const [proxyDomainsText, setProxyDomainsText] = useState(proxy.allowedDomains.join(', '));
   const [mcpToolsList, setMcpToolsList] = useState<Array<{ serverName: string; toolName: string }>>([]);
+  const [storageInfo, setStorageInfo] = useState<{
+    persistent: boolean;
+    usage: number;
+    quota: number;
+  } | null>(null);
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
@@ -89,6 +102,30 @@ export function SettingsModal({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     mcpManager.getAvailableTools().then(setMcpToolsList).catch(() => setMcpToolsList([]));
+  }, [open]);
+
+  // ストレージ情報を取得
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        if (!navigator.storage?.estimate) {
+          setStorageInfo(null);
+          return;
+        }
+        const [persisted, estimate] = await Promise.all([
+          navigator.storage.persisted?.() ?? Promise.resolve(false),
+          navigator.storage.estimate(),
+        ]);
+        setStorageInfo({
+          persistent: persisted,
+          usage: estimate.usage ?? 0,
+          quota: estimate.quota ?? 0,
+        });
+      } catch {
+        setStorageInfo(null);
+      }
+    })();
   }, [open]);
 
   const updatePersona = (patch: Partial<PersonaConfig>) => {
@@ -533,6 +570,11 @@ export function SettingsModal({ open, onClose }: Props) {
               )}
             </div>
             {pushError && <p className="mcp-error-text">{pushError}</p>}
+            {isIOSSafari() && !isStandaloneMode() && (
+              <p className="mcp-hint storage-warning">
+                iOS で Push 通知を受け取るには、まずこのアプリをホーム画面に追加（PWA インストール）してください。
+              </p>
+            )}
           </div>
 
           <div className="hb-tasks-section">
@@ -836,6 +878,52 @@ export function SettingsModal({ open, onClose }: Props) {
             />
           </label>
         </div>
+
+        {/* ストレージ情報 */}
+        {storageInfo && (
+          <div className="mcp-section">
+            <div className="mcp-header">
+              <h3>ストレージ</h3>
+              <span className={`mcp-status ${storageInfo.persistent ? 'mcp-status-connected' : 'mcp-status-warning'}`}>
+                {storageInfo.persistent ? '永続化済み' : '未永続化'}
+              </span>
+            </div>
+            <p className="mcp-hint">
+              {storageInfo.persistent
+                ? 'ストレージは永続化されています。ブラウザによる自動削除から保護されます。'
+                : 'ストレージは永続化されていません。長期間未使用の場合、ブラウザがデータを自動削除する可能性があります。'}
+            </p>
+            <div className="storage-usage">{formatBytes(storageInfo.usage)} / {formatBytes(storageInfo.quota)}</div>
+            <div
+              className="storage-bar"
+              role={storageInfo.quota > 0 ? 'progressbar' : undefined}
+              aria-label="ストレージ使用量"
+              aria-valuenow={storageInfo.quota > 0 ? Math.min(storageInfo.usage, storageInfo.quota) : undefined}
+              aria-valuemin={storageInfo.quota > 0 ? 0 : undefined}
+              aria-valuemax={storageInfo.quota > 0 ? storageInfo.quota : undefined}
+              aria-valuetext={storageInfo.quota > 0 ? undefined : 'ストレージ使用量: 不明'}
+            >
+              <div
+                className="storage-bar-fill"
+                style={{ width: `${storageInfo.quota > 0 ? Math.min((storageInfo.usage / storageInfo.quota) * 100, 100) : 0}%` }}
+              />
+            </div>
+            {!storageInfo.persistent && (
+              <>
+                <p className="storage-warning">PWA としてインストールすると永続化される可能性が高くなります。</p>
+                {isIOSSafari() && !isStandaloneMode() && (
+                  <div className="ios-install-guide">
+                    <span className="install-step-badge">
+                      <span className="install-step-icon" aria-hidden="true">&#xFEFF;⬆&#xFE0E;</span> 共有ボタン
+                    </span>
+                    <span className="install-step-arrow" aria-hidden="true">→</span>
+                    <span className="install-step-badge">ホーム画面に追加</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>キャンセル</button>
