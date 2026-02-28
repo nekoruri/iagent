@@ -321,6 +321,101 @@ describe('formatGoalsWithDeadlines', () => {
   });
 });
 
+describe('活動状態ラベル (F11/F12)', () => {
+  const dateTime = '2026/3/1 12:00:00';
+  const nowMs = new Date('2026-3-1 12:00:00').getTime();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it('7日以上更新なしでナッジラベルが付く', () => {
+    const goals = [makeMemory({
+      content: 'React Hooks の学習',
+      category: 'goal',
+      createdAt: nowMs - 30 * DAY_MS,
+      updatedAt: nowMs - 10 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(10日間更新なし)');
+    expect(result).toContain('#stale');
+    expect(result).not.toContain('⚠');
+  });
+
+  it('14日以上更新なしで警告ラベルが付く', () => {
+    const goals = [makeMemory({
+      content: 'TypeScript マスター',
+      category: 'goal',
+      createdAt: nowMs - 60 * DAY_MS,
+      updatedAt: nowMs - 20 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(⚠ 20日間更新なし)');
+    expect(result).toContain('#stale');
+  });
+
+  it('7日未満の更新ではラベルなし', () => {
+    const goals = [makeMemory({
+      content: 'アクティブな目標',
+      category: 'goal',
+      createdAt: nowMs - 30 * DAY_MS,
+      updatedAt: nowMs - 5 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).not.toContain('日間更新なし');
+    expect(result).not.toContain('#stale');
+  });
+
+  it('作成後3日以内は猶予期間でラベルなし', () => {
+    const goals = [makeMemory({
+      content: '新しい目標',
+      category: 'goal',
+      createdAt: nowMs - 2 * DAY_MS,
+      updatedAt: nowMs - 2 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).not.toContain('日間更新なし');
+    expect(result).not.toContain('#stale');
+  });
+
+  it('作成後3日経過で未更新ならラベルあり', () => {
+    const goals = [makeMemory({
+      content: '放置された目標',
+      category: 'goal',
+      createdAt: nowMs - 10 * DAY_MS,
+      updatedAt: nowMs - 10 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(10日間更新なし)');
+    expect(result).toContain('#stale');
+  });
+
+  it('deadline と活動状態ラベルが併記される', () => {
+    const goals = [makeMemory({
+      content: '3月末までにレポート提出',
+      category: 'goal',
+      importance: 5,
+      createdAt: nowMs - 30 * DAY_MS,
+      updatedAt: nowMs - 14 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(残り30日)');
+    expect(result).toContain('(⚠ 14日間更新なし)');
+    expect(result).toContain('#deadline');
+    expect(result).toContain('#stale');
+    expect(result).toContain('(重要度:5)');
+  });
+
+  it('最近更新された goal にはラベルなし', () => {
+    const goals = [makeMemory({
+      content: 'アクティブな目標',
+      category: 'goal',
+      createdAt: nowMs - 30 * DAY_MS,
+      updatedAt: nowMs - 1 * DAY_MS,
+    })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).not.toContain('日間更新なし');
+    expect(result).not.toContain('#stale');
+  });
+});
+
 describe('期日表示の統合テスト', () => {
   it('Heartbeat: goal に残り日数が付く', () => {
     const memories = [
@@ -349,5 +444,55 @@ describe('期日表示の統合テスト', () => {
     expect(result).toContain('(残り30日)');
     expect(result).toContain('[fact] 通常メモリ');
     expect(result).not.toContain('[fact] 通常メモリ (残り');
+  });
+});
+
+describe('活動状態ラベルの統合テスト (F11/F12)', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const nowMs = new Date('2026-3-1 12:00:00').getTime();
+
+  it('Heartbeat: stale な goal にラベルと #stale が付く', () => {
+    const memories = [
+      makeMemory({
+        content: 'React Hooks の学習',
+        category: 'goal',
+        createdAt: nowMs - 30 * DAY_MS,
+        updatedAt: nowMs - 10 * DAY_MS,
+      }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({
+      memories,
+      currentDateTime: '2026/3/1 12:00:00',
+    }));
+    expect(result).toContain('(10日間更新なし)');
+    expect(result).toContain('#stale');
+  });
+
+  it('Heartbeat: ブリーフィングルールにナッジ指示が含まれる', () => {
+    const result = buildHeartbeatInstructions(makeContext());
+    expect(result).toContain('#stale');
+    expect(result).toContain('後押し');
+    expect(result).toContain('見直し');
+  });
+
+  it('Main: stale な goal にラベルが付き、fact には付かない', () => {
+    const memories = [
+      makeMemory({
+        content: 'TypeScript マスター',
+        category: 'goal',
+        createdAt: nowMs - 30 * DAY_MS,
+        updatedAt: nowMs - 8 * DAY_MS,
+      }),
+      makeMemory({ id: 'mem-2', content: '通常メモリ', category: 'fact' }),
+    ];
+    const result = buildMainInstructions(makeContext({
+      memories,
+      currentDateTime: '2026/3/1 12:00:00',
+    }));
+    expect(result).toContain('(8日間更新なし)');
+    expect(result).toContain('#stale');
+    expect(result).toContain('[fact] 通常メモリ');
+    expect(result).not.toContain('[fact] 通常メモリ (');
+    expect(result).not.toContain('[fact] 通常メモリ #stale');
   });
 });
