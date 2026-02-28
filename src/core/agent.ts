@@ -7,7 +7,7 @@ import { memoryTool } from '../tools/memoryTool';
 import { clipTool } from '../tools/clipTool';
 import { feedTool } from '../tools/feedTool';
 import { webMonitorTool } from '../tools/webMonitorTool';
-import { getRelevantMemories } from '../store/memoryStore';
+import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getConfig, getDefaultPersonaConfig } from './config';
 import { buildMainInstructions, buildHeartbeatInstructions } from './instructionBuilder';
 
@@ -36,10 +36,14 @@ export { isReadOnlyTool } from './toolUtils';
 export async function createHeartbeatAgent(
   mcpServers?: MCPServer[],
   allowedMcpToolNames?: string[],
+  tasks?: Array<{ id: string }>,
 ): Promise<Agent> {
   const config = getConfig();
   const persona = config.persona ?? getDefaultPersonaConfig();
-  const memories = await getRelevantMemories('', 5);
+  const hasBriefing = tasks?.some((t) => t.id.startsWith('briefing-'));
+  const memories = hasBriefing
+    ? await getMemoriesForBriefing(15)
+    : await getRelevantMemories('', 5);
   const instructions = buildHeartbeatInstructions({
     persona,
     memories,

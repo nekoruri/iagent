@@ -10,6 +10,7 @@ import {
   deleteMemory,
   getRecentMemories,
   getRelevantMemories,
+  getMemoriesForBriefing,
   normalizeMemory,
   scoreMemory,
   computeContentHash,
@@ -392,6 +393,68 @@ describe('getRelevantMemories', () => {
     const results = await getRelevantMemories('', 2);
     // preference(+2) + importance(5) > fact(+1) + importance(1)
     expect(results[0].content).toBe('メモリA');
+  });
+});
+
+describe('getMemoriesForBriefing', () => {
+  it('goal メモリが必ず含まれる', async () => {
+    for (let i = 0; i < 10; i++) {
+      await saveMemory(`一般メモリ ${i}`, 'fact', { importance: 5 });
+    }
+    await saveMemory('3月末までにレポート提出', 'goal');
+
+    const results = await getMemoriesForBriefing(15);
+    const categories = results.map((m) => m.category);
+    expect(categories).toContain('goal');
+  });
+
+  it('context メモリが含まれる', async () => {
+    for (let i = 0; i < 10; i++) {
+      await saveMemory(`一般メモリ ${i}`, 'fact', { importance: 5 });
+    }
+    await saveMemory('現在プロジェクトXに取り組み中', 'context');
+
+    const results = await getMemoriesForBriefing(15);
+    const categories = results.map((m) => m.category);
+    expect(categories).toContain('context');
+  });
+
+  it('personality と routine も引き続き含まれる', async () => {
+    await saveMemory('敬語で話して', 'personality');
+    await saveMemory('毎朝7時にニュース確認', 'routine');
+    await saveMemory('3月末までにレポート提出', 'goal');
+    await saveMemory('一般情報', 'fact');
+
+    const results = await getMemoriesForBriefing(15);
+    const categories = results.map((m) => m.category);
+    expect(categories).toContain('personality');
+    expect(categories).toContain('routine');
+    expect(categories).toContain('goal');
+  });
+
+  it('メモリ 0 件でもエラーにならない', async () => {
+    const results = await getMemoriesForBriefing(15);
+    expect(results).toEqual([]);
+  });
+
+  it('limit を超えない', async () => {
+    for (let i = 0; i < 20; i++) {
+      await saveMemory(`メモリ ${i}`, 'fact');
+    }
+
+    const results = await getMemoriesForBriefing(10);
+    expect(results).toHaveLength(10);
+  });
+
+  it('goal が複数あってもすべて含まれる（枠内）', async () => {
+    await saveMemory('目標A', 'goal');
+    await saveMemory('目標B', 'goal');
+    await saveMemory('目標C', 'goal');
+    await saveMemory('一般情報', 'fact');
+
+    const results = await getMemoriesForBriefing(15);
+    const goalCount = results.filter((m) => m.category === 'goal').length;
+    expect(goalCount).toBe(3);
   });
 });
 

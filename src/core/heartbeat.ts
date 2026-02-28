@@ -205,7 +205,7 @@ export class HeartbeatEngine {
     allowedMcpTools: string[] | undefined,
     trace: ReturnType<typeof tracer.startTrace>,
   ): Promise<HeartbeatResult[]> {
-    const agent = await createHeartbeatAgent(mcpServers, allowedMcpTools);
+    const agent = await createHeartbeatAgent(mcpServers, allowedMcpTools, tasks);
 
     const taskDescriptions = tasks.map((t) =>
       `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`

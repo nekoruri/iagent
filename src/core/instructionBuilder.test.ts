@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMainInstructions, buildHeartbeatInstructions, buildWorkerHeartbeatPrompt } from './instructionBuilder';
+import { buildMainInstructions, buildHeartbeatInstructions, buildWorkerHeartbeatPrompt, formatGoalsWithDeadlines } from './instructionBuilder';
 import type { InstructionContext } from './instructionBuilder';
 import { getDefaultPersonaConfig } from './config';
 import type { Memory } from '../types';
@@ -223,6 +223,48 @@ describe('buildHeartbeatInstructions', () => {
     expect(result).toContain('briefing-');
     expect(result).toContain('総合サマリー');
   });
+
+  it('goal メモリは「目標・締切」セクションに分離表示される', () => {
+    const memories = [
+      makeMemory({ content: '3月末までにレポート提出', category: 'goal' }),
+      makeMemory({ id: 'mem-2', content: '通常メモリ', category: 'fact' }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({ memories }));
+    expect(result).toContain('目標・締切');
+    expect(result).toContain('[goal] 3月末までにレポート提出');
+    expect(result).toContain('ユーザーについての記憶');
+    expect(result).toContain('[fact] 通常メモリ');
+  });
+
+  it('context メモリは「現在の状況」セクションに分離表示される', () => {
+    const memories = [
+      makeMemory({ content: 'プロジェクトXに取り組み中', category: 'context' }),
+      makeMemory({ id: 'mem-2', content: '通常メモリ', category: 'fact' }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({ memories }));
+    expect(result).toContain('現在の状況');
+    expect(result).toContain('[context] プロジェクトXに取り組み中');
+  });
+
+  it('goal/context/reflection すべて分離される', () => {
+    const memories = [
+      makeMemory({ id: 'mem-1', content: '目標情報', category: 'goal' }),
+      makeMemory({ id: 'mem-2', content: '状況情報', category: 'context' }),
+      makeMemory({ id: 'mem-3', content: '洞察情報', category: 'reflection' }),
+      makeMemory({ id: 'mem-4', content: '一般情報', category: 'fact' }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({ memories }));
+    expect(result).toContain('目標・締切');
+    expect(result).toContain('現在の状況');
+    expect(result).toContain('ユーザーについての記憶');
+    expect(result).toContain('振り返りからの洞察');
+  });
+
+  it('ブリーフィングルールに目標参照の指示が含まれる', () => {
+    const result = buildHeartbeatInstructions(makeContext());
+    expect(result).toContain('目標（goal）と現在の状況（context）を踏まえて');
+    expect(result).toContain('残り日数を計算');
+  });
 });
 
 describe('buildWorkerHeartbeatPrompt', () => {
@@ -236,5 +278,76 @@ describe('buildWorkerHeartbeatPrompt', () => {
       persona: { ...getDefaultPersonaConfig(), name: 'WorkerBot' },
     }));
     expect(result).toContain('WorkerBot');
+  });
+});
+
+describe('formatGoalsWithDeadlines', () => {
+  const dateTime = '2026/3/1 12:00:00';
+
+  it('残り日数が表示される', () => {
+    const goals = [makeMemory({ content: '3月末までにレポート提出', category: 'goal' })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(残り30日)');
+    expect(result).toContain('#deadline');
+  });
+
+  it('期限超過が表示される', () => {
+    const goals = [makeMemory({ content: '2026年2月20日までに提出', category: 'goal' })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('⚠ 期限超過 9日');
+    expect(result).toContain('#deadline');
+  });
+
+  it('本日期限が表示される', () => {
+    const goals = [makeMemory({ content: '2026年3月1日が締切', category: 'goal' })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('⚠ 本日期限');
+    expect(result).toContain('#deadline');
+  });
+
+  it('パース不可の goal はそのまま表示される', () => {
+    const goals = [makeMemory({ content: 'プロジェクトXの完了', category: 'goal' })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('[goal] プロジェクトXの完了');
+    expect(result).not.toContain('残り');
+    expect(result).not.toContain('#deadline');
+  });
+
+  it('importance が併記される', () => {
+    const goals = [makeMemory({ content: '3月末までにレポート提出', category: 'goal', importance: 5 })];
+    const result = formatGoalsWithDeadlines(goals, dateTime);
+    expect(result).toContain('(残り30日)');
+    expect(result).toContain('(重要度:5)');
+  });
+});
+
+describe('期日表示の統合テスト', () => {
+  it('Heartbeat: goal に残り日数が付く', () => {
+    const memories = [
+      makeMemory({ content: '3月末までにレポート提出', category: 'goal' }),
+      makeMemory({ id: 'mem-2', content: '通常メモリ', category: 'fact' }),
+    ];
+    const result = buildHeartbeatInstructions(makeContext({
+      memories,
+      currentDateTime: '2026/3/1 12:00:00',
+    }));
+    expect(result).toContain('(残り30日)');
+    expect(result).toContain('#deadline');
+    expect(result).not.toContain('[fact] 通常メモリ (残り');
+  });
+
+  it('Main: goal に残り日数が付き、fact には付かない', () => {
+    const memories = [
+      makeMemory({ content: '3月末までにレポート提出', category: 'goal' }),
+      makeMemory({ id: 'mem-2', content: '通常メモリ', category: 'fact' }),
+    ];
+    const result = buildMainInstructions(makeContext({
+      memories,
+      currentDateTime: '2026/3/1 12:00:00',
+    }));
+    expect(result).toContain('目標・締切');
+    expect(result).toContain('(残り30日)');
+    expect(result).toContain('[fact] 通常メモリ');
+    expect(result).not.toContain('[fact] 通常メモリ (残り');
   });
 });
