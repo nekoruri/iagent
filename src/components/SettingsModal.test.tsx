@@ -169,14 +169,12 @@ describe('SettingsModal', () => {
   });
 
   it('MCP サーバーの追加ボタンでサーバーフォームが表示される', async () => {
-    const { container } = render(<SettingsModal open={true} onClose={vi.fn()} />);
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     expect(screen.getByText('MCPサーバーが未登録です')).toBeInTheDocument();
 
-    // MCP Servers セクション内の「+ 追加」ボタンをクリック（エージェント設定の次のセクション）
-    const mcpSections = container.querySelectorAll('.mcp-section');
-    // MCP Servers はエージェント設定の次のセクション
-    const mcpSection = Array.from(mcpSections).find((s) => s.textContent?.includes('MCP Servers'))!;
+    // MCP Servers セクション内の「+ 追加」ボタンをクリック
+    const mcpSection = screen.getByText('MCP Servers').closest('.settings-section')!;
     const addButton = mcpSection.querySelector('.btn-secondary')!;
     await userEvent.click(addButton);
 
@@ -186,11 +184,10 @@ describe('SettingsModal', () => {
   });
 
   it('MCP サーバーを追加して削除できる', async () => {
-    const { container } = render(<SettingsModal open={true} onClose={vi.fn()} />);
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     // MCP Servers セクション内の「+ 追加」ボタンをクリック
-    const mcpSections = container.querySelectorAll('.mcp-section');
-    const mcpSection = Array.from(mcpSections).find((s) => s.textContent?.includes('MCP Servers'))!;
+    const mcpSection = screen.getByText('MCP Servers').closest('.settings-section')!;
     const addButton = mcpSection.querySelector('.btn-secondary')!;
     await userEvent.click(addButton);
     expect(screen.getByPlaceholderText('サーバー名')).toBeInTheDocument();
@@ -210,6 +207,99 @@ describe('SettingsModal', () => {
       await userEvent.click(overlay);
     }
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe('アコーディオン構造', () => {
+    it('全セクションが details 要素でラップされている', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // ストレージセクションは非同期で表示されるため待つ
+      await screen.findByText('ストレージ', { selector: 'summary > span' });
+
+      const expectedSections = [
+        '基本設定',
+        'エージェント設定',
+        'MCP Servers',
+        'Heartbeat',
+        'CORS プロキシ',
+        'オブザーバビリティ',
+        'ストレージ',
+      ];
+
+      for (const name of expectedSections) {
+        const summary = screen.getByText(name, { selector: 'summary, summary > span' });
+        expect(summary.closest('details.settings-section')).not.toBeNull();
+      }
+    });
+
+    it('全セクションが初期展開されている', async () => {
+      const { container } = render(<SettingsModal open={true} onClose={vi.fn()} />);
+      // ストレージセクションは非同期で表示されるため待つ
+      await screen.findByText('ストレージ', { selector: 'summary > span' });
+
+      const sections = container.querySelectorAll('details.settings-section');
+      expect(sections.length).toBeGreaterThanOrEqual(6);
+      sections.forEach((section) => {
+        expect(section).toHaveAttribute('open');
+      });
+    });
+
+    it('summary クリックでセクションの開閉ができる', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      const summary = screen.getByText('基本設定');
+      const details = summary.closest('details')!;
+      expect(details).toHaveAttribute('open');
+
+      // クリックで閉じる
+      await userEvent.click(summary);
+      expect(details).not.toHaveAttribute('open');
+
+      // 再クリックで開く
+      await userEvent.click(summary);
+      expect(details).toHaveAttribute('open');
+    });
+
+    it('summary 内のボタンクリックではセクションが開閉しない', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // MCP Servers セクションの「+ 追加」ボタン
+      const mcpSection = screen.getByText('MCP Servers').closest('details')!;
+      expect(mcpSection).toHaveAttribute('open');
+      const addButton = mcpSection.querySelector('summary .btn-secondary')!;
+      await userEvent.click(addButton);
+      // セクションは開いたまま
+      expect(mcpSection).toHaveAttribute('open');
+    });
+
+    it('summary 内のトグルクリックではセクションが開閉しない', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // Heartbeat セクションの「有効」トグル
+      const heartbeatSection = screen.getByText('Heartbeat').closest('details')!;
+      expect(heartbeatSection).toHaveAttribute('open');
+      const toggle = heartbeatSection.querySelector('summary input[type="checkbox"]')!;
+      await userEvent.click(toggle);
+      // セクションは開いたまま
+      expect(heartbeatSection).toHaveAttribute('open');
+    });
+
+    it('閉じたセクションが state 更新後も閉じたままである', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // 基本設定を閉じる
+      const summary = screen.getByText('基本設定');
+      const details = summary.closest('details')!;
+      await userEvent.click(summary);
+      expect(details).not.toHaveAttribute('open');
+
+      // 別の入力で state を更新
+      const openaiInput = screen.getByPlaceholderText('sk-...');
+      await userEvent.type(openaiInput, 'x');
+
+      // 基本設定は閉じたまま
+      expect(details).not.toHaveAttribute('open');
+    });
   });
 
   describe('ストレージ情報', () => {
