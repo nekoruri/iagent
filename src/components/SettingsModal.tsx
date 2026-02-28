@@ -316,7 +316,7 @@ export function SettingsModal({ open, onClose }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay settings-modal-overlay" onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>設定</h2>
@@ -497,7 +497,7 @@ export function SettingsModal({ open, onClose }: Props) {
           <details className="settings-section" open={openSections.heartbeat}>
             <summary onClick={handleSummaryClick('heartbeat')}>
               <span>Heartbeat</span>
-              <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
+              <label className="hb-toggle-label" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 <input
                   type="checkbox"
                   checked={heartbeat.enabled}
@@ -797,7 +797,7 @@ export function SettingsModal({ open, onClose }: Props) {
           <details className="settings-section" open={openSections.proxy}>
             <summary onClick={handleSummaryClick('proxy')}>
               <span>CORS プロキシ</span>
-              <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
+              <label className="hb-toggle-label" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 <input
                   type="checkbox"
                   checked={proxy.enabled}
@@ -878,7 +878,7 @@ export function SettingsModal({ open, onClose }: Props) {
           <details className="settings-section" open={openSections.otel}>
             <summary onClick={handleSummaryClick('otel')}>
               <span>オブザーバビリティ</span>
-              <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
+              <label className="hb-toggle-label" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 <input
                   type="checkbox"
                   checked={otel.enabled}
