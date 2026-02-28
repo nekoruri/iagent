@@ -894,7 +894,14 @@ export function SettingsModal({ open, onClose }: Props) {
                 : 'ストレージは永続化されていません。長期間未使用の場合、ブラウザがデータを自動削除する可能性があります。'}
             </p>
             <div className="storage-usage">{formatBytes(storageInfo.usage)} / {formatBytes(storageInfo.quota)}</div>
-            <div className="storage-bar">
+            <div
+              className="storage-bar"
+              role="progressbar"
+              aria-label="ストレージ使用量"
+              aria-valuenow={storageInfo.usage}
+              aria-valuemin={0}
+              aria-valuemax={storageInfo.quota}
+            >
               <div
                 className="storage-bar-fill"
                 style={{ width: `${storageInfo.quota > 0 ? Math.min((storageInfo.usage / storageInfo.quota) * 100, 100) : 0}%` }}
