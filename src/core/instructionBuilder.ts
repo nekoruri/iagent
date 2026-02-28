@@ -1,6 +1,11 @@
 import type { Memory, PersonaConfig } from '../types';
 import { parseDeadline, daysUntilDeadline } from './deadlineParser';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const INACTIVITY_NUDGE_DAYS = 7;
+const INACTIVITY_WARNING_DAYS = 14;
+const NEW_GOAL_GRACE_DAYS = 3;
+
 export interface InstructionContext {
   persona: PersonaConfig;
   memories: Memory[];
@@ -122,7 +127,9 @@ export function buildHeartbeatInstructions(ctx: InstructionContext): string {
 - 日本語で summary を書いてください
 - ブリーフィングタスク（タスクIDが "briefing-" で始まるもの）は必ず hasChanges: true とし、複数のツールで収集した情報を統合した総合サマリーを summary に含めてください
 - ブリーフィングタスクでは、ユーザーの目標（goal）と現在の状況（context）を踏まえて、今日特に注意すべき点や目標に関連するアクションを提案してください
-- 目標に期日がある場合は残り日数を計算して伝えてください`);
+- 目標に期日がある場合は残り日数を計算して伝えてください
+- 目標が長期間更新されていない場合（#stale タグ）は、その目標の再開を優しく後押ししてください。プレッシャーではなく小さな一歩を提案してください
+- 「⚠ N日間更新なし」の目標がある場合は、目標自体の見直し（継続・修正・削除）も選択肢として提案してください`);
 
   // メモリ（4グループに分離）
   const hbGoals = ctx.memories.filter((m) => m.category === 'goal');
@@ -188,6 +195,7 @@ function formatMemories(memories: Memory[]): string {
 export function formatGoalsWithDeadlines(goals: Memory[], currentDateTime: string): string {
   // currentDateTime（例: '2026/3/1 12:00:00'）から Date を生成
   const now = new Date(currentDateTime.replace(/\//g, '-'));
+  const nowMs = now.getTime();
   return goals.map((m) => {
     const tags = m.tags && m.tags.length > 0 ? ` #${m.tags.join(' #')}` : '';
     const importance = m.importance && m.importance !== 3 ? ` (重要度:${m.importance})` : '';
@@ -204,6 +212,24 @@ export function formatGoalsWithDeadlines(goals: Memory[], currentDateTime: strin
       }
     }
     const deadlineTag = deadline ? ' #deadline' : '';
-    return `- [${m.category}] ${m.content}${deadlineLabel}${importance}${tags}${deadlineTag}`;
+
+    // 活動状態ラベル (F11/F12)
+    let inactivityLabel = '';
+    let inactivityTag = '';
+    const goalAgeMs = nowMs - m.createdAt;
+    const inactiveDaysMs = nowMs - m.updatedAt;
+    const inactiveDays = Math.floor(inactiveDaysMs / DAY_MS);
+
+    if (goalAgeMs >= NEW_GOAL_GRACE_DAYS * DAY_MS) {
+      if (inactiveDays >= INACTIVITY_WARNING_DAYS) {
+        inactivityLabel = ` (⚠ ${inactiveDays}日間更新なし)`;
+        inactivityTag = ' #stale';
+      } else if (inactiveDays >= INACTIVITY_NUDGE_DAYS) {
+        inactivityLabel = ` (${inactiveDays}日間更新なし)`;
+        inactivityTag = ' #stale';
+      }
+    }
+
+    return `- [${m.category}] ${m.content}${deadlineLabel}${inactivityLabel}${importance}${tags}${deadlineTag}${inactivityTag}`;
   }).join('\n');
 }
