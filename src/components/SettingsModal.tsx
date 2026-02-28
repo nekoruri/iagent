@@ -15,6 +15,14 @@ interface Props {
   onClose: () => void;
 }
 
+type SectionId = 'basic' | 'agent' | 'mcp' | 'heartbeat' | 'proxy' | 'otel' | 'storage';
+
+const ALL_SECTIONS: SectionId[] = ['basic', 'agent', 'mcp', 'heartbeat', 'proxy', 'otel', 'storage'];
+
+function initOpenSections(): Record<SectionId, boolean> {
+  return Object.fromEntries(ALL_SECTIONS.map((id) => [id, true])) as Record<SectionId, boolean>;
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -53,7 +61,10 @@ export function SettingsModal({ open, onClose }: Props) {
 
   // モーダルが開かれた時に最新の設定を読み込む
   useEffect(() => {
-    if (open) setConfig(getConfig());
+    if (open) {
+      setConfig(getConfig());
+      setOpenSections(initOpenSections());
+    }
   }, [open]);
 
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
@@ -75,6 +86,7 @@ export function SettingsModal({ open, onClose }: Props) {
     usage: number;
     quota: number;
   } | null>(null);
+  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>(initOpenSections);
 
   // モーダルが開かれたとき、ヘッダーテキストも同期
   useEffect(() => {
@@ -290,13 +302,17 @@ export function SettingsModal({ open, onClose }: Props) {
   const builtinTasks = heartbeat.tasks.filter((t) => t.type === 'builtin');
   const customTasks = heartbeat.tasks.filter((t) => t.type === 'custom');
 
-  const handleSummaryClick = (e: React.MouseEvent) => {
-    // summary 内のボタン・トグルクリック時に details 開閉を防止
+  const toggleSection = (id: SectionId) => {
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleSummaryClick = (id: SectionId) => (e: React.MouseEvent) => {
+    // details のネイティブ開閉を常に抑止し、state で制御する
+    e.preventDefault();
     const target = e.target as HTMLElement;
-    if (target.closest('button, label, input')) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    // summary 内のボタン・トグルクリック時は開閉しない
+    if (target.closest('button, label, input')) return;
+    toggleSection(id);
   };
 
   return (
@@ -308,8 +324,8 @@ export function SettingsModal({ open, onClose }: Props) {
 
         <div className="modal-body">
           {/* セクション 1: 基本設定 */}
-          <details className="settings-section" open>
-            <summary>基本設定</summary>
+          <details className="settings-section" open={openSections.basic}>
+            <summary onClick={handleSummaryClick('basic')}>基本設定</summary>
             <div className="settings-section-content">
               <div className="theme-section">
                 <span className="theme-section-label">テーマ</span>
@@ -367,8 +383,8 @@ export function SettingsModal({ open, onClose }: Props) {
           </details>
 
           {/* セクション 2: エージェント設定 */}
-          <details className="settings-section" open>
-            <summary>エージェント設定</summary>
+          <details className="settings-section" open={openSections.agent}>
+            <summary onClick={handleSummaryClick('agent')}>エージェント設定</summary>
             <div className="settings-section-content">
               <p className="mcp-hint">エージェントの名前や性格をカスタマイズできます。</p>
 
@@ -415,8 +431,8 @@ export function SettingsModal({ open, onClose }: Props) {
           </details>
 
           {/* セクション 3: MCP Servers */}
-          <details className="settings-section" open>
-            <summary onClick={handleSummaryClick}>
+          <details className="settings-section" open={openSections.mcp}>
+            <summary onClick={handleSummaryClick('mcp')}>
               <span>MCP Servers</span>
               <button className="btn-secondary btn-small" onClick={addMCPServer}>+ 追加</button>
             </summary>
@@ -478,8 +494,8 @@ export function SettingsModal({ open, onClose }: Props) {
           </details>
 
           {/* セクション 4: Heartbeat */}
-          <details className="settings-section" open>
-            <summary onClick={handleSummaryClick}>
+          <details className="settings-section" open={openSections.heartbeat}>
+            <summary onClick={handleSummaryClick('heartbeat')}>
               <span>Heartbeat</span>
               <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
                 <input
@@ -778,8 +794,8 @@ export function SettingsModal({ open, onClose }: Props) {
           </details>
 
           {/* セクション 5: CORS プロキシ */}
-          <details className="settings-section" open>
-            <summary onClick={handleSummaryClick}>
+          <details className="settings-section" open={openSections.proxy}>
+            <summary onClick={handleSummaryClick('proxy')}>
               <span>CORS プロキシ</span>
               <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
                 <input
@@ -859,8 +875,8 @@ export function SettingsModal({ open, onClose }: Props) {
           </details>
 
           {/* セクション 6: オブザーバビリティ */}
-          <details className="settings-section" open>
-            <summary onClick={handleSummaryClick}>
+          <details className="settings-section" open={openSections.otel}>
+            <summary onClick={handleSummaryClick('otel')}>
               <span>オブザーバビリティ</span>
               <label className="hb-toggle-label" onClick={(e) => e.stopPropagation()}>
                 <input
@@ -910,8 +926,8 @@ export function SettingsModal({ open, onClose }: Props) {
 
           {/* セクション 7: ストレージ */}
           {storageInfo && (
-            <details className="settings-section" open>
-              <summary onClick={handleSummaryClick}>
+            <details className="settings-section" open={openSections.storage}>
+              <summary onClick={handleSummaryClick('storage')}>
                 <span>ストレージ</span>
                 <span className={`mcp-status ${storageInfo.persistent ? 'mcp-status-connected' : 'mcp-status-warning'}`}>
                   {storageInfo.persistent ? '永続化済み' : '未永続化'}

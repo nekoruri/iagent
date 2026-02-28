@@ -259,6 +259,47 @@ describe('SettingsModal', () => {
       await userEvent.click(summary);
       expect(details).toHaveAttribute('open');
     });
+
+    it('summary 内のボタンクリックではセクションが開閉しない', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // MCP Servers セクションの「+ 追加」ボタン
+      const mcpSection = screen.getByText('MCP Servers').closest('details')!;
+      expect(mcpSection).toHaveAttribute('open');
+      const addButton = mcpSection.querySelector('summary .btn-secondary')!;
+      await userEvent.click(addButton);
+      // セクションは開いたまま
+      expect(mcpSection).toHaveAttribute('open');
+    });
+
+    it('summary 内のトグルクリックではセクションが開閉しない', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // Heartbeat セクションの「有効」トグル
+      const heartbeatSection = screen.getByText('Heartbeat').closest('details')!;
+      expect(heartbeatSection).toHaveAttribute('open');
+      const toggle = heartbeatSection.querySelector('summary input[type="checkbox"]')!;
+      await userEvent.click(toggle);
+      // セクションは開いたまま
+      expect(heartbeatSection).toHaveAttribute('open');
+    });
+
+    it('閉じたセクションが state 更新後も閉じたままである', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      // 基本設定を閉じる
+      const summary = screen.getByText('基本設定');
+      const details = summary.closest('details')!;
+      await userEvent.click(summary);
+      expect(details).not.toHaveAttribute('open');
+
+      // 別の入力で state を更新
+      const openaiInput = screen.getByPlaceholderText('sk-...');
+      await userEvent.type(openaiInput, 'x');
+
+      // 基本設定は閉じたまま
+      expect(details).not.toHaveAttribute('open');
+    });
   });
 
   describe('ストレージ情報', () => {
