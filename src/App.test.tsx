@@ -11,6 +11,9 @@ vi.mock('./components/ConversationSidebar', () => ({
 vi.mock('./components/HeartbeatPanel', () => ({
   HeartbeatPanel: () => null,
 }));
+vi.mock('./components/InstallPrompt', () => ({
+  InstallPrompt: () => null,
+}));
 vi.mock('./components/MemoryPanel', () => ({
   MemoryPanel: () => null,
 }));

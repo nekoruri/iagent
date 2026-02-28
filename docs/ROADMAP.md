@@ -144,7 +144,7 @@
 
 ### スマートフォン対応強化
 - [x] iOS キーボード対応（`dvh` + VisualViewport API）— 入力バーがキーボードに隠れる問題の修正
-- [ ] iOS PWA インストール案内 UI — Push 通知に必須のインストールへの導線
+- [x] iOS PWA インストール案内 UI — Push 通知に必須のインストールへの導線
 - [ ] タップターゲットサイズの統一（44x44px 最小保証）
 - [ ] SettingsModal のモバイル最適化（フルスクリーン化 + セクション折りたたみ）
 - [ ] サイドバーのスワイプジェスチャ（左端スワイプで開閉）
@@ -247,3 +247,4 @@
 - [x] モバイル UX 総合改善 PR-I
 - [x] ライト/ダークテーマ切替 — ThemeMode 型（light/dark/system）、CSS 変数ライトテーマ定義 + ハードコード色変数化（約 20 箇所）、FOUC 防止（main.tsx 同期適用）、SettingsModal セグメントコントロール UI（即時反映 + 即時保存）、system モード OS 追従リスナー。（2026-02-28） — memory-delete-btn モバイル常時表示 + focus-within 対応、btn-pin hover 依存解消 + タップターゲット拡大、memory-tab サイズ拡大、viewport meta 修正（viewport-fit=cover、ズーム制限解除）、safe-area 左右対応、モーダル padding 縮小、MemoryPanel 削除ボタン aria-label 化。（2026-02-28）
 - [x] ストレージ永続化 — `navigator.storage.persist()` 起動時呼び出し（iOS Safari 7日削除対策）+ 設定画面にストレージ情報セクション（永続化ステータス・使用量プログレスバー・PWA インストール案内）。（2026-02-28）
+- [x] iOS PWA インストール案内 UI — iOS Safari 未インストール時にチャット画面上部にバナー表示（「共有→ホーム画面に追加」ステップ図解）、設定画面のストレージ・Push セクションにも iOS ガイド追加、dismiss で永続非表示。（2026-03-01）

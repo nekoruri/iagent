@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
+import { InstallPrompt } from './components/InstallPrompt';
 import { MemoryPanel } from './components/MemoryPanel';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -238,6 +239,7 @@ export default function App() {
             </button>
           </div>
         </header>
+        <InstallPrompt />
         <main className="app-main">
           <ChatView
             messages={messages}

@@ -57,6 +57,14 @@ vi.mock('../core/config', () => ({
   BUILTIN_HEARTBEAT_TASKS: [],
 }));
 
+// installDetect モック
+const mockIsIOSSafari = vi.fn(() => false);
+const mockIsStandaloneMode = vi.fn(() => false);
+vi.mock('../core/installDetect', () => ({
+  isIOSSafari: () => mockIsIOSSafari(),
+  isStandaloneMode: () => mockIsStandaloneMode(),
+}));
+
 // corsProxy モック
 vi.mock('../core/corsProxy', () => ({
   registerProxyToken: vi.fn(async () => 'mock-token'),
@@ -237,6 +245,55 @@ describe('SettingsModal', () => {
       render(<SettingsModal open={true} onClose={vi.fn()} />);
 
       expect(await screen.findByText('50.0 MB / 2.00 GB')).toBeInTheDocument();
+    });
+
+    it('iOS 未インストール時にストレージセクションにインストールガイドが表示される', async () => {
+      mockIsIOSSafari.mockReturnValue(true);
+      mockIsStandaloneMode.mockReturnValue(false);
+      mockStorage({ persisted: false, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('未永続化')).toBeInTheDocument();
+      expect(screen.getByText(/共有ボタン/)).toBeInTheDocument();
+      expect(screen.getByText('ホーム画面に追加')).toBeInTheDocument();
+    });
+
+    it('iOS スタンドアロン時にインストールガイドが表示されない', async () => {
+      mockIsIOSSafari.mockReturnValue(true);
+      mockIsStandaloneMode.mockReturnValue(true);
+      mockStorage({ persisted: false, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('未永続化')).toBeInTheDocument();
+      expect(screen.queryByText('ホーム画面に追加')).not.toBeInTheDocument();
+    });
+
+    it('非 iOS 環境ではインストールガイドが表示されない', async () => {
+      mockIsIOSSafari.mockReturnValue(false);
+      mockIsStandaloneMode.mockReturnValue(false);
+      mockStorage({ persisted: false, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('未永続化')).toBeInTheDocument();
+      expect(screen.queryByText('ホーム画面に追加')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Push セクション iOS 案内', () => {
+    it('iOS 未インストール時に Push セクションに案内が表示される', () => {
+      mockIsIOSSafari.mockReturnValue(true);
+      mockIsStandaloneMode.mockReturnValue(false);
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.getByText(/iOS で Push 通知を受け取るには/)).toBeInTheDocument();
+    });
+
+    it('iOS スタンドアロン時に Push セクションの案内が表示されない', () => {
+      mockIsIOSSafari.mockReturnValue(true);
+      mockIsStandaloneMode.mockReturnValue(true);
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.queryByText(/iOS で Push 通知を受け取るには/)).not.toBeInTheDocument();
     });
   });
 });

@@ -6,6 +6,7 @@ import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSy
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
+import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
 import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode } from '../types';
 
@@ -562,6 +563,11 @@ export function SettingsModal({ open, onClose }: Props) {
               )}
             </div>
             {pushError && <p className="mcp-error-text">{pushError}</p>}
+            {isIOSSafari() && !isStandaloneMode() && (
+              <p className="mcp-hint storage-warning">
+                iOS で Push 通知を受け取るには、まずこのアプリをホーム画面に追加（PWA インストール）してください。
+              </p>
+            )}
           </div>
 
           <div className="hb-tasks-section">
@@ -888,7 +894,18 @@ export function SettingsModal({ open, onClose }: Props) {
               />
             </div>
             {!storageInfo.persistent && (
-              <p className="storage-warning">PWA としてインストールすると永続化される可能性が高くなります。</p>
+              <>
+                <p className="storage-warning">PWA としてインストールすると永続化される可能性が高くなります。</p>
+                {isIOSSafari() && !isStandaloneMode() && (
+                  <div className="ios-install-guide">
+                    <span className="install-step-badge">
+                      <span className="install-step-icon" aria-hidden="true">&#xFEFF;⬆&#xFE0E;</span> 共有ボタン
+                    </span>
+                    <span className="install-step-arrow" aria-hidden="true">→</span>
+                    <span className="install-step-badge">ホーム画面に追加</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
