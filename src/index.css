@@ -739,13 +739,17 @@ body {
 .settings-section > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 12px 0;
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
   list-style: none;
+}
+
+.settings-section > summary > :last-child:not(:first-child) {
+  margin-left: auto;
 }
 
 .settings-section > summary::-webkit-details-marker {
@@ -782,6 +786,7 @@ body {
 
 .modal-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
