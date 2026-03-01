@@ -8,6 +8,9 @@ vi.mock('./components/ChatView', () => ({
 vi.mock('./components/ConversationSidebar', () => ({
   ConversationSidebar: () => <div data-testid="sidebar" />,
 }));
+vi.mock('./components/FeedPanel', () => ({
+  FeedPanel: () => null,
+}));
 vi.mock('./components/HeartbeatPanel', () => ({
   HeartbeatPanel: () => null,
 }));
@@ -57,6 +60,22 @@ vi.mock('./hooks/useHeartbeatPanel', () => ({
     toggle: vi.fn(),
     close: vi.fn(),
     togglePin: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+vi.mock('./hooks/useFeedPanel', () => ({
+  useFeedPanel: () => ({
+    isOpen: false,
+    items: [],
+    feeds: [],
+    feedMap: new Map(),
+    selectedTier: undefined,
+    isLoading: false,
+    unreadCount: 0,
+    toggle: vi.fn(),
+    close: vi.fn(),
+    changeTier: vi.fn(),
+    handleMarkRead: vi.fn(),
     refresh: vi.fn(),
   }),
 }));
