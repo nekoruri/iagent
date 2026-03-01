@@ -6,6 +6,7 @@ vi.mock('../store/db');
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
+import { saveFeed, saveFeedItems } from '../store/feedStore';
 
 beforeEach(() => {
   __resetStores();
@@ -13,7 +14,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(8);
+    expect(WORKER_TOOLS).toHaveLength(11);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -23,6 +24,9 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getRecentMemoriesForReflection');
     expect(names).toContain('saveReflection');
     expect(names).toContain('cleanupMemories');
+    expect(names).toContain('listUnreadFeedItems');
+    expect(names).toContain('saveFeedClassification');
+    expect(names).toContain('listClassifiedFeedItems');
   });
 
   it('全ツールが function タイプである', () => {
@@ -149,6 +153,215 @@ describe('executeWorkerTool', () => {
       const result = await executeWorkerTool('cleanupMemories', {});
       const parsed = JSON.parse(result);
       expect(parsed.archivedCount).toBe(0);
+    });
+  });
+
+  describe('listUnreadFeedItems', () => {
+    it('未読未分類記事を excerpt 付きで返す', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'テストフィード' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Article 1', link: 'https://a.com/1', content: '<p>本文テキスト</p>', publishedAt: 1000 },
+        { guid: 'g2', title: 'Article 2', link: 'https://a.com/2', content: 'シンプルテキスト', publishedAt: 2000 },
+      ]);
+
+      const result = await executeWorkerTool('listUnreadFeedItems', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(2);
+      expect(parsed.total).toBe(2);
+      expect(parsed.items[0].feedTitle).toBe('テストフィード');
+      expect(parsed.items[0].excerpt).toBe('シンプルテキスト');
+      // HTML タグが除去されている
+      expect(parsed.items[1].excerpt).toBe('本文テキスト');
+    });
+
+    it('excerpt が 100 文字に切り詰められる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      const longContent = 'あ'.repeat(200);
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Long', link: 'https://a.com/1', content: longContent, publishedAt: 1000 },
+      ]);
+
+      const result = await executeWorkerTool('listUnreadFeedItems', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.items[0].excerpt).toHaveLength(100);
+    });
+
+    it('offset/limit の負数・極大値がクランプされる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, Array.from({ length: 5 }, (_, i) => ({
+        guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+      })));
+
+      // 負の offset → 0 にクランプ
+      const r1 = await executeWorkerTool('listUnreadFeedItems', { offset: -5, limit: 10 });
+      const p1 = JSON.parse(r1);
+      expect(p1.items).toHaveLength(5);
+      expect(p1.offset).toBe(0);
+
+      // limit 200 → 100 にクランプ、limit 0 → 1 にクランプ
+      const r2 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 200 });
+      const p2 = JSON.parse(r2);
+      expect(p2.limit).toBe(100);
+
+      const r3 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 0 });
+      const p3 = JSON.parse(r3);
+      expect(p3.limit).toBe(1);
+    });
+
+    it('ページングが動作する', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, Array.from({ length: 5 }, (_, i) => ({
+        guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+      })));
+
+      const result = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 2 });
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(2);
+      expect(parsed.hasMore).toBe(true);
+      expect(parsed.total).toBe(5);
+    });
+  });
+
+  describe('saveFeedClassification', () => {
+    it('分類結果を保存できる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+        { guid: 'g2', title: 'Item 2', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      ]);
+
+      // アイテム ID を取得
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      const result = await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: items[1].id, tier: 'skip' },
+        ],
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.savedCount).toBe(2);
+    });
+
+    it('無効な tier は無視される', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      const result = await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'invalid-tier' },
+        ],
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.savedCount).toBe(0);
+    });
+
+    it('存在しない itemId はカウントされない', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      const result = await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: 'non-existent-id', tier: 'recommended' },
+        ],
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.savedCount).toBe(1); // 存在する 1 件のみカウント
+    });
+
+    it('classifications なしでエラーを返す', async () => {
+      const result = await executeWorkerTool('saveFeedClassification', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toContain('classifications は必須です');
+    });
+  });
+
+  describe('listClassifiedFeedItems', () => {
+    it('must-read + recommended のみ返す', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'テストフィード' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Must', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+        { guid: 'g2', title: 'Rec', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+        { guid: 'g3', title: 'Skip', link: 'https://a.com/3', content: '本文', publishedAt: 3000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+      const mustItem = items.find((i: { title: string }) => i.title === 'Must')!;
+      const recItem = items.find((i: { title: string }) => i.title === 'Rec')!;
+      const skipItem = items.find((i: { title: string }) => i.title === 'Skip')!;
+
+      await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: mustItem.id, tier: 'must-read' },
+          { itemId: recItem.id, tier: 'recommended' },
+          { itemId: skipItem.id, tier: 'skip' },
+        ],
+      });
+
+      const result = await executeWorkerTool('listClassifiedFeedItems', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(2);
+      expect(parsed.items.map((i: { title: string }) => i.title)).toContain('Must');
+      expect(parsed.items.map((i: { title: string }) => i.title)).toContain('Rec');
+      expect(parsed.items[0].feedTitle).toBe('テストフィード');
+      expect(parsed.items[0].tier).toBeDefined();
+    });
+
+    it('tier=all で must-read + recommended を両方取得できる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Must', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+        { guid: 'g2', title: 'Rec', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: items[1].id, tier: 'recommended' },
+        ],
+      });
+
+      const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'all' });
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(2);
+    });
+
+    it('tier フィルタで must-read のみ取得できる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Must', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+        { guid: 'g2', title: 'Rec', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: items[1].id, tier: 'recommended' },
+        ],
+      });
+
+      const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'must-read' });
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(1);
     });
   });
 

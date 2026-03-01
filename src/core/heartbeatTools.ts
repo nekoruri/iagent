@@ -1,9 +1,10 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
 import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories } from '../store/memoryStore';
+import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 
 const MAX_ITEMS_PER_FEED = 100;
 
@@ -104,6 +105,58 @@ export const WORKER_TOOLS = [
       parameters: {
         type: 'object',
         properties: {},
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'listUnreadFeedItems',
+      description: '未読・未分類のフィード記事を title + excerpt で取得します（ページング対応）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          offset: { type: 'number', description: '取得開始位置（デフォルト 0）' },
+          limit: { type: 'number', description: '取得件数（デフォルト 30）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'saveFeedClassification',
+      description: 'フィード記事の分類結果を保存します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          classifications: {
+            type: 'array',
+            description: '分類結果の配列',
+            items: {
+              type: 'object',
+              properties: {
+                itemId: { type: 'string', description: '記事 ID' },
+                tier: { type: 'string', enum: ['must-read', 'recommended', 'skip'], description: '分類' },
+              },
+              required: ['itemId', 'tier'],
+            },
+          },
+        },
+        required: ['classifications'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'listClassifiedFeedItems',
+      description: '分類済み未読記事を取得します（must-read + recommended のみ、briefing 用）。tier=all で両方取得。',
+      parameters: {
+        type: 'object',
+        properties: {
+          tier: { type: 'string', enum: ['must-read', 'recommended', 'all'], description: '分類でフィルタ。all で must-read + recommended の両方を取得（デフォルト: all）' },
+        },
       },
     },
   },
@@ -334,6 +387,69 @@ export async function executeWorkerTool(
       return JSON.stringify({
         message: `${archivedCount} 件の記憶をアーカイブしました`,
         archivedCount,
+      });
+    }
+    case 'listUnreadFeedItems': {
+      const offset = Math.max(0, typeof args.offset === 'number' ? Math.floor(args.offset) : 0);
+      const limit = Math.max(1, Math.min(100, typeof args.limit === 'number' ? Math.floor(args.limit) : 30));
+      const result = await listUnclassifiedItems(offset, limit);
+      const db = await getDB();
+      const feeds: Feed[] = await db.getAll('feeds');
+      const feedMap = new Map(feeds.map((f) => [f.id, f.title]));
+      console.debug(`[Heartbeat] listUnreadFeedItems — ${result.items.length}/${result.total} 件取得 (offset=${offset}, hasMore=${result.hasMore})`);
+      return JSON.stringify({
+        items: result.items.map((item) => ({
+          id: item.id,
+          feedTitle: feedMap.get(item.feedId) ?? '',
+          title: item.title,
+          link: item.link,
+          excerpt: item.content.replace(/<[^>]*>/g, '').slice(0, 100),
+          publishedAt: item.publishedAt,
+        })),
+        total: result.total,
+        offset: result.offset,
+        limit: result.limit,
+        hasMore: result.hasMore,
+      });
+    }
+    case 'saveFeedClassification': {
+      const classifications = args.classifications as Array<{ itemId: string; tier: string }> | undefined;
+      if (!Array.isArray(classifications)) {
+        return JSON.stringify({ error: 'classifications は必須です' });
+      }
+      const validTiers = new Set(['must-read', 'recommended', 'skip']);
+      let savedCount = 0;
+      const tierCounts: Record<string, number> = {};
+      for (const c of classifications) {
+        if (c.itemId && validTiers.has(c.tier)) {
+          const ok = await updateItemTier(c.itemId, c.tier as FeedItemTier);
+          if (ok) {
+            savedCount++;
+            tierCounts[c.tier] = (tierCounts[c.tier] ?? 0) + 1;
+          }
+        }
+      }
+      console.debug(`[Heartbeat] saveFeedClassification — ${savedCount} 件保存:`, tierCounts);
+      return JSON.stringify({ message: `${savedCount} 件の分類を保存しました`, savedCount });
+    }
+    case 'listClassifiedFeedItems': {
+      const rawTier = args.tier as string | undefined;
+      const tierFilter = rawTier && rawTier !== 'all' ? rawTier as FeedItemDisplayTier : undefined;
+      const items = await listClassifiedItems(tierFilter);
+      const db2 = await getDB();
+      const feeds2: Feed[] = await db2.getAll('feeds');
+      const feedMap2 = new Map(feeds2.map((f) => [f.id, f.title]));
+      console.debug(`[Heartbeat] listClassifiedFeedItems — ${items.length} 件 (tier=${tierFilter ?? 'all'})`);
+      return JSON.stringify({
+        items: items.map((item) => ({
+          id: item.id,
+          feedTitle: feedMap2.get(item.feedId) ?? '',
+          title: item.title,
+          link: item.link,
+          tier: item.tier,
+          publishedAt: item.publishedAt,
+        })),
+        count: items.length,
       });
     }
     default:

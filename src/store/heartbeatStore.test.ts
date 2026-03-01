@@ -13,6 +13,8 @@ import {
   getAllTaskLastRun,
   batchUpdateTaskLastRun,
   togglePinHeartbeatResult,
+  setHeartbeatFeedback,
+  filterVisibleResults,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
 
@@ -258,5 +260,151 @@ describe('updateTaskLastRun / getTaskLastRun', () => {
     expect(state.recentResults).toHaveLength(1);
     expect(state.lastChecked).toBe(3000);
     expect(state.taskLastRun?.['task-1']).toBe(5000);
+  });
+});
+
+describe('setHeartbeatFeedback', () => {
+  it('accepted フィードバックを設定できる', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    await setHeartbeatFeedback('task-1', 1000, 'accepted');
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback).toBeDefined();
+    expect(state.recentResults[0].feedback!.type).toBe('accepted');
+    expect(state.recentResults[0].feedback!.timestamp).toBeGreaterThan(0);
+  });
+
+  it('dismissed フィードバックを設定できる', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    await setHeartbeatFeedback('task-1', 1000, 'dismissed');
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback!.type).toBe('dismissed');
+  });
+
+  it('snoozed フィードバックに snoozedUntil を設定できる', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    const snoozedUntil = Date.now() + 3600000;
+    await setHeartbeatFeedback('task-1', 1000, 'snoozed', snoozedUntil);
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback!.type).toBe('snoozed');
+    expect(state.recentResults[0].feedback!.snoozedUntil).toBe(snoozedUntil);
+  });
+
+  it('snoozed で snoozedUntil 未指定時にデフォルト値が設定される', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    const before = Date.now();
+    await setHeartbeatFeedback('task-1', 1000, 'snoozed');
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback!.type).toBe('snoozed');
+    // snoozedUntil が 1 時間後のフォールバック値で設定される
+    expect(state.recentResults[0].feedback!.snoozedUntil).toBeGreaterThanOrEqual(before + 3600_000 - 100);
+    expect(state.recentResults[0].feedback!.snoozedUntil).toBeDefined();
+  });
+
+  it('存在しない結果には何もしない', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    await setHeartbeatFeedback('nonexistent', 9999, 'accepted');
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback).toBeUndefined();
+  });
+});
+
+describe('filterVisibleResults', () => {
+  const baseResult = (overrides: Partial<HeartbeatResult>): HeartbeatResult => ({
+    taskId: 'task-1',
+    timestamp: 1000,
+    hasChanges: true,
+    summary: 'テスト',
+    ...overrides,
+  });
+
+  it('feedback なしの結果を表示する', () => {
+    const results = [baseResult({})];
+    expect(filterVisibleResults(results)).toHaveLength(1);
+  });
+
+  it('accepted の結果を表示する', () => {
+    const results = [baseResult({
+      feedback: { type: 'accepted', timestamp: 2000 },
+    })];
+    expect(filterVisibleResults(results)).toHaveLength(1);
+  });
+
+  it('dismissed の結果を非表示にする', () => {
+    const results = [baseResult({
+      feedback: { type: 'dismissed', timestamp: 2000 },
+    })];
+    expect(filterVisibleResults(results)).toHaveLength(0);
+  });
+
+  it('snoozed で期限前の結果を非表示にする', () => {
+    const now = 5000;
+    const results = [baseResult({
+      feedback: { type: 'snoozed', timestamp: 2000, snoozedUntil: 10000 },
+    })];
+    expect(filterVisibleResults(results, now)).toHaveLength(0);
+  });
+
+  it('snoozed で期限後の結果を表示する', () => {
+    const now = 15000;
+    const results = [baseResult({
+      feedback: { type: 'snoozed', timestamp: 2000, snoozedUntil: 10000 },
+    })];
+    expect(filterVisibleResults(results, now)).toHaveLength(1);
+  });
+
+  it('snoozed で snoozedUntil 欠損時は表示する（永久非表示防止）', () => {
+    const results = [baseResult({
+      feedback: { type: 'snoozed', timestamp: 2000 },
+    })];
+    expect(filterVisibleResults(results)).toHaveLength(1);
+  });
+
+  it('混在する結果を正しくフィルタする', () => {
+    const now = 15000;
+    const results = [
+      baseResult({ taskId: 'a' }),
+      baseResult({ taskId: 'b', feedback: { type: 'accepted', timestamp: 2000 } }),
+      baseResult({ taskId: 'c', feedback: { type: 'dismissed', timestamp: 2000 } }),
+      baseResult({ taskId: 'd', feedback: { type: 'snoozed', timestamp: 2000, snoozedUntil: 10000 } }),
+      baseResult({ taskId: 'e', feedback: { type: 'snoozed', timestamp: 2000, snoozedUntil: 20000 } }),
+    ];
+    const visible = filterVisibleResults(results, now);
+    expect(visible).toHaveLength(3);
+    expect(visible.map(r => r.taskId)).toEqual(['a', 'b', 'd']);
   });
 });

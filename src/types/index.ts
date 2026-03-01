@@ -63,6 +63,14 @@ export interface HeartbeatTask {
 /** Heartbeat 実行元を示すソース識別子 */
 export type HeartbeatSource = 'tab' | 'worker' | 'push' | 'periodic-sync';
 
+export type FeedbackType = 'accepted' | 'dismissed' | 'snoozed';
+
+export interface HeartbeatFeedback {
+  type: FeedbackType;
+  snoozedUntil?: number;  // snoozed の場合のみ
+  timestamp: number;
+}
+
 export interface HeartbeatResult {
   taskId: string;
   timestamp: number;
@@ -70,6 +78,7 @@ export interface HeartbeatResult {
   summary: string;
   source?: HeartbeatSource;
   pinned?: boolean;
+  feedback?: HeartbeatFeedback;
 }
 
 export interface HeartbeatState {
@@ -152,5 +161,5 @@ export type ConfigKey = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';
 
 // Phase C: 外部情報収集ツール型定義
 export type { Clip } from './clip';
-export type { Feed, FeedItem } from './feed';
+export type { Feed, FeedItem, FeedItemTier, FeedItemDisplayTier } from './feed';
 export type { Monitor } from './monitor';

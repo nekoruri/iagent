@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 474 件（クライアント） + 31 件（サーバー）
+- テスト 682 件（クライアント） + 31 件（サーバー）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -197,6 +197,8 @@
 - [x] ブリーフィング高度化 — goal/context メモリ参照（`getMemoriesForBriefing` 拡張取得）+ instructionBuilder にメモリ4グループ分離表示（目標・締切/現在の状況/記憶/振り返り）+ ブリーフィングルール強化（目標参照・残り日数計算）
 - [x] 期日接近検出 — goal メモリの日本語日付パース（deadlineParser）+ 残り日数の事前計算注入（formatGoalsWithDeadlines）+ Main/Heartbeat 両方の goal セクション対応
 - [x] 学習継続ナッジ + 無活動検出 — goal メモリの `updatedAt` から活動状態を検出（7日ナッジ/14日警告/3日猶予）、`formatGoalsWithDeadlines` に活動状態ラベル + `#stale` タグ注入、ブリーフィングルールにナッジ・見直し提案指示追加
+- [x] 多段階 RSS フィルタリング F5+ — FeedItem に tier/classifiedAt フィールド追加、feedStore 分類 API（listUnclassifiedItems/listClassifiedItems/updateItemTier）、Worker ツール 3 種（listUnreadFeedItems/saveFeedClassification/listClassifiedFeedItems）、feed-check タスク description を分類手順付きに変更、briefing-morning に listClassifiedFeedItems 参照追記、MAX_TOOL_ROUNDS 3→5
+- [x] フィードバック UI F1 — HeartbeatResult に feedback フィールド追加、heartbeatStore に setHeartbeatFeedback/filterVisibleResults 追加、HeartbeatPanel にフィードバックボタン行（Accept/Dismiss/Snooze）+ SnoozeButton サブコンポーネント追加
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -254,3 +256,4 @@
 - [x] ブリーフィング高度化 F9 — `getMemoriesForBriefing()` 追加（mustInclude に goal 追加、context 最低1件確保、limit 15）、instructionBuilder メモリ4グループ分離（目標・締切/現在の状況/記憶/振り返り）、ブリーフィングルール強化（目標参照・残り日数計算）、`createHeartbeatAgent` に tasks 引数追加（briefing 判定で拡張メモリ取得）、heartbeat.ts/heartbeatCommon.ts タスクリスト渡し対応。テスト 599 件。（2026-03-01）
 - [x] 期日接近検出 F7 — deadlineParser（日本語日付パース 9パターン: 漢字年月日/スラッシュ/ハイフン/月末/月中旬/月上旬/今月末/来月末 + 年推定・重複排除）、formatGoalsWithDeadlines（残りN日/本日期限/期限超過N日 + #deadline タグ）、Main/Heartbeat 両方の goal セクションに残り日数事前計算注入。テスト 637 件。（2026-03-01）
 - [x] 学習継続ナッジ F11 + 無活動検出 F12 — goal メモリの `updatedAt` から活動状態検出（7日ナッジ/14日警告/3日猶予期間）、`formatGoalsWithDeadlines` に活動状態ラベル（`(N日間更新なし)` / `(⚠ N日間更新なし)`）+ `#stale` タグ注入、ブリーフィングルールにナッジ・目標見直し提案指示追加。テスト 651 件。（2026-03-01）
+- [x] 多段階 RSS フィルタリング F5+ + フィードバック UI F1 — FeedItem tier 分類（must-read/recommended/skip）、feedStore 分類 API 3 関数、Worker ツール 3 種（listUnreadFeedItems/saveFeedClassification/listClassifiedFeedItems）、feed-check/briefing-morning description 拡張、MAX_TOOL_ROUNDS 3→5、HeartbeatResult feedback フィールド + heartbeatStore setHeartbeatFeedback/filterVisibleResults、HeartbeatPanel フィードバック UI（Accept/Dismiss/Snooze）。テスト 682 件。（2026-03-01）

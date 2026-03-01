@@ -21,7 +21,11 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
   {
     id: 'feed-check',
     name: 'フィードチェック',
-    description: '購読中の RSS フィードの新着記事を確認し、新着があれば通知します。',
+    description: '購読中の RSS フィードの新着記事を取得し、3段階に分類します。'
+      + '手順: 1) fetchFeeds で新着取得（失敗してもOK） → 2) listUnreadFeedItems で未分類記事一覧を取得 → 3) 各記事を must-read/recommended/skip に分類 → 4) saveFeedClassification で保存。'
+      + 'fetchFeeds がエラーでも、既存の未分類記事があれば分類を続行してください。'
+      + '分類基準: ユーザーの目標・嗜好を踏まえて、必読/おすすめ/スキップに分類してください。'
+      + '30件ずつ処理し、hasMore が true なら繰り返してください。',
     enabled: false,
     type: 'builtin',
   },
@@ -46,6 +50,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'
       + 'ユーザーの目標（goal）と現在の状況（context）を踏まえて、今日注意すべき点やアクションを提案してください。'
       + 'ツールを使って情報を収集し、優先度をつけて簡潔なサマリーを作成してください。'
+      + 'listClassifiedFeedItems を使って分類済みの必読記事・おすすめ記事をブリーフィングに含めてください。'
       + '必ず hasChanges: true を返し、summary にブリーフィングテキストを含めてください。',
     enabled: false,
     type: 'builtin',

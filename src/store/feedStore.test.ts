@@ -11,6 +11,9 @@ import {
   saveFeedItems,
   listFeedItems,
   markItemRead,
+  listUnclassifiedItems,
+  listClassifiedItems,
+  updateItemTier,
 } from './feedStore';
 
 beforeEach(() => {
@@ -197,5 +200,139 @@ describe('markItemRead', () => {
     await markItemRead(items[0].id);
     const updated = await listFeedItems(feed.id);
     expect(updated[0].isRead).toBe(true);
+  });
+});
+
+describe('listUnclassifiedItems', () => {
+  it('未読 + 未分類のアイテムのみ返す', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      { guid: 'g2', title: 'Item 2', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      { guid: 'g3', title: 'Item 3', link: 'https://a.com/3', content: '本文', publishedAt: 3000 },
+    ]);
+
+    // 1件を既読、1件を分類済みに
+    const items = await listFeedItems(feed.id);
+    await markItemRead(items[0].id); // Item 3 (最新)
+    await updateItemTier(items[2].id, 'must-read'); // Item 1 (最古)
+
+    const result = await listUnclassifiedItems();
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].title).toBe('Item 2');
+    expect(result.total).toBe(1);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('ページングが正しく動作する', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, Array.from({ length: 10 }, (_, i) => ({
+      guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+    })));
+
+    const page1 = await listUnclassifiedItems(0, 3);
+    expect(page1.items).toHaveLength(3);
+    expect(page1.total).toBe(10);
+    expect(page1.hasMore).toBe(true);
+
+    const page2 = await listUnclassifiedItems(3, 3);
+    expect(page2.items).toHaveLength(3);
+    expect(page2.offset).toBe(3);
+    expect(page2.hasMore).toBe(true);
+
+    const lastPage = await listUnclassifiedItems(9, 3);
+    expect(lastPage.items).toHaveLength(1);
+    expect(lastPage.hasMore).toBe(false);
+  });
+
+  it('未分類アイテムなしで空配列を返す', async () => {
+    const result = await listUnclassifiedItems();
+    expect(result.items).toHaveLength(0);
+    expect(result.total).toBe(0);
+    expect(result.hasMore).toBe(false);
+  });
+});
+
+describe('listClassifiedItems', () => {
+  it('分類済み未読の must-read + recommended のみ返す（skip 除外）', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Must Read', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      { guid: 'g2', title: 'Recommended', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      { guid: 'g3', title: 'Skip', link: 'https://a.com/3', content: '本文', publishedAt: 3000 },
+      { guid: 'g4', title: 'Unclassified', link: 'https://a.com/4', content: '本文', publishedAt: 4000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items.find(i => i.title === 'Must Read')!.id, 'must-read');
+    await updateItemTier(items.find(i => i.title === 'Recommended')!.id, 'recommended');
+    await updateItemTier(items.find(i => i.title === 'Skip')!.id, 'skip');
+
+    const classified = await listClassifiedItems();
+    expect(classified).toHaveLength(2);
+    expect(classified.map(i => i.title)).toContain('Must Read');
+    expect(classified.map(i => i.title)).toContain('Recommended');
+  });
+
+  it('tier フィルタで must-read のみ取得できる', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Must Read', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      { guid: 'g2', title: 'Recommended', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items[0].id, 'recommended');
+    await updateItemTier(items[1].id, 'must-read');
+
+    const mustReads = await listClassifiedItems('must-read');
+    expect(mustReads).toHaveLength(1);
+    expect(mustReads[0].title).toBe('Must Read');
+  });
+
+  it('既読の分類済みは返さない', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items[0].id, 'must-read');
+    await markItemRead(items[0].id);
+
+    const classified = await listClassifiedItems();
+    expect(classified).toHaveLength(0);
+  });
+});
+
+describe('updateItemTier', () => {
+  it('記事の分類を更新できる', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items[0].id, 'must-read');
+
+    const updated = await listFeedItems(feed.id);
+    expect(updated[0].tier).toBe('must-read');
+    expect(updated[0].classifiedAt).toBeGreaterThan(0);
+  });
+
+  it('成功時に true を返す', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    const result = await updateItemTier(items[0].id, 'must-read');
+    expect(result).toBe(true);
+  });
+
+  it('存在しない ID では false を返す', async () => {
+    const result = await updateItemTier('non-existent', 'must-read');
+    expect(result).toBe(false);
   });
 });
