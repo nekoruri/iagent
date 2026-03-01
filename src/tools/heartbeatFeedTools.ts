@@ -43,12 +43,13 @@ export const hbSaveFeedClassificationTool = tool({
 /** Heartbeat Agent 用: listClassifiedFeedItems ツール */
 export const hbListClassifiedFeedItemsTool = tool({
   name: 'listClassifiedFeedItems',
-  description: '分類済み未読記事を取得します（must-read + recommended のみ、briefing 用）。',
+  description: '分類済み未読記事を取得します（must-read + recommended のみ、briefing 用）。tier=all で両方取得。',
   parameters: z.object({
-    tier: z.enum(['must-read', 'recommended']).default('must-read').describe('分類でフィルタ。must-read または recommended を指定。'),
+    tier: z.enum(['must-read', 'recommended', 'all']).default('all').describe('分類でフィルタ。all で must-read + recommended の両方を取得。'),
   }),
   execute: async ({ tier }) => {
-    return await executeWorkerTool('listClassifiedFeedItems', { tier });
+    // 'all' の場合は tier フィルタなし（must-read + recommended 両方）
+    return await executeWorkerTool('listClassifiedFeedItems', { tier: tier === 'all' ? undefined : tier });
   },
 });
 

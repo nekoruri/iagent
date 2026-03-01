@@ -1,5 +1,5 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, FeedItemTier, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
@@ -151,11 +151,11 @@ export const WORKER_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'listClassifiedFeedItems',
-      description: '分類済み未読記事を取得します（must-read + recommended のみ、briefing 用）。',
+      description: '分類済み未読記事を取得します（must-read + recommended のみ、briefing 用）。tier=all で両方取得。',
       parameters: {
         type: 'object',
         properties: {
-          tier: { type: 'string', enum: ['must-read', 'recommended'], description: '分類でフィルタ（省略で両方）' },
+          tier: { type: 'string', enum: ['must-read', 'recommended', 'all'], description: '分類でフィルタ。all で must-read + recommended の両方を取得（デフォルト: all）' },
         },
       },
     },
@@ -390,8 +390,8 @@ export async function executeWorkerTool(
       });
     }
     case 'listUnreadFeedItems': {
-      const offset = typeof args.offset === 'number' ? args.offset : 0;
-      const limit = typeof args.limit === 'number' ? args.limit : 30;
+      const offset = Math.max(0, typeof args.offset === 'number' ? Math.floor(args.offset) : 0);
+      const limit = Math.max(1, Math.min(100, typeof args.limit === 'number' ? Math.floor(args.limit) : 30));
       const result = await listUnclassifiedItems(offset, limit);
       const db = await getDB();
       const feeds: Feed[] = await db.getAll('feeds');
@@ -422,16 +422,19 @@ export async function executeWorkerTool(
       const tierCounts: Record<string, number> = {};
       for (const c of classifications) {
         if (c.itemId && validTiers.has(c.tier)) {
-          await updateItemTier(c.itemId, c.tier as FeedItemTier);
-          savedCount++;
-          tierCounts[c.tier] = (tierCounts[c.tier] ?? 0) + 1;
+          const ok = await updateItemTier(c.itemId, c.tier as FeedItemTier);
+          if (ok) {
+            savedCount++;
+            tierCounts[c.tier] = (tierCounts[c.tier] ?? 0) + 1;
+          }
         }
       }
       console.debug(`[Heartbeat] saveFeedClassification — ${savedCount} 件保存:`, tierCounts);
       return JSON.stringify({ message: `${savedCount} 件の分類を保存しました`, savedCount });
     }
     case 'listClassifiedFeedItems': {
-      const tierFilter = args.tier as FeedItemTier | undefined;
+      const rawTier = args.tier as string | undefined;
+      const tierFilter = rawTier && rawTier !== 'all' ? rawTier as FeedItemDisplayTier : undefined;
       const items = await listClassifiedItems(tierFilter);
       const db2 = await getDB();
       const feeds2: Feed[] = await db2.getAll('feeds');

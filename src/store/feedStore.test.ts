@@ -320,8 +320,19 @@ describe('updateItemTier', () => {
     expect(updated[0].classifiedAt).toBeGreaterThan(0);
   });
 
-  it('存在しない ID では何もしない', async () => {
-    await updateItemTier('non-existent', 'must-read');
-    // エラーが発生しないことを確認
+  it('成功時に true を返す', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    const result = await updateItemTier(items[0].id, 'must-read');
+    expect(result).toBe(true);
+  });
+
+  it('存在しない ID では false を返す', async () => {
+    const result = await updateItemTier('non-existent', 'must-read');
+    expect(result).toBe(false);
   });
 });

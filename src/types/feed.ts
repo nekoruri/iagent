@@ -1,4 +1,6 @@
 export type FeedItemTier = 'must-read' | 'recommended' | 'skip';
+/** briefing で使う分類（skip 除外） */
+export type FeedItemDisplayTier = Exclude<FeedItemTier, 'skip'>;
 
 export interface Feed {
   id: string;

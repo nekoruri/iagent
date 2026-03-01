@@ -90,10 +90,14 @@ export async function setHeartbeatFeedback(
   const state = await loadHeartbeatState();
   const target = state.recentResults.find(r => r.taskId === taskId && r.timestamp === timestamp);
   if (target) {
+    const DEFAULT_SNOOZE_MS = 3600_000; // 1時間
     target.feedback = {
       type,
       timestamp: Date.now(),
-      ...(type === 'snoozed' && snoozedUntil ? { snoozedUntil } : {}),
+      // snoozed の場合は snoozedUntil を必ず設定（欠損時は 1 時間後にフォールバック）
+      ...(type === 'snoozed'
+        ? { snoozedUntil: snoozedUntil ?? Date.now() + DEFAULT_SNOOZE_MS }
+        : {}),
     };
     await saveHeartbeatState(state);
   }
@@ -105,7 +109,9 @@ export function filterVisibleResults(results: HeartbeatResult[], now = Date.now(
     if (!r.feedback) return true;
     if (r.feedback.type === 'dismissed') return false;
     if (r.feedback.type === 'snoozed') {
-      return r.feedback.snoozedUntil != null && now >= r.feedback.snoozedUntil;
+      // snoozedUntil 欠損時は表示する（永久非表示を防止）
+      if (r.feedback.snoozedUntil == null) return true;
+      return now >= r.feedback.snoozedUntil;
     }
     return true; // accepted は表示
   });

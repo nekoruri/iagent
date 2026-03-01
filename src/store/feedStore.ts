@@ -1,5 +1,5 @@
 import { getDB } from './db';
-import type { Feed, FeedItem, FeedItemTier } from '../types';
+import type { Feed, FeedItem, FeedItemTier, FeedItemDisplayTier } from '../types';
 
 const FEEDS_STORE = 'feeds';
 const ITEMS_STORE = 'feed-items';
@@ -152,6 +152,7 @@ export async function markItemRead(id: string): Promise<void> {
 
 // --- 分類関連 ---
 
+// TODO: データ量増加時は publishedAt インデックスの cursor で走査し全件ロードを回避する
 /** 未読 + 未分類の記事を取得（ページング付き） */
 export async function listUnclassifiedItems(offset = 0, limit = 30): Promise<{
   items: FeedItem[];
@@ -170,8 +171,9 @@ export async function listUnclassifiedItems(offset = 0, limit = 30): Promise<{
   return { items, total, offset, limit, hasMore: offset + limit < total };
 }
 
-/** 分類済み未読記事を取得（tier フィルタ可） */
-export async function listClassifiedItems(tier?: FeedItemTier): Promise<FeedItem[]> {
+// TODO: データ量増加時は publishedAt インデックスの cursor で走査し全件ロードを回避する
+/** 分類済み未読記事を取得（must-read / recommended のみ、skip 除外） */
+export async function listClassifiedItems(tier?: FeedItemDisplayTier): Promise<FeedItem[]> {
   const db = await getDB();
   const allItems: FeedItem[] = await db.getAll(ITEMS_STORE);
   return allItems
@@ -179,10 +181,11 @@ export async function listClassifiedItems(tier?: FeedItemTier): Promise<FeedItem
     .sort((a, b) => b.publishedAt - a.publishedAt);
 }
 
-/** 記事の分類を更新 */
-export async function updateItemTier(id: string, tier: FeedItemTier): Promise<void> {
+/** 記事の分類を更新。成功時 true、対象が存在しない場合 false を返す */
+export async function updateItemTier(id: string, tier: FeedItemTier): Promise<boolean> {
   const db = await getDB();
   const item = await db.get(ITEMS_STORE, id) as FeedItem | undefined;
-  if (!item) return;
+  if (!item) return false;
   await db.put(ITEMS_STORE, { ...item, tier, classifiedAt: Date.now() });
+  return true;
 }

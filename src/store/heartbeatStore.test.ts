@@ -310,6 +310,24 @@ describe('setHeartbeatFeedback', () => {
     expect(state.recentResults[0].feedback!.snoozedUntil).toBe(snoozedUntil);
   });
 
+  it('snoozed で snoozedUntil 未指定時にデフォルト値が設定される', async () => {
+    await addHeartbeatResult({
+      taskId: 'task-1',
+      timestamp: 1000,
+      hasChanges: true,
+      summary: 'テスト',
+    });
+
+    const before = Date.now();
+    await setHeartbeatFeedback('task-1', 1000, 'snoozed');
+
+    const state = await loadHeartbeatState();
+    expect(state.recentResults[0].feedback!.type).toBe('snoozed');
+    // snoozedUntil が 1 時間後のフォールバック値で設定される
+    expect(state.recentResults[0].feedback!.snoozedUntil).toBeGreaterThanOrEqual(before + 3600_000 - 100);
+    expect(state.recentResults[0].feedback!.snoozedUntil).toBeDefined();
+  });
+
   it('存在しない結果には何もしない', async () => {
     await addHeartbeatResult({
       taskId: 'task-1',
@@ -367,6 +385,13 @@ describe('filterVisibleResults', () => {
       feedback: { type: 'snoozed', timestamp: 2000, snoozedUntil: 10000 },
     })];
     expect(filterVisibleResults(results, now)).toHaveLength(1);
+  });
+
+  it('snoozed で snoozedUntil 欠損時は表示する（永久非表示防止）', () => {
+    const results = [baseResult({
+      feedback: { type: 'snoozed', timestamp: 2000 },
+    })];
+    expect(filterVisibleResults(results)).toHaveLength(1);
   });
 
   it('混在する結果を正しくフィルタする', () => {

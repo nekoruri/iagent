@@ -186,6 +186,28 @@ describe('executeWorkerTool', () => {
       expect(parsed.items[0].excerpt).toHaveLength(100);
     });
 
+    it('offset/limit の負数・極大値がクランプされる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, Array.from({ length: 5 }, (_, i) => ({
+        guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+      })));
+
+      // 負の offset → 0 にクランプ
+      const r1 = await executeWorkerTool('listUnreadFeedItems', { offset: -5, limit: 10 });
+      const p1 = JSON.parse(r1);
+      expect(p1.items).toHaveLength(5);
+      expect(p1.offset).toBe(0);
+
+      // limit 200 → 100 にクランプ、limit 0 → 1 にクランプ
+      const r2 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 200 });
+      const p2 = JSON.parse(r2);
+      expect(p2.limit).toBe(100);
+
+      const r3 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 0 });
+      const p3 = JSON.parse(r3);
+      expect(p3.limit).toBe(1);
+    });
+
     it('ページングが動作する', async () => {
       const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
       await saveFeedItems(feed.id, Array.from({ length: 5 }, (_, i) => ({
@@ -240,6 +262,25 @@ describe('executeWorkerTool', () => {
       expect(parsed.savedCount).toBe(0);
     });
 
+    it('存在しない itemId はカウントされない', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Item 1', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      const result = await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: 'non-existent-id', tier: 'recommended' },
+        ],
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.savedCount).toBe(1); // 存在する 1 件のみカウント
+    });
+
     it('classifications なしでエラーを返す', async () => {
       const result = await executeWorkerTool('saveFeedClassification', {});
       const parsed = JSON.parse(result);
@@ -277,6 +318,28 @@ describe('executeWorkerTool', () => {
       expect(parsed.items.map((i: { title: string }) => i.title)).toContain('Rec');
       expect(parsed.items[0].feedTitle).toBe('テストフィード');
       expect(parsed.items[0].tier).toBeDefined();
+    });
+
+    it('tier=all で must-read + recommended を両方取得できる', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Must', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+        { guid: 'g2', title: 'Rec', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+      ]);
+
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+
+      await executeWorkerTool('saveFeedClassification', {
+        classifications: [
+          { itemId: items[0].id, tier: 'must-read' },
+          { itemId: items[1].id, tier: 'recommended' },
+        ],
+      });
+
+      const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'all' });
+      const parsed = JSON.parse(result);
+      expect(parsed.items).toHaveLength(2);
     });
 
     it('tier フィルタで must-read のみ取得できる', async () => {

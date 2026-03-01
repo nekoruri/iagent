@@ -161,5 +161,5 @@ export type ConfigKey = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';
 
 // Phase C: 外部情報収集ツール型定義
 export type { Clip } from './clip';
-export type { Feed, FeedItem, FeedItemTier } from './feed';
+export type { Feed, FeedItem, FeedItemTier, FeedItemDisplayTier } from './feed';
 export type { Monitor } from './monitor';

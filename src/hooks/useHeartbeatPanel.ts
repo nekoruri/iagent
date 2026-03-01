@@ -11,7 +11,14 @@ export function useHeartbeatPanel() {
     () => Number(localStorage.getItem(LAST_READ_KEY)) || 0,
   );
 
-  const visibleResults = useMemo(() => filterVisibleResults(results), [results]);
+  // snooze 期限経過で表示を更新するため 1 分ごとに now を更新
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const visibleResults = useMemo(() => filterVisibleResults(results, now), [results, now]);
   const unreadCount = visibleResults.filter((r) => r.timestamp > lastReadTimestamp).length;
 
   const refresh = useCallback(async () => {
