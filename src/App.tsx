@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
+import { FeedPanel } from './components/FeedPanel';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
 import { InstallPrompt } from './components/InstallPrompt';
 import { MemoryPanel } from './components/MemoryPanel';
@@ -12,6 +13,7 @@ const SetupWizard = lazy(() =>
 );
 import { useAgentChat } from './hooks/useAgentChat';
 import { useConversations } from './hooks/useConversations';
+import { useFeedPanel } from './hooks/useFeedPanel';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
@@ -47,6 +49,7 @@ export default function App() {
   const { messages, isStreaming, activeTools, sendMessage, stopStreaming, setMessages } =
     useAgentChat(activeConversationId);
 
+  const feedPanel = useFeedPanel();
   const heartbeatPanel = useHeartbeatPanel();
   const memoryPanel = useMemoryPanel();
 
@@ -77,7 +80,10 @@ export default function App() {
       saveMessage(msg);
     }
     heartbeatPanel.refresh();
-  }, [setMessages, activeConversationId, heartbeatPanel]);
+    if (notification.results.some((r) => r.taskId === 'feed-check')) {
+      feedPanel.refresh(feedPanel.selectedTier);
+    }
+  }, [setMessages, activeConversationId, heartbeatPanel, feedPanel]);
 
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(
     () => getConfig().heartbeat?.enabled ?? false,
@@ -233,6 +239,18 @@ export default function App() {
               onClose={memoryPanel.close}
               onChangeCategory={memoryPanel.changeCategory}
               onDelete={memoryPanel.handleDelete}
+            />
+            <FeedPanel
+              isOpen={feedPanel.isOpen}
+              items={feedPanel.items}
+              feedMap={feedPanel.feedMap}
+              selectedTier={feedPanel.selectedTier}
+              isLoading={feedPanel.isLoading}
+              unreadCount={feedPanel.unreadCount}
+              onToggle={feedPanel.toggle}
+              onClose={feedPanel.close}
+              onChangeTier={feedPanel.changeTier}
+              onMarkRead={feedPanel.handleMarkRead}
             />
             {heartbeatEnabled && (
               <HeartbeatPanel
