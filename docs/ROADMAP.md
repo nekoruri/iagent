@@ -23,7 +23,7 @@
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 690 件（クライアント） + 31 件（サーバー）
+- テスト 828 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -81,7 +81,15 @@
 
 #### テスト品質の継続改善
 - [x] telemetry をカバレッジ対象に追加
-- [ ] ツール定義（calendarTool 等）のインテグレーションテスト
+- [x] sw.ts ロジック抽出（swHandlers.ts）+ ユニットテスト
+- [x] heartbeat.worker.ts ユニットテスト
+- [x] ツール定義ユニットテスト（calendarTool, memoryTool, webSearchTool, deviceInfoTool, heartbeatFeedTools）
+- [x] useAgentChat / useHeartbeatPanel フックのユニットテスト
+- [x] カバレッジ対象に tools/** と hooks/** を追加
+- [x] チャットストリーミング E2E テスト（4テスト: 基本ストリーミング、連続送信、Markdown レンダリング、送信ボタン状態）
+- [x] ツール実行 UI の E2E テスト（2テスト: calendar ツール呼び出し、web_search ツール呼び出し）
+- [x] Heartbeat パネル操作 E2E テスト（5テスト: ベル開閉、空メッセージ、結果一覧、未読バッジ、既読マーク）
+- [x] Push E2E テストの CI 統合（`e2e-push` ジョブを PR 時に並列実行）
 - [ ] Visual Regression テスト（Playwright スクリーンショット比較）
 
 ### セキュリティ基盤
@@ -258,3 +266,6 @@
 - [x] 学習継続ナッジ F11 + 無活動検出 F12 — goal メモリの `updatedAt` から活動状態検出（7日ナッジ/14日警告/3日猶予期間）、`formatGoalsWithDeadlines` に活動状態ラベル（`(N日間更新なし)` / `(⚠ N日間更新なし)`）+ `#stale` タグ注入、ブリーフィングルールにナッジ・目標見直し提案指示追加。テスト 651 件。（2026-03-01）
 - [x] 多段階 RSS フィルタリング F5+ + フィードバック UI F1 — FeedItem tier 分類（must-read/recommended/skip）、feedStore 分類 API 3 関数、Worker ツール 3 種（listUnreadFeedItems/saveFeedClassification/listClassifiedFeedItems）、feed-check/briefing-morning description 拡張、MAX_TOOL_ROUNDS 3→5、HeartbeatResult feedback フィールド + heartbeatStore setHeartbeatFeedback/filterVisibleResults、HeartbeatPanel フィードバック UI（Accept/Dismiss/Snooze）。テスト 682 件。（2026-03-01）
 - [x] Worker 環境 DOMParser 未定義エラー修正 — feedParser.ts を DOMParser → fast-xml-parser に置換（namespace prefix 対応 + Atom XHTML content 再帰抽出）、DOMPurify サニタイズを linkedom 経由で Worker 対応、heartbeatTools.ts checkMonitors を linkedom DOMParser に統一（CSS セレクタ Worker 対応）。テスト 690 件。（2026-03-02）
+- [x] テスト体制強化 Session A — sw.ts ロジック抽出（swHandlers.ts）+ ユニットテスト、heartbeat.worker.ts ユニットテスト。テスト 739 件。（2026-03-02）
+- [x] テスト体制強化 Session B — ツール定義ユニットテスト 5 種（calendarTool/memoryTool/webSearchTool/deviceInfoTool/heartbeatFeedTools）、useAgentChat/useHeartbeatPanel フックのユニットテスト。テスト 828 件。（2026-03-02）
+- [x] テスト体制強化 Session C — vitest カバレッジ対象に tools/**/hooks/** 追加、E2E テストヘルパー拡充（SSE ツール呼び出しモック/ストリーミング完了待機/IDB シード）、E2E テスト拡充（chat-streaming 4テスト/tool-execution 2テスト/heartbeat-panel 5テスト）。E2E 16→27 テスト。（2026-03-02）

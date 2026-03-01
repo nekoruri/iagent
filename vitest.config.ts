@@ -7,7 +7,7 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', 'server/**'],
     coverage: {
-      include: ['src/core/**', 'src/store/**', 'src/telemetry/**'],
+      include: ['src/core/**', 'src/store/**', 'src/telemetry/**', 'src/tools/**', 'src/hooks/**'],
       thresholds: {
         statements: 70,
       },

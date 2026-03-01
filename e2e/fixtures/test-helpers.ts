@@ -96,3 +96,75 @@ export async function saveAndCloseSettings(page: Page): Promise<void> {
   await page.locator('.modal-actions .btn-primary').click();
   await page.waitForSelector('.modal', { state: 'hidden' });
 }
+
+/**
+ * ストリーミング応答の完了を待機する。
+ * .message-assistant が存在し、ストリーミング中のインジケータが消えるまで待つ。
+ */
+export async function waitForStreamingComplete(page: Page, timeout = 15000): Promise<void> {
+  // アシスタントメッセージが表示されるまで待つ
+  await page.waitForSelector('.message-assistant', { state: 'visible', timeout });
+  // ストリーミング中の .streaming クラスが消えるまで待つ（存在する場合）
+  await page.waitForFunction(
+    () => !document.querySelector('.message-assistant.streaming'),
+    { timeout },
+  );
+}
+
+/**
+ * IndexedDB に Heartbeat 結果を直接注入する。
+ * テスト実行前に page.addInitScript で呼ぶか、page.evaluate で呼ぶ。
+ */
+export async function injectHeartbeatResults(
+  page: Page,
+  results: Array<{
+    taskId: string;
+    timestamp: number;
+    hasChanges: boolean;
+    summary: string;
+    pinned?: boolean;
+    feedback?: { type: string; snoozedUntil?: number };
+  }>,
+): Promise<void> {
+  await page.evaluate((data) => {
+    return new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('iagent-db');
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('heartbeat')) {
+          db.createObjectStore('heartbeat', { keyPath: 'key' });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        // heartbeat ストアがない場合は DB バージョンアップが必要
+        if (!db.objectStoreNames.contains('heartbeat')) {
+          db.close();
+          const version = db.version + 1;
+          const req2 = indexedDB.open('iagent-db', version);
+          req2.onupgradeneeded = () => {
+            if (!req2.result.objectStoreNames.contains('heartbeat')) {
+              req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
+            }
+          };
+          req2.onsuccess = () => {
+            const db2 = req2.result;
+            const tx = db2.transaction('heartbeat', 'readwrite');
+            const store = tx.objectStore('heartbeat');
+            store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
+            tx.oncomplete = () => { db2.close(); resolve(); };
+            tx.onerror = () => { db2.close(); reject(tx.error); };
+          };
+          req2.onerror = () => reject(req2.error);
+          return;
+        }
+        const tx = db.transaction('heartbeat', 'readwrite');
+        const store = tx.objectStore('heartbeat');
+        store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }, results);
+}
