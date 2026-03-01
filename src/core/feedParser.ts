@@ -1,10 +1,12 @@
 /**
  * RSS 2.0 / Atom 1.0 フィードパーサー
  *
- * DOMParser ベースで XXE 安全。ブラウザ環境専用。
+ * fast-xml-parser ベース。Worker / Service Worker 環境でも動作。
  */
 
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import DOMPurify from 'dompurify';
+import { parseHTML } from 'linkedom';
 
 export interface ParsedFeedItem {
   guid: string;
@@ -20,40 +22,90 @@ export interface ParsedFeed {
   items: ParsedFeedItem[];
 }
 
-/** テキストコンテンツを安全に取得 */
-function text(el: Element | null, tag: string): string {
-  const child = el?.getElementsByTagName(tag)[0];
-  return child?.textContent?.trim() ?? '';
+/** 環境に応じた DOMPurify インスタンスを遅延初期化 */
+let _purify: { sanitize: (html: string) => string } | null = null;
+
+function getSanitizer(): { sanitize: (html: string) => string } {
+  if (_purify) return _purify;
+  if (DOMPurify.isSupported) {
+    // ブラウザ環境: ネイティブ window で動作
+    _purify = DOMPurify;
+  } else {
+    // Worker 環境: linkedom の window で DOMPurify を初期化
+    const { window } = parseHTML('');
+    // linkedom の window は DOMPurify が必要とする DOM API を提供する
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _purify = DOMPurify(window as any);
+  }
+  return _purify;
 }
 
-/** RSS 2.0 の日付パース */
-function parseDate(dateStr: string): number {
+/** HTML コンテンツをサニタイズ */
+function sanitizeContent(html: string): string {
+  return getSanitizer().sanitize(html);
+}
+
+/** 日付文字列をタイムスタンプに変換 */
+function parseDate(dateStr: string | undefined): number {
   if (!dateStr) return Date.now();
-  const ts = Date.parse(dateStr);
+  const ts = Date.parse(String(dateStr));
   return isNaN(ts) ? Date.now() : ts;
 }
 
+/** 値を文字列に変換（fast-xml-parser は属性付き要素をオブジェクトで返す） */
+function str(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'object' && '#text' in (val as Record<string, unknown>)) {
+    return String((val as Record<string, unknown>)['#text']).trim();
+  }
+  return '';
+}
+
+/** 値を配列に正規化（単一要素の場合にオブジェクトで返ることがある） */
+function toArray<T>(val: T | T[] | undefined): T[] {
+  if (val == null) return [];
+  return Array.isArray(val) ? val : [val];
+}
+
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  textNodeName: '#text',
+  removeNSPrefix: false,
+  // guid 等が数値に変換されるのを防止
+  parseTagValue: false,
+  trimValues: true,
+});
+
 /** RSS 2.0 フィードをパース */
-function parseRSS(doc: Document): ParsedFeed {
-  const channel = doc.querySelector('channel');
-  const title = text(channel, 'title');
-  const siteUrl = text(channel, 'link');
+function parseRSS(data: Record<string, unknown>): ParsedFeed {
+  const rss = data.rss as Record<string, unknown> | undefined;
+  const channel = (rss?.channel ?? data.channel) as Record<string, unknown> | undefined;
+
+  if (!channel) {
+    throw new Error('未対応のフィード形式です（RSS 2.0 / Atom 1.0 のみ対応）');
+  }
+
+  const title = str(channel.title);
+  const siteUrl = str(channel.link);
 
   const items: ParsedFeedItem[] = [];
-  const itemEls = doc.querySelectorAll('item');
+  const rawItems = toArray(channel.item as Record<string, unknown> | Record<string, unknown>[]);
 
-  for (const item of itemEls) {
+  for (const item of rawItems) {
     // content:encoded を優先、なければ description
-    const contentEncoded = item.getElementsByTagNameNS('*', 'encoded')[0]?.textContent?.trim() ?? '';
-    const description = text(item, 'description');
+    const contentEncoded = str(item['content:encoded']);
+    const description = str(item.description);
     const rawContent = contentEncoded || description;
 
     items.push({
-      guid: text(item, 'guid') || text(item, 'link') || crypto.randomUUID(),
-      title: text(item, 'title'),
-      link: text(item, 'link'),
-      content: DOMPurify.sanitize(rawContent),
-      publishedAt: parseDate(text(item, 'pubDate')),
+      guid: str(item.guid) || str(item.link) || crypto.randomUUID(),
+      title: str(item.title),
+      link: str(item.link),
+      content: sanitizeContent(rawContent),
+      publishedAt: parseDate(str(item.pubDate)),
     });
   }
 
@@ -61,56 +113,48 @@ function parseRSS(doc: Document): ParsedFeed {
 }
 
 /** Atom 1.0 フィードをパース */
-function parseAtom(doc: Document): ParsedFeed {
-  const feed = doc.documentElement;
-  const title = text(feed, 'title');
+function parseAtom(data: Record<string, unknown>): ParsedFeed {
+  const feed = data.feed as Record<string, unknown>;
+  const title = str(feed.title);
 
   // Atom の link は rel="alternate" を探す
-  const links = feed.getElementsByTagName('link');
+  const links = toArray(feed.link as Record<string, unknown> | Record<string, unknown>[]);
   let siteUrl = '';
   for (const link of links) {
-    // フィードレベルの link で rel=alternate or rel 未指定
-    if (link.parentElement === feed) {
-      const rel = link.getAttribute('rel') ?? 'alternate';
-      if (rel === 'alternate') {
-        siteUrl = link.getAttribute('href') ?? '';
-        break;
-      }
+    const rel = str(link['@_rel']) || 'alternate';
+    if (rel === 'alternate') {
+      siteUrl = str(link['@_href']);
+      break;
     }
   }
 
   const items: ParsedFeedItem[] = [];
-  const entryEls = doc.getElementsByTagName('entry');
+  const entries = toArray(feed.entry as Record<string, unknown> | Record<string, unknown>[]);
 
-  for (const entry of entryEls) {
-    const entryTitle = text(entry, 'title');
+  for (const entry of entries) {
+    const entryTitle = str(entry.title);
 
     // entry の link
     let entryLink = '';
-    const entryLinks = entry.getElementsByTagName('link');
+    const entryLinks = toArray(entry.link as Record<string, unknown> | Record<string, unknown>[]);
     for (const link of entryLinks) {
-      if (link.parentElement === entry) {
-        const rel = link.getAttribute('rel') ?? 'alternate';
-        if (rel === 'alternate') {
-          entryLink = link.getAttribute('href') ?? '';
-          break;
-        }
+      const rel = str(link['@_rel']) || 'alternate';
+      if (rel === 'alternate') {
+        entryLink = str(link['@_href']);
+        break;
       }
     }
 
     // content を優先、なければ summary
-    const contentEl = entry.getElementsByTagName('content')[0];
-    const summaryEl = entry.getElementsByTagName('summary')[0];
-    const rawContent = contentEl?.textContent?.trim() ?? summaryEl?.textContent?.trim() ?? '';
-
-    const id = text(entry, 'id') || entryLink || crypto.randomUUID();
-    const published = text(entry, 'published') || text(entry, 'updated');
+    const rawContent = str(entry.content) || str(entry.summary);
+    const id = str(entry.id) || entryLink || crypto.randomUUID();
+    const published = str(entry.published) || str(entry.updated);
 
     items.push({
       guid: id,
       title: entryTitle,
       link: entryLink,
-      content: DOMPurify.sanitize(rawContent),
+      content: sanitizeContent(rawContent),
       publishedAt: parseDate(published),
     });
   }
@@ -120,23 +164,25 @@ function parseAtom(doc: Document): ParsedFeed {
 
 /** XML テキストをフィードとしてパース（RSS 2.0 / Atom 1.0 自動判定） */
 export function parseFeed(xmlText: string): ParsedFeed {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'text/xml');
-
-  // パースエラーチェック
-  const parseError = doc.querySelector('parsererror');
-  if (parseError) {
+  // XML バリデーション
+  const validation = XMLValidator.validate(xmlText);
+  if (validation !== true) {
     throw new Error('XML パースエラー: フィードの形式が不正です');
   }
 
-  const root = doc.documentElement.tagName.toLowerCase();
-
-  if (root === 'feed') {
-    return parseAtom(doc);
+  let data: Record<string, unknown>;
+  try {
+    data = xmlParser.parse(xmlText) as Record<string, unknown>;
+  } catch {
+    throw new Error('XML パースエラー: フィードの形式が不正です');
   }
 
-  if (root === 'rss' || doc.querySelector('channel')) {
-    return parseRSS(doc);
+  if (data.feed) {
+    return parseAtom(data);
+  }
+
+  if (data.rss || data.channel) {
+    return parseRSS(data);
   }
 
   throw new Error('未対応のフィード形式です（RSS 2.0 / Atom 1.0 のみ対応）');

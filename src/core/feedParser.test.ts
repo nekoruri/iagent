@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('dompurify', () => ({
   default: {
     sanitize: (html: string) => html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ''),
+    isSupported: true,
   },
 }));
 
