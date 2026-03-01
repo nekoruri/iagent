@@ -115,7 +115,8 @@ async function checkRateLimit(ip: string, kv: KVNamespace): Promise<boolean> {
   try {
     const key = `rate:${ip}`;
     const raw = await kv.get(key);
-    const count = raw ? parseInt(raw, 10) : 0;
+    const parsed = parseInt(raw ?? '', 10);
+    const count = Number.isFinite(parsed) ? parsed : 0;
 
     if (count >= RATE_LIMIT_MAX_REQUESTS) {
       return false; // レート超過

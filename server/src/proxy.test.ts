@@ -199,6 +199,19 @@ describe('handleRegister', () => {
     const res = await handleRegister(req, env);
     expect(res.status).toBe(401);
   });
+
+  it('KV 書き込み失敗時に 503 を返す', async () => {
+    const kv = createMockKV();
+    vi.mocked(kv.put).mockRejectedValue(new Error('KV put() limit exceeded for the day.'));
+    const env = createMockEnv({ RATE_LIMIT: kv });
+    const req = createRequest('/register', {
+      headers: { Authorization: 'Bearer test-master-key' },
+    });
+    const res = await handleRegister(req, env);
+    expect(res.status).toBe(503);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('KV');
+  });
 });
 
 // --- handleProxy ---
@@ -276,5 +289,40 @@ describe('handleProxy', () => {
     });
     const res = await handleProxy(req, env);
     expect(res.status).toBe(429);
+  });
+
+  it('KV 障害時はレート制限をスキップして処理を続行する', async () => {
+    const kv = createMockKV({ 'token:valid-token': '1' });
+    vi.mocked(kv.get).mockImplementation(async (key: string) => {
+      if ((key as string).startsWith('rate:')) throw new Error('KV read error');
+      return key === 'token:valid-token' ? '1' : null;
+    });
+    env = createMockEnv({ RATE_LIMIT: kv });
+
+    const req = createRequest('/proxy', {
+      headers: { Authorization: 'Bearer valid-token' },
+      body: { url: 'https://10.0.0.1/secret' }, // SSRF で 400 になるが 429/500 にはならない
+    });
+    const res = await handleProxy(req, env);
+    // レート制限エラー (429) や内部エラー (500) ではなく、URL バリデーションの 400 が返る
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('プライベート');
+  });
+
+  it('レートカウントが不正な値のとき 0 にフォールバックする', async () => {
+    const store: Record<string, string> = { 'token:valid-token': '1', 'rate:203.0.113.1': 'corrupted' };
+    env = createMockEnv({
+      RATE_LIMIT: createMockKV(store),
+    });
+
+    const req = createRequest('/proxy', {
+      headers: { Authorization: 'Bearer valid-token' },
+      body: { url: 'https://10.0.0.1/secret' },
+    });
+    const res = await handleProxy(req, env);
+    // NaN でレート制限が壊れるのではなく、0 にフォールバックして正常に処理が続く
+    expect(res.status).toBe(400); // URL バリデーションの 400
+    expect(res.status).not.toBe(429);
   });
 });
