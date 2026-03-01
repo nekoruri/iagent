@@ -22,9 +22,10 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     id: 'feed-check',
     name: 'フィードチェック',
     description: '購読中の RSS フィードの新着記事を取得し、3段階に分類します。'
-      + '手順: fetchFeeds → listUnreadFeedItems → 3段階分類（must-read/recommended/skip） → saveFeedClassification。'
+      + '手順: 1) fetchFeeds で新着取得（失敗してもOK） → 2) listUnreadFeedItems で未分類記事一覧を取得 → 3) 各記事を must-read/recommended/skip に分類 → 4) saveFeedClassification で保存。'
+      + 'fetchFeeds がエラーでも、既存の未分類記事があれば分類を続行してください。'
       + '分類基準: ユーザーの目標・嗜好を踏まえて、必読/おすすめ/スキップに分類してください。'
-      + '30件ずつ処理し、全件分類するまで繰り返してください。',
+      + '30件ずつ処理し、hasMore が true なら繰り返してください。',
     enabled: false,
     type: 'builtin',
   },

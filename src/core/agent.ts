@@ -7,6 +7,13 @@ import { memoryTool } from '../tools/memoryTool';
 import { clipTool } from '../tools/clipTool';
 import { feedTool } from '../tools/feedTool';
 import { webMonitorTool } from '../tools/webMonitorTool';
+import {
+  hbFetchFeedsTool,
+  hbListUnreadFeedItemsTool,
+  hbSaveFeedClassificationTool,
+  hbListClassifiedFeedItemsTool,
+  hbListFeedsTool,
+} from '../tools/heartbeatFeedTools';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getConfig, getDefaultPersonaConfig } from './config';
 import { buildMainInstructions, buildHeartbeatInstructions } from './instructionBuilder';
@@ -87,7 +94,15 @@ export async function createHeartbeatAgent(
     name: `${persona.name || 'iAgent'}-Heartbeat`,
     instructions: instructions + mcpToolNote,
     model: 'gpt-5-nano',
-    tools: [calendarTool, deviceInfoTool],
+    tools: [
+      calendarTool,
+      deviceInfoTool,
+      hbFetchFeedsTool,
+      hbListUnreadFeedItemsTool,
+      hbSaveFeedClassificationTool,
+      hbListClassifiedFeedItemsTool,
+      hbListFeedsTool,
+    ],
     mcpServers: filteredMcpServers && filteredMcpServers.length > 0 ? filteredMcpServers : undefined,
   });
 }
