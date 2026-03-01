@@ -149,6 +149,7 @@
 ### UI
 - [x] 初回セットアップウィザード（API キー入力の導線改善）
 - [x] ライト/ダークテーマ切替
+- [x] FeedPanel（RSS 記事ブラウズ用ドロップダウン — tier フィルタ + 既読化 + 未読バッジ + Heartbeat 連動更新）
 
 ### スマートフォン対応強化
 - [x] iOS キーボード対応（`dvh` + VisualViewport API）— 入力バーがキーボードに隠れる問題の修正
@@ -269,3 +270,4 @@
 - [x] テスト体制強化 Session A — sw.ts ロジック抽出（swHandlers.ts）+ ユニットテスト、heartbeat.worker.ts ユニットテスト。テスト 739 件。（2026-03-02）
 - [x] テスト体制強化 Session B — ツール定義ユニットテスト 5 種（calendarTool/memoryTool/webSearchTool/deviceInfoTool/heartbeatFeedTools）、useAgentChat/useHeartbeatPanel フックのユニットテスト。テスト 828 件。（2026-03-02）
 - [x] テスト体制強化 Session C — vitest カバレッジ対象に tools/**/hooks/** 追加、E2E テストヘルパー拡充（SSE ツール呼び出しモック/ストリーミング完了待機/IDB シード）、E2E テスト拡充（chat-streaming 4テスト/tool-execution 2テスト/heartbeat-panel 5テスト）。E2E 16→27 テスト。（2026-03-02）
+- [x] FeedPanel 追加 — RSS 記事ブラウズ用ドロップダウン（useFeedPanel フック + FeedPanel コンポーネント + tier タブフィルタ + 既読化 + 未読バッジ）、Heartbeat feed-check 完了時の自動更新。テスト 844→860 件。（2026-03-02）
