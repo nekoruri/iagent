@@ -1,3 +1,5 @@
+export type FeedItemTier = 'must-read' | 'recommended' | 'skip';
+
 export interface Feed {
   id: string;
   url: string;
@@ -20,4 +22,6 @@ export interface FeedItem {
   publishedAt: number;
   isRead: boolean;
   createdAt: number;
+  tier?: FeedItemTier;       // LLM 分類結果（未分類は undefined）
+  classifiedAt?: number;     // 分類実行日時
 }

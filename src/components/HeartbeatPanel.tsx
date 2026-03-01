@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import type { HeartbeatResult } from '../types';
+import { useRef, useEffect, useState } from 'react';
+import type { HeartbeatResult, FeedbackType } from '../types';
 
 interface HeartbeatPanelProps {
   isOpen: boolean;
@@ -8,6 +8,7 @@ interface HeartbeatPanelProps {
   onToggle: () => void;
   onClose: () => void;
   onTogglePin: (taskId: string, timestamp: number) => void;
+  onFeedback: (taskId: string, timestamp: number, type: FeedbackType, snoozedUntil?: number) => void;
 }
 
 function formatTime(ts: number): string {
@@ -20,7 +21,57 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose, onTogglePin }: HeartbeatPanelProps) {
+function SnoozeButton({ onSnooze }: { onSnooze: (until: number) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  const snoozeOptions = [
+    { label: '1時間後', ms: 60 * 60 * 1000 },
+    { label: '明日', ms: 24 * 60 * 60 * 1000 },
+    { label: '来週', ms: 7 * 24 * 60 * 60 * 1000 },
+  ];
+
+  return (
+    <div className="snooze-container" ref={ref}>
+      <button
+        className="btn-feedback btn-feedback-snooze"
+        onClick={() => setMenuOpen(!menuOpen)}
+        title="後で"
+      >
+        &#9200;
+      </button>
+      {menuOpen && (
+        <div className="snooze-menu">
+          {snoozeOptions.map((opt) => (
+            <button
+              key={opt.label}
+              className="snooze-menu-item"
+              onClick={() => {
+                onSnooze(Date.now() + opt.ms);
+                setMenuOpen(false);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose, onTogglePin, onFeedback }: HeartbeatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // パネル外クリックで閉じる
@@ -75,6 +126,31 @@ export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose
                   <div className="heartbeat-result-meta">
                     <span>{r.taskId}</span>
                     <span>{formatTime(r.timestamp)}</span>
+                  </div>
+                  <div className="heartbeat-result-actions">
+                    {r.feedback?.type === 'accepted' ? (
+                      <span className="feedback-label feedback-label-accepted">&#10003; 確認済み</span>
+                    ) : !r.feedback ? (
+                      <>
+                        <button
+                          className="btn-feedback btn-feedback-accept"
+                          onClick={() => onFeedback(r.taskId, r.timestamp, 'accepted')}
+                          title="役に立った"
+                        >
+                          &#10003;
+                        </button>
+                        <button
+                          className="btn-feedback btn-feedback-dismiss"
+                          onClick={() => onFeedback(r.taskId, r.timestamp, 'dismissed')}
+                          title="不要"
+                        >
+                          &#10005;
+                        </button>
+                        <SnoozeButton
+                          onSnooze={(until) => onFeedback(r.taskId, r.timestamp, 'snoozed', until)}
+                        />
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))

@@ -242,6 +242,7 @@ export default function App() {
                 onToggle={heartbeatPanel.toggle}
                 onClose={heartbeatPanel.close}
                 onTogglePin={heartbeatPanel.togglePin}
+                onFeedback={heartbeatPanel.sendFeedback}
               />
             )}
             <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="設定">

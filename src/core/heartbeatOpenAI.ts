@@ -5,7 +5,7 @@ import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory, PersonaConf
 
 const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
   || 'https://api.openai.com/v1/chat/completions';
-const MAX_TOOL_ROUNDS = 3;
+const MAX_TOOL_ROUNDS = 5;
 const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
 
 interface ChatMessage {
@@ -123,6 +123,8 @@ export async function executeWorkerHeartbeatCheck(
     { role: 'user', content: userMessage },
   ];
 
+  console.debug('[Heartbeat] tool calling 開始 — タスク:', tasks.map(t => t.id).join(', '));
+
   // tool calling ループ（最大 MAX_TOOL_ROUNDS 回）
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await callChatCompletions(apiKey, 'gpt-5-nano', messages, WORKER_TOOLS);
@@ -135,8 +137,12 @@ export async function executeWorkerHeartbeatCheck(
 
     // tool_calls がなければ最終レスポンス
     if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+      console.debug(`[Heartbeat] ラウンド ${round + 1}/${MAX_TOOL_ROUNDS} — 最終レスポンス（ツール呼び出しなし）`);
       return parseHeartbeatResponse(assistantMessage.content);
     }
+
+    const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name);
+    console.debug(`[Heartbeat] ラウンド ${round + 1}/${MAX_TOOL_ROUNDS} — ツール呼び出し:`, toolNames.join(', '));
 
     // assistant メッセージを履歴に追加
     messages.push({
@@ -163,6 +169,7 @@ export async function executeWorkerHeartbeatCheck(
   }
 
   // ループ上限を超えた場合は最後のレスポンスを試みる
+  console.warn(`[Heartbeat] ツール呼び出しラウンド上限（${MAX_TOOL_ROUNDS}）に到達`);
   const finalResponse = await callChatCompletions(apiKey, 'gpt-5-nano', messages);
   const finalChoice = finalResponse.choices[0];
   return parseHeartbeatResponse(finalChoice?.message?.content);

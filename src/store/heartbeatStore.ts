@@ -1,5 +1,5 @@
 import { getDB } from './db';
-import type { HeartbeatState, HeartbeatResult } from '../types';
+import type { HeartbeatState, HeartbeatResult, FeedbackType } from '../types';
 
 const STORE_NAME = 'heartbeat';
 const STATE_KEY = 'state';
@@ -78,4 +78,35 @@ export async function togglePinHeartbeatResult(taskId: string, timestamp: number
     target.pinned = !target.pinned;
     await saveHeartbeatState(state);
   }
+}
+
+/** 結果にフィードバックを設定 */
+export async function setHeartbeatFeedback(
+  taskId: string,
+  timestamp: number,
+  type: FeedbackType,
+  snoozedUntil?: number,
+): Promise<void> {
+  const state = await loadHeartbeatState();
+  const target = state.recentResults.find(r => r.taskId === taskId && r.timestamp === timestamp);
+  if (target) {
+    target.feedback = {
+      type,
+      timestamp: Date.now(),
+      ...(type === 'snoozed' && snoozedUntil ? { snoozedUntil } : {}),
+    };
+    await saveHeartbeatState(state);
+  }
+}
+
+/** dismissed 非表示、snoozed は期限前のみ非表示 */
+export function filterVisibleResults(results: HeartbeatResult[], now = Date.now()): HeartbeatResult[] {
+  return results.filter((r) => {
+    if (!r.feedback) return true;
+    if (r.feedback.type === 'dismissed') return false;
+    if (r.feedback.type === 'snoozed') {
+      return r.feedback.snoozedUntil != null && now >= r.feedback.snoozedUntil;
+    }
+    return true; // accepted は表示
+  });
 }
