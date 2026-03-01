@@ -208,6 +208,9 @@
 - [x] 学習継続ナッジ + 無活動検出 — goal メモリの `updatedAt` から活動状態を検出（7日ナッジ/14日警告/3日猶予）、`formatGoalsWithDeadlines` に活動状態ラベル + `#stale` タグ注入、ブリーフィングルールにナッジ・見直し提案指示追加
 - [x] 多段階 RSS フィルタリング F5+ — FeedItem に tier/classifiedAt フィールド追加、feedStore 分類 API（listUnclassifiedItems/listClassifiedItems/updateItemTier）、Worker ツール 3 種（listUnreadFeedItems/saveFeedClassification/listClassifiedFeedItems）、feed-check タスク description を分類手順付きに変更、briefing-morning に listClassifiedFeedItems 参照追記、MAX_TOOL_ROUNDS 3→5
 - [x] フィードバック UI F1 — HeartbeatResult に feedback フィールド追加、heartbeatStore に setHeartbeatFeedback/filterVisibleResults 追加、HeartbeatPanel にフィードバックボタン行（Accept/Dismiss/Snooze）+ SnoozeButton サブコンポーネント追加
+- [x] 会話内コンテキストサジェスト F8 — チャット送信時に memory + clip + feed を横断検索し、関連情報を instructions に注入（getRelevantClips/getRelevantFeedItems キーワードスコアリング + tier ボーナス + 新しさボーナス）
+- [x] カレンダーリマインド拡張 F6 — calendar-check タスクに searchMemoriesByQuery Worker ツール追加、予定の関連メモリを付加して通知
+- [x] フィードバック集計 + Reflection 連携 F2 — FeedbackSummary 型 + getHeartbeatFeedbackSummary 集計関数 + Worker ツール、reflection タスクにフィードバック分析手順追加（学習ループ完成）
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -271,3 +274,4 @@
 - [x] テスト体制強化 Session B — ツール定義ユニットテスト 5 種（calendarTool/memoryTool/webSearchTool/deviceInfoTool/heartbeatFeedTools）、useAgentChat/useHeartbeatPanel フックのユニットテスト。テスト 828 件。（2026-03-02）
 - [x] テスト体制強化 Session C — vitest カバレッジ対象に tools/**/hooks/** 追加、E2E テストヘルパー拡充（SSE ツール呼び出しモック/ストリーミング完了待機/IDB シード）、E2E テスト拡充（chat-streaming 4テスト/tool-execution 2テスト/heartbeat-panel 5テスト）。E2E 16→27 テスト。（2026-03-02）
 - [x] FeedPanel 追加 — RSS 記事ブラウズ用ドロップダウン（useFeedPanel フック + FeedPanel コンポーネント + tier タブフィルタ + 既読化 + 未読バッジ）、Heartbeat feed-check 完了時の自動更新。テスト 844→860 件。（2026-03-02）
+- [x] プロアクティブエンジン F8+F6+F2 — 会話内コンテキストサジェスト（memory/clip/feed 横断検索 + instructions 注入）、カレンダーリマインド拡張（searchMemoriesByQuery Worker ツール + calendar-check description 強化）、フィードバック集計 + Reflection 連携（FeedbackSummary 集計 + getHeartbeatFeedbackSummary Worker ツール + reflection description にフィードバック分析手順追加）。テスト 860→876 件。（2026-03-02）

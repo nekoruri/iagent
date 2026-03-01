@@ -14,6 +14,7 @@ import {
   listUnclassifiedItems,
   listClassifiedItems,
   updateItemTier,
+  getRelevantFeedItems,
 } from './feedStore';
 
 beforeEach(() => {
@@ -302,6 +303,73 @@ describe('listClassifiedItems', () => {
 
     const classified = await listClassifiedItems();
     expect(classified).toHaveLength(0);
+  });
+});
+
+describe('getRelevantFeedItems', () => {
+  it('tier 優先でスコアリングされる（must-read > recommended）', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'React記事', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+      { guid: 'g2', title: 'React詳解', link: 'https://a.com/2', content: '本文', publishedAt: 2000 },
+    ]);
+
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items[0].id, 'recommended');
+    await updateItemTier(items[1].id, 'must-read');
+
+    const results = await getRelevantFeedItems('React');
+    expect(results).toHaveLength(2);
+    // must-read のほうが高スコア
+    expect(results[0].tier).toBe('must-read');
+  });
+
+  it('skip 記事は除外される', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'React入門', link: 'https://a.com/1', content: '本文', publishedAt: 2000 },
+      { guid: 'g2', title: 'Reactスキップ', link: 'https://a.com/2', content: '本文', publishedAt: 1000 },
+    ]);
+
+    // listFeedItems は publishedAt 降順: items[0]=React入門, items[1]=Reactスキップ
+    const items = await listFeedItems(feed.id);
+    await updateItemTier(items[0].id, 'recommended'); // React入門 → recommended
+    await updateItemTier(items[1].id, 'skip');         // Reactスキップ → skip
+
+    const results = await getRelevantFeedItems('React');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('React入門');
+  });
+
+  it('limit で件数制限できる', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      guid: `g${i}`, title: `React記事${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+    }));
+    await saveFeedItems(feed.id, items);
+
+    const allItems = await listFeedItems(feed.id);
+    for (const item of allItems) {
+      await updateItemTier(item.id, 'must-read');
+    }
+
+    const results = await getRelevantFeedItems('React', 3);
+    expect(results).toHaveLength(3);
+  });
+
+  it('空クエリで空配列を返す', async () => {
+    expect(await getRelevantFeedItems('')).toEqual([]);
+    expect(await getRelevantFeedItems('  ')).toEqual([]);
+  });
+
+  it('未分類の記事は対象外', async () => {
+    const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+    await saveFeedItems(feed.id, [
+      { guid: 'g1', title: 'React入門', link: 'https://a.com/1', content: '本文', publishedAt: 1000 },
+    ]);
+
+    const results = await getRelevantFeedItems('React');
+    expect(results).toEqual([]);
   });
 });
 

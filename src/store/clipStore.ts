@@ -81,6 +81,50 @@ export async function listClips(tag?: string, limit?: number): Promise<Clip[]> {
   return results;
 }
 
+/** キーワードスコアリングで関連クリップを検索する */
+export async function getRelevantClips(query: string, limit: number = 5): Promise<Clip[]> {
+  if (!query.trim()) return [];
+
+  const db = await getDB();
+  const all: Clip[] = await db.getAll(STORE_NAME);
+  const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+  if (tokens.length === 0) return [];
+
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const scored = all.map((clip) => {
+    let keywordScore = 0;
+    const lowerTitle = clip.title.toLowerCase();
+    const lowerContent = clip.content.toLowerCase();
+    const lowerTags = clip.tags.map((t) => t.toLowerCase());
+
+    for (const token of tokens) {
+      if (lowerTitle.includes(token)) keywordScore += 5;
+      if (lowerContent.includes(token)) keywordScore += 2;
+      if (lowerTags.some((tag) => tag.includes(token))) keywordScore += 3;
+    }
+
+    // キーワードマッチがない場合はスコア0
+    if (keywordScore === 0) return { clip, score: 0 };
+
+    let score = keywordScore;
+
+    // 新しさボーナス（7日以内: +2、30日以内: +1）
+    const ageDays = (now - clip.createdAt) / DAY_MS;
+    if (ageDays <= 7) score += 2;
+    else if (ageDays <= 30) score += 1;
+
+    return { clip, score };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.clip);
+}
+
 export async function deleteClip(id: string): Promise<boolean> {
   const db = await getDB();
   const existing = await db.get(STORE_NAME, id);

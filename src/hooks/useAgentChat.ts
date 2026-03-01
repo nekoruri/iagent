@@ -85,7 +85,7 @@ export function useAgentChat(conversationId: string | null) {
 
     try {
       const mcpServers = mcpManager.getActiveServers();
-      const agent = await createAgent(mcpServers);
+      const agent = await createAgent(mcpServers, text);
       historyRef.current.push(user(text));
 
       const result = await run(agent, historyRef.current, {

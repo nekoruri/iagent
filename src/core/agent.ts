@@ -15,17 +15,36 @@ import {
   hbListFeedsTool,
 } from '../tools/heartbeatFeedTools';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
+import { getRelevantClips } from '../store/clipStore';
+import { getRelevantFeedItems } from '../store/feedStore';
 import { getConfig, getDefaultPersonaConfig } from './config';
 import { buildMainInstructions, buildHeartbeatInstructions } from './instructionBuilder';
 
-export async function createAgent(mcpServers?: MCPServer[]): Promise<Agent> {
+export async function createAgent(mcpServers?: MCPServer[], userMessage?: string): Promise<Agent> {
   const config = getConfig();
   const persona = config.persona ?? getDefaultPersonaConfig();
-  const memories = await getRelevantMemories('', 10);
+  const query = userMessage ?? '';
+
+  // ユーザーメッセージがある場合、memory/clip/feed を並列検索
+  let memories;
+  let clips;
+  let feedItems;
+  if (query) {
+    [memories, clips, feedItems] = await Promise.all([
+      getRelevantMemories(query, 10),
+      getRelevantClips(query, 5),
+      getRelevantFeedItems(query, 5),
+    ]);
+  } else {
+    memories = await getRelevantMemories(query, 10);
+  }
+
   const instructions = buildMainInstructions({
     persona,
     memories,
     currentDateTime: new Date().toLocaleString('ja-JP'),
+    clips: clips && clips.length > 0 ? clips : undefined,
+    feedItems: feedItems && feedItems.length > 0 ? feedItems : undefined,
   });
 
   return new Agent({

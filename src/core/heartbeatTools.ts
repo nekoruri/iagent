@@ -3,7 +3,8 @@ import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, 
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
-import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories } from '../store/memoryStore';
+import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories } from '../store/memoryStore';
+import { getHeartbeatFeedbackSummary } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
 
@@ -158,6 +159,34 @@ export const WORKER_TOOLS = [
         properties: {
           tier: { type: 'string', enum: ['must-read', 'recommended', 'all'], description: '分類でフィルタ。all で must-read + recommended の両方を取得（デフォルト: all）' },
         },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getHeartbeatFeedbackSummary',
+      description: '指定期間の Heartbeat 通知に対するユーザーフィードバック（Accept/Dismiss/Snooze）を集計します。タスク別の Accept 率を分析し、提案品質の改善に活用できます。',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodHours: { type: 'number', description: '集計対象の期間（時間単位、デフォルト 24、1〜168）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'searchMemoriesByQuery',
+      description: 'キーワードでユーザーの長期記憶を検索します。イベントタイトルや人名で検索すると、関連する記憶（議事メモ、予算情報等）を取得できます。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '検索キーワード（イベント名、人名、トピック等）' },
+          limit: { type: 'number', description: '取得件数（デフォルト 5、最大 20）' },
+        },
+        required: ['query'],
       },
     },
   },
@@ -452,6 +481,45 @@ export async function executeWorkerTool(
           publishedAt: item.publishedAt,
         })),
         count: items.length,
+      });
+    }
+    case 'getHeartbeatFeedbackSummary': {
+      const periodHours = Math.max(1, Math.min(168, typeof args.periodHours === 'number' ? Math.floor(args.periodHours) : 24));
+      const periodMs = periodHours * 60 * 60 * 1000;
+      const summary = await getHeartbeatFeedbackSummary(periodMs);
+      return JSON.stringify({
+        periodHours,
+        totalResults: summary.totalResults,
+        totalWithFeedback: summary.totalWithFeedback,
+        overallAcceptRate: Math.round(summary.overallAcceptRate * 100),
+        taskStats: summary.taskStats.map((s) => ({
+          taskId: s.taskId,
+          accepted: s.accepted,
+          dismissed: s.dismissed,
+          snoozed: s.snoozed,
+          total: s.total,
+          acceptRate: Math.round(s.acceptRate * 100),
+        })),
+      });
+    }
+    case 'searchMemoriesByQuery': {
+      const query = args.query as string | undefined;
+      if (!query || !query.trim()) {
+        return JSON.stringify({ error: 'query は必須です' });
+      }
+      const limit = Math.max(1, Math.min(20, typeof args.limit === 'number' ? Math.floor(args.limit) : 5));
+      const memories = await getRelevantMemories(query, limit);
+      return JSON.stringify({
+        memories: memories.map((m) => ({
+          id: m.id,
+          content: m.content,
+          category: m.category,
+          importance: m.importance,
+          tags: m.tags,
+          updatedAt: m.updatedAt,
+        })),
+        count: memories.length,
+        query,
       });
     }
     default:

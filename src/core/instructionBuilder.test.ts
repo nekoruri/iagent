@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildMainInstructions, buildHeartbeatInstructions, buildWorkerHeartbeatPrompt, formatGoalsWithDeadlines } from './instructionBuilder';
 import type { InstructionContext } from './instructionBuilder';
 import { getDefaultPersonaConfig } from './config';
-import type { Memory } from '../types';
+import type { Memory, Clip, FeedItem } from '../types';
 
 function makeContext(overrides?: Partial<InstructionContext>): InstructionContext {
   return {
@@ -161,6 +161,57 @@ describe('buildMainInstructions', () => {
   it('日時コンテキストを含む', () => {
     const result = buildMainInstructions(makeContext({ currentDateTime: '2026/3/1 09:00:00' }));
     expect(result).toContain('2026/3/1 09:00:00');
+  });
+
+  it('clips が渡されると「関連クリップ」セクションが含まれる', () => {
+    const clips: Clip[] = [
+      { id: 'c1', url: 'https://example.com/react', title: 'React入門', content: 'JSX', tags: ['frontend', 'react'], createdAt: Date.now() },
+    ];
+    const result = buildMainInstructions(makeContext({ clips }));
+    expect(result).toContain('### 関連クリップ');
+    expect(result).toContain('React入門');
+    expect(result).toContain('https://example.com/react');
+    expect(result).toContain('#frontend');
+    expect(result).toContain('#react');
+  });
+
+  it('clips が空の場合は「関連クリップ」セクションが含まれない', () => {
+    const result = buildMainInstructions(makeContext({ clips: [] }));
+    expect(result).not.toContain('### 関連クリップ');
+  });
+
+  it('clips が undefined の場合は「関連クリップ」セクションが含まれない', () => {
+    const result = buildMainInstructions(makeContext());
+    expect(result).not.toContain('### 関連クリップ');
+  });
+
+  it('feedItems が渡されると「関連フィード記事」セクションが含まれる', () => {
+    const feedItems: FeedItem[] = [
+      { id: 'f1', feedId: 'feed-1', guid: 'g1', title: 'React 19リリース', link: 'https://blog.com/react19', content: '本文', publishedAt: Date.now(), isRead: false, createdAt: Date.now(), tier: 'must-read' },
+      { id: 'f2', feedId: 'feed-1', guid: 'g2', title: 'Vue 4の新機能', link: 'https://blog.com/vue4', content: '本文', publishedAt: Date.now(), isRead: false, createdAt: Date.now(), tier: 'recommended' },
+    ];
+    const result = buildMainInstructions(makeContext({ feedItems }));
+    expect(result).toContain('### 関連フィード記事');
+    expect(result).toContain('[必読] React 19リリース');
+    expect(result).toContain('[おすすめ] Vue 4の新機能');
+    expect(result).toContain('https://blog.com/react19');
+  });
+
+  it('feedItems が空の場合は「関連フィード記事」セクションが含まれない', () => {
+    const result = buildMainInstructions(makeContext({ feedItems: [] }));
+    expect(result).not.toContain('### 関連フィード記事');
+  });
+
+  it('clips と feedItems の両方が渡されると両セクションが含まれる', () => {
+    const clips: Clip[] = [
+      { id: 'c1', url: 'https://a.com', title: 'クリップA', content: '内容', tags: [], createdAt: Date.now() },
+    ];
+    const feedItems: FeedItem[] = [
+      { id: 'f1', feedId: 'feed-1', guid: 'g1', title: 'フィード記事A', link: 'https://b.com', content: '本文', publishedAt: Date.now(), isRead: false, createdAt: Date.now(), tier: 'must-read' },
+    ];
+    const result = buildMainInstructions(makeContext({ clips, feedItems }));
+    expect(result).toContain('### 関連クリップ');
+    expect(result).toContain('### 関連フィード記事');
   });
 });
 

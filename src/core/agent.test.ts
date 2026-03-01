@@ -48,6 +48,15 @@ vi.mock('../tools/memoryTool', () => ({
   memoryTool: { name: 'memory', __isTool: true },
 }));
 
+vi.mock('../store/clipStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/clipStore')>();
+  return { ...actual };
+});
+vi.mock('../store/feedStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../store/feedStore')>();
+  return { ...actual };
+});
+
 beforeEach(() => {
   __resetStores();
   localStorage.clear();
@@ -131,6 +140,19 @@ describe('createAgent', () => {
   it('デフォルトペルソナで name が iAgent になる', async () => {
     const agent = await createAgent() as unknown as { name: string };
     expect(agent.name).toBe('iAgent');
+  });
+
+  it('userMessage なしで後方互換（クリップ/フィードセクションなし）', async () => {
+    const agent = await createAgent() as unknown as { instructions: string };
+    expect(agent.instructions).not.toContain('### 関連クリップ');
+    expect(agent.instructions).not.toContain('### 関連フィード記事');
+  });
+
+  it('userMessage ありでメモリ検索クエリとして使用される', async () => {
+    await saveMemory('React Hooks について学習中', 'context');
+    const agent = await createAgent(undefined, 'React') as unknown as { instructions: string };
+    // メモリ検索クエリとして機能する（React が含まれるメモリが優先される）
+    expect(agent.instructions).toContain('React Hooks について学習中');
   });
 });
 

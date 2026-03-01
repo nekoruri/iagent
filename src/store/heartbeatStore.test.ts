@@ -15,6 +15,7 @@ import {
   togglePinHeartbeatResult,
   setHeartbeatFeedback,
   filterVisibleResults,
+  getHeartbeatFeedbackSummary,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
 
@@ -406,5 +407,93 @@ describe('filterVisibleResults', () => {
     const visible = filterVisibleResults(results, now);
     expect(visible).toHaveLength(3);
     expect(visible.map(r => r.taskId)).toEqual(['a', 'b', 'd']);
+  });
+});
+
+describe('getHeartbeatFeedbackSummary', () => {
+  it('フィードバックをタスク別に集計する', async () => {
+    const now = Date.now();
+    // タスク A: accepted 2件, dismissed 1件
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 1000, hasChanges: true, summary: 'A-1' });
+    await setHeartbeatFeedback('task-a', now - 1000, 'accepted');
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 2000, hasChanges: true, summary: 'A-2' });
+    await setHeartbeatFeedback('task-a', now - 2000, 'accepted');
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 3000, hasChanges: true, summary: 'A-3' });
+    await setHeartbeatFeedback('task-a', now - 3000, 'dismissed');
+
+    // タスク B: snoozed 1件
+    await addHeartbeatResult({ taskId: 'task-b', timestamp: now - 4000, hasChanges: true, summary: 'B-1' });
+    await setHeartbeatFeedback('task-b', now - 4000, 'snoozed');
+
+    const summary = await getHeartbeatFeedbackSummary();
+    expect(summary.totalResults).toBe(4);
+    expect(summary.totalWithFeedback).toBe(4);
+
+    const statsA = summary.taskStats.find(s => s.taskId === 'task-a');
+    expect(statsA).toBeDefined();
+    expect(statsA!.accepted).toBe(2);
+    expect(statsA!.dismissed).toBe(1);
+    expect(statsA!.snoozed).toBe(0);
+    expect(statsA!.total).toBe(3);
+    // Accept 率 = 2/3 ≈ 0.667
+    expect(statsA!.acceptRate).toBeCloseTo(2 / 3, 2);
+
+    const statsB = summary.taskStats.find(s => s.taskId === 'task-b');
+    expect(statsB).toBeDefined();
+    expect(statsB!.snoozed).toBe(1);
+    expect(statsB!.acceptRate).toBe(0);
+  });
+
+  it('期間フィルタが正しく動作する', async () => {
+    const now = Date.now();
+    const HOUR_MS = 60 * 60 * 1000;
+
+    // 2時間前の結果
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 2 * HOUR_MS, hasChanges: true, summary: '古い' });
+    await setHeartbeatFeedback('task-a', now - 2 * HOUR_MS, 'accepted');
+
+    // 30分前の結果
+    await addHeartbeatResult({ taskId: 'task-b', timestamp: now - 0.5 * HOUR_MS, hasChanges: true, summary: '新しい' });
+    await setHeartbeatFeedback('task-b', now - 0.5 * HOUR_MS, 'dismissed');
+
+    // 1時間分のみ集計
+    const summary = await getHeartbeatFeedbackSummary(1 * HOUR_MS);
+    expect(summary.totalResults).toBe(1);
+    expect(summary.taskStats).toHaveLength(1);
+    expect(summary.taskStats[0].taskId).toBe('task-b');
+  });
+
+  it('Accept 率を正しく計算する', async () => {
+    const now = Date.now();
+    // 3件 accepted, 1件 dismissed → Accept率 75%
+    for (let i = 0; i < 3; i++) {
+      await addHeartbeatResult({ taskId: 'task-x', timestamp: now - (i + 1) * 1000, hasChanges: true, summary: `X-${i}` });
+      await setHeartbeatFeedback('task-x', now - (i + 1) * 1000, 'accepted');
+    }
+    await addHeartbeatResult({ taskId: 'task-x', timestamp: now - 4000, hasChanges: true, summary: 'X-3' });
+    await setHeartbeatFeedback('task-x', now - 4000, 'dismissed');
+
+    const summary = await getHeartbeatFeedbackSummary();
+    expect(summary.overallAcceptRate).toBeCloseTo(0.75, 2);
+    expect(summary.taskStats[0].acceptRate).toBeCloseTo(0.75, 2);
+  });
+
+  it('フィードバックなしの結果は totalResults に含まれるが totalWithFeedback に含まれない', async () => {
+    const now = Date.now();
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 1000, hasChanges: true, summary: 'フィードバックなし' });
+    await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 2000, hasChanges: true, summary: 'あり' });
+    await setHeartbeatFeedback('task-a', now - 2000, 'accepted');
+
+    const summary = await getHeartbeatFeedbackSummary();
+    expect(summary.totalResults).toBe(2);
+    expect(summary.totalWithFeedback).toBe(1);
+  });
+
+  it('結果なしで正常な空サマリーを返す', async () => {
+    const summary = await getHeartbeatFeedbackSummary();
+    expect(summary.totalResults).toBe(0);
+    expect(summary.totalWithFeedback).toBe(0);
+    expect(summary.overallAcceptRate).toBe(0);
+    expect(summary.taskStats).toEqual([]);
   });
 });

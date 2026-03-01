@@ -181,6 +181,56 @@ export async function listClassifiedItems(tier?: FeedItemDisplayTier): Promise<F
     .sort((a, b) => b.publishedAt - a.publishedAt);
 }
 
+// TODO: データ量増加時は tier インデックスの cursor で走査し全件ロードを回避する（チャット送信ごとに呼ばれるため性能に注意）
+/** キーワードスコアリングで関連フィード記事を検索する（tier 考慮） */
+export async function getRelevantFeedItems(query: string, limit: number = 5): Promise<FeedItem[]> {
+  if (!query.trim()) return [];
+
+  const db = await getDB();
+  const allItems: FeedItem[] = await db.getAll(ITEMS_STORE);
+  const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+  if (tokens.length === 0) return [];
+
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // 分類済み未読（skip 除外）を対象
+  const candidates = allItems.filter((i) => !i.isRead && i.tier && i.tier !== 'skip');
+
+  const scored = candidates.map((item) => {
+    let keywordScore = 0;
+    const lowerTitle = item.title.toLowerCase();
+    const lowerContent = item.content.toLowerCase();
+
+    for (const token of tokens) {
+      if (lowerTitle.includes(token)) keywordScore += 5;
+      if (lowerContent.includes(token)) keywordScore += 2;
+    }
+
+    // キーワードマッチがない場合はスコア0
+    if (keywordScore === 0) return { item, score: 0 };
+
+    let score = keywordScore;
+
+    // tier ボーナス
+    if (item.tier === 'must-read') score += 3;
+    else if (item.tier === 'recommended') score += 1;
+
+    // 新しさボーナス（7日以内: +2、30日以内: +1）
+    const ageDays = (now - item.publishedAt) / DAY_MS;
+    if (ageDays <= 7) score += 2;
+    else if (ageDays <= 30) score += 1;
+
+    return { item, score };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.item);
+}
+
 /** 記事の分類を更新。成功時 true、対象が存在しない場合 false を返す */
 export async function updateItemTier(id: string, tier: FeedItemTier): Promise<boolean> {
   const db = await getDB();
