@@ -103,6 +103,76 @@ export async function setHeartbeatFeedback(
   }
 }
 
+/** タスク別フィードバック統計 */
+export interface TaskFeedbackStats {
+  taskId: string;
+  accepted: number;
+  dismissed: number;
+  snoozed: number;
+  total: number;
+  acceptRate: number;
+}
+
+/** フィードバック集計サマリー */
+export interface FeedbackSummary {
+  periodMs: number;
+  totalResults: number;
+  totalWithFeedback: number;
+  overallAcceptRate: number;
+  taskStats: TaskFeedbackStats[];
+}
+
+/** 指定期間のフィードバックを集計する */
+export async function getHeartbeatFeedbackSummary(periodMs: number = 24 * 60 * 60 * 1000): Promise<FeedbackSummary> {
+  const state = await loadHeartbeatState();
+  const now = Date.now();
+  const cutoff = now - periodMs;
+
+  // 期間内の結果をフィルタ
+  const recentResults = state.recentResults.filter((r) => r.timestamp >= cutoff);
+
+  // タスク別集計
+  const taskMap = new Map<string, { accepted: number; dismissed: number; snoozed: number }>();
+  for (const r of recentResults) {
+    if (!taskMap.has(r.taskId)) {
+      taskMap.set(r.taskId, { accepted: 0, dismissed: 0, snoozed: 0 });
+    }
+    const stats = taskMap.get(r.taskId)!;
+    if (r.feedback) {
+      stats[r.feedback.type]++;
+    }
+  }
+
+  const taskStats: TaskFeedbackStats[] = [];
+  let totalWithFeedback = 0;
+  let totalAccepted = 0;
+
+  for (const [taskId, stats] of taskMap) {
+    const total = stats.accepted + stats.dismissed + stats.snoozed;
+    totalWithFeedback += total;
+    totalAccepted += stats.accepted;
+    taskStats.push({
+      taskId,
+      accepted: stats.accepted,
+      dismissed: stats.dismissed,
+      snoozed: stats.snoozed,
+      total,
+      acceptRate: total > 0 ? stats.accepted / total : 0,
+    });
+  }
+
+  // Accept 率の高い順にソート
+  taskStats.sort((a, b) => b.acceptRate - a.acceptRate);
+
+  return {
+    periodMs,
+    totalResults: recentResults.length,
+    totalWithFeedback,
+    overallAcceptRate: totalWithFeedback > 0 ? totalAccepted / totalWithFeedback : 0,
+    taskStats,
+  };
+}
+
 /** dismissed 非表示、snoozed は期限前のみ非表示 */
 export function filterVisibleResults(results: HeartbeatResult[], now = Date.now()): HeartbeatResult[] {
   return results.filter((r) => {

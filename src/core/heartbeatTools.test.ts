@@ -7,6 +7,7 @@ import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
 import { saveFeed, saveFeedItems } from '../store/feedStore';
+import { addHeartbeatResult, setHeartbeatFeedback } from '../store/heartbeatStore';
 
 beforeEach(() => {
   __resetStores();
@@ -14,7 +15,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(11);
+    expect(WORKER_TOOLS).toHaveLength(13);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -27,6 +28,8 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('listUnreadFeedItems');
     expect(names).toContain('saveFeedClassification');
     expect(names).toContain('listClassifiedFeedItems');
+    expect(names).toContain('searchMemoriesByQuery');
+    expect(names).toContain('getHeartbeatFeedbackSummary');
   });
 
   it('全ツールが function タイプである', () => {
@@ -362,6 +365,96 @@ describe('executeWorkerTool', () => {
       const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'must-read' });
       const parsed = JSON.parse(result);
       expect(parsed.items).toHaveLength(1);
+    });
+  });
+
+  describe('getHeartbeatFeedbackSummary', () => {
+    it('フィードバック統計を返す', async () => {
+      const now = Date.now();
+      await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 1000, hasChanges: true, summary: 'A' });
+      await setHeartbeatFeedback('task-a', now - 1000, 'accepted');
+      await addHeartbeatResult({ taskId: 'task-b', timestamp: now - 2000, hasChanges: true, summary: 'B' });
+      await setHeartbeatFeedback('task-b', now - 2000, 'dismissed');
+
+      const result = await executeWorkerTool('getHeartbeatFeedbackSummary', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.periodHours).toBe(24);
+      expect(parsed.totalResults).toBe(2);
+      expect(parsed.totalWithFeedback).toBe(2);
+      expect(parsed.overallAcceptRate).toBe(50); // 1/2 = 50%
+      expect(parsed.taskStats).toHaveLength(2);
+    });
+
+    it('periodHours がクランプされる（1-168）', async () => {
+      // 0 → 1 にクランプ
+      const r1 = await executeWorkerTool('getHeartbeatFeedbackSummary', { periodHours: 0 });
+      const p1 = JSON.parse(r1);
+      expect(p1.periodHours).toBe(1);
+
+      // 200 → 168 にクランプ
+      const r2 = await executeWorkerTool('getHeartbeatFeedbackSummary', { periodHours: 200 });
+      const p2 = JSON.parse(r2);
+      expect(p2.periodHours).toBe(168);
+    });
+
+    it('結果なしで正常に動作する', async () => {
+      const result = await executeWorkerTool('getHeartbeatFeedbackSummary', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalResults).toBe(0);
+      expect(parsed.taskStats).toEqual([]);
+    });
+  });
+
+  describe('searchMemoriesByQuery', () => {
+    it('キーワードで関連記憶を返す', async () => {
+      await saveMemory('A社の予算上限は年間500万', 'context');
+      await saveMemory('B社のプロジェクト進行中', 'context');
+
+      const result = await executeWorkerTool('searchMemoriesByQuery', { query: 'A社' });
+      const parsed = JSON.parse(result);
+      expect(parsed.count).toBeGreaterThan(0);
+      expect(parsed.query).toBe('A社');
+      expect(parsed.memories[0].content).toContain('A社');
+    });
+
+    it('空クエリでエラーを返す', async () => {
+      const result = await executeWorkerTool('searchMemoriesByQuery', { query: '' });
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBe('query は必須です');
+    });
+
+    it('query 未指定でエラーを返す', async () => {
+      const result = await executeWorkerTool('searchMemoriesByQuery', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBe('query は必須です');
+    });
+
+    it('limit がクランプされる（1-20）', async () => {
+      for (let i = 0; i < 5; i++) {
+        await saveMemory(`テスト記憶 ${i}`, 'fact');
+      }
+
+      // limit=2 で 2 件のみ
+      const r1 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 2 });
+      const p1 = JSON.parse(r1);
+      expect(p1.count).toBeLessThanOrEqual(2);
+
+      // limit=0 → 1 にクランプ
+      const r2 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 0 });
+      const p2 = JSON.parse(r2);
+      expect(p2.count).toBeLessThanOrEqual(1);
+
+      // limit=100 → 20 にクランプ
+      const r3 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 100 });
+      const p3 = JSON.parse(r3);
+      expect(p3.count).toBeLessThanOrEqual(20);
+    });
+
+    it('記憶なしでも正常に動作する', async () => {
+      const result = await executeWorkerTool('searchMemoriesByQuery', { query: '存在しないキーワード' });
+      const parsed = JSON.parse(result);
+      expect(parsed.count).toBe(0);
+      expect(parsed.memories).toEqual([]);
     });
   });
 

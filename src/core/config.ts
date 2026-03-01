@@ -7,7 +7,9 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
   {
     id: 'calendar-check',
     name: 'カレンダーチェック',
-    description: '1時間以内に予定があれば通知します。',
+    description: '1時間以内に予定があれば関連情報を付加して通知します。'
+      + '手順: 1) listCalendarEvents で今日の予定を取得 → 2) 1時間以内の予定を特定 → 3) searchMemoriesByQuery でイベントタイトルや関係者名をキーワードに記憶を検索 → 4) 関連情報（前回の議事メモ、予算情報、コンテキスト等）を付加した通知を生成。'
+      + '関連メモリが見つかった場合は、予定の概要に加えて関連情報も summary に含めてください。',
     enabled: true,
     type: 'builtin',
   },
@@ -39,7 +41,9 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
   {
     id: 'reflection',
     name: 'ふりかえり',
-    description: '1日の記憶を振り返り、パターンや洞察を抽出して長期記憶に保存します。',
+    description: '1日の記憶を振り返り、パターンや洞察を抽出して長期記憶に保存します。'
+      + '手順: 1) getRecentMemoriesForReflection で直近24時間の記憶とアクセス上位を取得 → 2) getHeartbeatFeedbackSummary で直近24時間のフィードバック統計を取得 → 3) 記憶のパターンを分析（行動連鎖、情報の成熟度、トピック集約） → 4) フィードバック分析（Accept率の高い/低いタスクの特徴、改善点の抽出） → 5) saveReflection で洞察を保存（タグ例: feedback-analysis, filter-tuning, user-pattern, daily-summary） → 6) cleanupMemories で低スコア記憶をアーカイブ。'
+      + 'フィードバック分析では、Accept率が低いタスクの原因（タイミング、内容の関連性、情報量）を考察し、改善提案を洞察として保存してください。',
     enabled: false,
     type: 'builtin',
     schedule: { type: 'fixed-time', hour: 23, minute: 0 },

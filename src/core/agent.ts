@@ -15,17 +15,27 @@ import {
   hbListFeedsTool,
 } from '../tools/heartbeatFeedTools';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
+import { getRelevantClips } from '../store/clipStore';
+import { getRelevantFeedItems } from '../store/feedStore';
 import { getConfig, getDefaultPersonaConfig } from './config';
 import { buildMainInstructions, buildHeartbeatInstructions } from './instructionBuilder';
 
-export async function createAgent(mcpServers?: MCPServer[]): Promise<Agent> {
+export async function createAgent(mcpServers?: MCPServer[], userMessage?: string): Promise<Agent> {
   const config = getConfig();
   const persona = config.persona ?? getDefaultPersonaConfig();
-  const memories = await getRelevantMemories('', 10);
+  const query = userMessage ?? '';
+  const memories = await getRelevantMemories(query, 10);
+
+  // ユーザーメッセージがある場合、関連クリップ/フィード記事も検索
+  const clips = query ? await getRelevantClips(query, 5) : undefined;
+  const feedItems = query ? await getRelevantFeedItems(query, 5) : undefined;
+
   const instructions = buildMainInstructions({
     persona,
     memories,
     currentDateTime: new Date().toLocaleString('ja-JP'),
+    clips: clips && clips.length > 0 ? clips : undefined,
+    feedItems: feedItems && feedItems.length > 0 ? feedItems : undefined,
   });
 
   return new Agent({

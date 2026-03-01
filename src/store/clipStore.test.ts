@@ -14,6 +14,7 @@ import {
   searchClips,
   listClips,
   deleteClip,
+  getRelevantClips,
 } from './clipStore';
 
 beforeEach(() => {
@@ -183,6 +184,48 @@ describe('listClips', () => {
     }
     const limited = await listClips(undefined, 3);
     expect(limited).toHaveLength(3);
+  });
+});
+
+describe('getRelevantClips', () => {
+  it('タイトルに高スコア、コンテンツに中スコア、タグに中高スコアを付与する', async () => {
+    await saveClip({ url: 'https://a.com', title: 'React入門ガイド', content: '基本的な使い方', tags: ['frontend'] });
+    await saveClip({ url: 'https://b.com', title: 'Vue.js入門', content: 'React との比較', tags: ['frontend'] });
+    await saveClip({ url: 'https://c.com', title: 'バックエンド設計', content: 'Node.js', tags: ['react'] });
+
+    const results = await getRelevantClips('React');
+    expect(results.length).toBeGreaterThan(0);
+    // タイトルに React を含むものが最上位
+    expect(results[0].title).toBe('React入門ガイド');
+  });
+
+  it('limit で件数制限できる', async () => {
+    for (let i = 0; i < 10; i++) {
+      await saveClip({ url: `https://${i}.com`, title: `React 記事${i}`, content: `React の解説${i}` });
+    }
+    const results = await getRelevantClips('React', 3);
+    expect(results).toHaveLength(3);
+  });
+
+  it('空クエリで空配列を返す', async () => {
+    await saveClip({ url: 'https://a.com', title: 'テスト', content: '内容' });
+    expect(await getRelevantClips('')).toEqual([]);
+    expect(await getRelevantClips('  ')).toEqual([]);
+  });
+
+  it('マッチしないクエリで空配列を返す', async () => {
+    await saveClip({ url: 'https://a.com', title: 'React入門', content: 'JSX', tags: ['frontend'] });
+    const results = await getRelevantClips('Python');
+    expect(results).toEqual([]);
+  });
+
+  it('スコア0のクリップは除外される', async () => {
+    await saveClip({ url: 'https://a.com', title: 'React入門', content: 'JSX', tags: ['frontend'] });
+    await saveClip({ url: 'https://b.com', title: 'Go言語', content: 'goroutine', tags: ['backend'] });
+
+    const results = await getRelevantClips('React');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('React入門');
   });
 });
 
