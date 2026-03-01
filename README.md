@@ -11,6 +11,8 @@
 - **AI**: OpenAI Agents SDK (`gpt-5-mini` / `gpt-5-nano`)
 - **プロトコル**: Model Context Protocol (MCP)
 - **永続化**: IndexedDB (`idb`) + localStorage
+- **XML パース**: fast-xml-parser（Worker 環境対応）
+- **Worker DOM**: linkedom（DOMParser / DOMPurify の Worker 環境対応）
 - **テスト**: Vitest + jsdom
 - **PWA**: vite-plugin-pwa (Workbox)
 
