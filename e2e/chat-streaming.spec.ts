@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createSSEResponse, mockOpenAIResponses } from './fixtures/api-mocks';
-import { injectConfig, waitForAppReady, ensureConversation, sendChatMessage, waitForStreamingComplete } from './fixtures/test-helpers';
+import { injectConfig, waitForAppReady, ensureConversation, sendChatMessage } from './fixtures/test-helpers';
 
 test.describe('チャットストリーミング', () => {
   test.beforeEach(async ({ page }) => {

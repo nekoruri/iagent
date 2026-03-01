@@ -132,7 +132,7 @@ export async function injectHeartbeatResults(
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains('heartbeat')) {
-          db.createObjectStore('heartbeat');
+          db.createObjectStore('heartbeat', { keyPath: 'key' });
         }
       };
       request.onsuccess = () => {
@@ -144,14 +144,14 @@ export async function injectHeartbeatResults(
           const req2 = indexedDB.open('iagent-db', version);
           req2.onupgradeneeded = () => {
             if (!req2.result.objectStoreNames.contains('heartbeat')) {
-              req2.result.createObjectStore('heartbeat');
+              req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
             }
           };
           req2.onsuccess = () => {
             const db2 = req2.result;
             const tx = db2.transaction('heartbeat', 'readwrite');
             const store = tx.objectStore('heartbeat');
-            store.put({ key: 'state', lastChecked: Date.now(), recentResults: data }, 'state');
+            store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
             tx.oncomplete = () => { db2.close(); resolve(); };
             tx.onerror = () => { db2.close(); reject(tx.error); };
           };
@@ -160,7 +160,7 @@ export async function injectHeartbeatResults(
         }
         const tx = db.transaction('heartbeat', 'readwrite');
         const store = tx.objectStore('heartbeat');
-        store.put({ key: 'state', lastChecked: Date.now(), recentResults: data }, 'state');
+        store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
         tx.oncomplete = () => { db.close(); resolve(); };
         tx.onerror = () => { db.close(); reject(tx.error); };
       };
