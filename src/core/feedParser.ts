@@ -63,6 +63,42 @@ function str(val: unknown): string {
   return '';
 }
 
+/**
+ * ネスト構造を含む値からテキストを再帰的に抽出する。
+ * Atom XHTML content（type="xhtml"）など、要素がオブジェクトツリーとして
+ * パースされるケースに対応する。
+ */
+function deepText(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return val.map(deepText).filter(Boolean).join(' ').trim();
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    if ('#text' in obj) return String(obj['#text']).trim();
+    return Object.entries(obj)
+      .filter(([k]) => !k.startsWith('@_'))
+      .map(([, v]) => deepText(v))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+  return '';
+}
+
+/**
+ * namespace prefix を無視して :encoded キーを探す。
+ * RSS フィードは content:encoded が一般的だが、prefix は任意（例: c:encoded）。
+ */
+function findEncoded(item: Record<string, unknown>): string {
+  for (const key of Object.keys(item)) {
+    if (key.endsWith(':encoded')) {
+      return deepText(item[key]);
+    }
+  }
+  return '';
+}
+
 /** 値を配列に正規化（単一要素の場合にオブジェクトで返ることがある） */
 function toArray<T>(val: T | T[] | undefined): T[] {
   if (val == null) return [];
@@ -95,9 +131,9 @@ function parseRSS(data: Record<string, unknown>): ParsedFeed {
   const rawItems = toArray(channel.item as Record<string, unknown> | Record<string, unknown>[]);
 
   for (const item of rawItems) {
-    // content:encoded を優先、なければ description
-    const contentEncoded = str(item['content:encoded']);
-    const description = str(item.description);
+    // content:encoded を優先、なければ description（prefix 違いにも対応）
+    const contentEncoded = findEncoded(item);
+    const description = deepText(item.description);
     const rawContent = contentEncoded || description;
 
     items.push({
@@ -145,8 +181,8 @@ function parseAtom(data: Record<string, unknown>): ParsedFeed {
       }
     }
 
-    // content を優先、なければ summary
-    const rawContent = str(entry.content) || str(entry.summary);
+    // content を優先、なければ summary（XHTML ネスト構造にも対応）
+    const rawContent = deepText(entry.content) || deepText(entry.summary);
     const id = str(entry.id) || entryLink || crypto.randomUUID();
     const published = str(entry.published) || str(entry.updated);
 
