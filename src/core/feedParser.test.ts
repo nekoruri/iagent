@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('dompurify', () => ({
   default: {
     sanitize: (html: string) => html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ''),
+    isSupported: true,
   },
 }));
 
@@ -116,6 +117,51 @@ describe('parseFeed', () => {
 
     it('未対応の形式でエラーをスローする', () => {
       expect(() => parseFeed('<?xml version="1.0"?><html><body>test</body></html>')).toThrow('未対応のフィード形式');
+    });
+  });
+
+  describe('namespace prefix 対応', () => {
+    it('content:encoded 以外の prefix でも本文を取得できる', () => {
+      const rss = `<?xml version="1.0"?>
+<rss version="2.0" xmlns:c="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Feed</title>
+    <link>https://example.com</link>
+    <item>
+      <title>Item</title>
+      <link>https://example.com/1</link>
+      <description>概要</description>
+      <c:encoded><![CDATA[<p>本文</p>]]></c:encoded>
+    </item>
+  </channel>
+</rss>`;
+      const result = parseFeed(rss);
+      expect(result.items[0].content).toContain('<p>本文</p>');
+    });
+  });
+
+  describe('Atom XHTML content', () => {
+    it('type="xhtml" のネスト構造からテキストを抽出できる', () => {
+      const atom = `<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>XHTML Feed</title>
+  <link rel="alternate" href="https://example.com"/>
+  <entry>
+    <title>XHTML Entry</title>
+    <link rel="alternate" href="https://example.com/1"/>
+    <id>xhtml-1</id>
+    <content type="xhtml">
+      <div xmlns="http://www.w3.org/1999/xhtml">
+        <p>段落1</p>
+        <p>段落2</p>
+      </div>
+    </content>
+    <published>2024-01-01T00:00:00Z</published>
+  </entry>
+</feed>`;
+      const result = parseFeed(atom);
+      expect(result.items[0].content).toContain('段落1');
+      expect(result.items[0].content).toContain('段落2');
     });
   });
 

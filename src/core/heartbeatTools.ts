@@ -5,6 +5,7 @@ import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
 import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories } from '../store/memoryStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
+import { DOMParser as LinkedomDOMParser } from 'linkedom';
 
 const MAX_ITEMS_PER_FEED = 100;
 
@@ -295,7 +296,8 @@ export async function executeWorkerTool(
           const response = await fetchViaProxy(monitor.url, proxyConfig ?? undefined);
           const html = await response.text();
 
-          const parser = new DOMParser();
+          // linkedom で HTML パース（Worker 環境でも CSS セレクタ対応）
+          const parser = new LinkedomDOMParser();
           const doc = parser.parseFromString(html, 'text/html');
 
           let text: string;
