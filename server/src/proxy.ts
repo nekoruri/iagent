@@ -110,18 +110,23 @@ export function validateProxyUrl(url: string): { valid: true; parsed: URL } | { 
 
 // --- レート制限 ---
 
-/** KV ベースのレート制限チェック */
+/** KV ベースのレート制限チェック（KV 障害時は許可して続行） */
 async function checkRateLimit(ip: string, kv: KVNamespace): Promise<boolean> {
-  const key = `rate:${ip}`;
-  const raw = await kv.get(key);
-  const count = raw ? parseInt(raw, 10) : 0;
+  try {
+    const key = `rate:${ip}`;
+    const raw = await kv.get(key);
+    const count = raw ? parseInt(raw, 10) : 0;
 
-  if (count >= RATE_LIMIT_MAX_REQUESTS) {
-    return false; // レート超過
+    if (count >= RATE_LIMIT_MAX_REQUESTS) {
+      return false; // レート超過
+    }
+
+    await kv.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW_SEC });
+    return true;
+  } catch (err) {
+    console.warn('[RateLimit] KV エラー（スキップして続行）:', err instanceof Error ? err.message : String(err));
+    return true;
   }
-
-  await kv.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW_SEC });
-  return true;
 }
 
 // --- トークン認証 ---
@@ -236,7 +241,12 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   // トークン生成
   const token = crypto.randomUUID();
-  await env.RATE_LIMIT.put(`token:${token}`, '1', { expirationTtl: TOKEN_TTL_SEC });
+  try {
+    await env.RATE_LIMIT.put(`token:${token}`, '1', { expirationTtl: TOKEN_TTL_SEC });
+  } catch (err) {
+    console.error(`[Register] ip=${ip} KV 書き込みエラー:`, err instanceof Error ? err.message : String(err));
+    return proxyError(503, 'トークン保存に失敗しました（KV 書き込み上限の可能性）');
+  }
 
   console.log(`[Register] ip=${ip} status=200`);
   return new Response(JSON.stringify({ token }), {

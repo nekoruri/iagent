@@ -351,11 +351,23 @@ async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Pr
 // --- ルーティング ---
 
 async function handleRequest(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-
   if (request.method === 'OPTIONS') {
     return corsResponse();
   }
+
+  try {
+    const response = await routeRequest(request, env);
+    return addCorsHeaders(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[Worker] 未捕捉エラー:', message, stack ?? '');
+    return jsonResponse({ error: 'Internal server error' }, 500);
+  }
+}
+
+async function routeRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
 
   switch (url.pathname) {
     case '/vapid-public-key':
@@ -386,13 +398,13 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       if (request.method !== 'POST') {
         return jsonResponse({ error: 'Method not allowed' }, 405);
       }
-      return handleRegister(request, env).then(addCorsHeaders);
+      return handleRegister(request, env);
 
     case '/proxy':
       if (request.method !== 'POST') {
         return jsonResponse({ error: 'Method not allowed' }, 405);
       }
-      return handleProxy(request, env).then(addCorsHeaders);
+      return handleProxy(request, env);
 
     default:
       return jsonResponse({ error: 'Not found' }, 404);
