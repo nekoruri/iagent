@@ -81,7 +81,7 @@ export default function App() {
     }
     heartbeatPanel.refresh();
     if (notification.results.some((r) => r.taskId === 'feed-check')) {
-      feedPanel.refresh();
+      feedPanel.refresh(feedPanel.selectedTier);
     }
   }, [setMessages, activeConversationId, heartbeatPanel, feedPanel]);
 

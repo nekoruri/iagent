@@ -122,4 +122,23 @@ describe('useFeedPanel', () => {
 
     expect(result.current.unreadCount).toBe(2);
   });
+
+  it('tier フィルタ中でも unreadCount は全未読数を返す', async () => {
+    await seedFeedWithItems();
+
+    const { result } = renderHook(() => useFeedPanel());
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.unreadCount).toBe(2);
+
+    // must-read のみにフィルタ
+    await act(async () => {
+      result.current.changeTier('must-read');
+    });
+    // items は 1 件だが unreadCount は全 tier の 2 件
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.unreadCount).toBe(2);
+  });
 });
