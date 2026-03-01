@@ -149,6 +149,8 @@ export async function getHeartbeatFeedbackSummary(periodMs: number = 24 * 60 * 6
 
   for (const [taskId, stats] of taskMap) {
     const total = stats.accepted + stats.dismissed + stats.snoozed;
+    // フィードバックなしのタスクは除外（0% と誤解されるのを防止）
+    if (total === 0) continue;
     totalWithFeedback += total;
     totalAccepted += stats.accepted;
     taskStats.push({

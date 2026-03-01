@@ -181,6 +181,7 @@ export async function listClassifiedItems(tier?: FeedItemDisplayTier): Promise<F
     .sort((a, b) => b.publishedAt - a.publishedAt);
 }
 
+// TODO: データ量増加時は tier インデックスの cursor で走査し全件ロードを回避する（チャット送信ごとに呼ばれるため性能に注意）
 /** キーワードスコアリングで関連フィード記事を検索する（tier 考慮） */
 export async function getRelevantFeedItems(query: string, limit: number = 5): Promise<FeedItem[]> {
   if (!query.trim()) return [];

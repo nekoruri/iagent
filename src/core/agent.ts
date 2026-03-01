@@ -24,11 +24,20 @@ export async function createAgent(mcpServers?: MCPServer[], userMessage?: string
   const config = getConfig();
   const persona = config.persona ?? getDefaultPersonaConfig();
   const query = userMessage ?? '';
-  const memories = await getRelevantMemories(query, 10);
 
-  // ユーザーメッセージがある場合、関連クリップ/フィード記事も検索
-  const clips = query ? await getRelevantClips(query, 5) : undefined;
-  const feedItems = query ? await getRelevantFeedItems(query, 5) : undefined;
+  // ユーザーメッセージがある場合、memory/clip/feed を並列検索
+  let memories;
+  let clips;
+  let feedItems;
+  if (query) {
+    [memories, clips, feedItems] = await Promise.all([
+      getRelevantMemories(query, 10),
+      getRelevantClips(query, 5),
+      getRelevantFeedItems(query, 5),
+    ]);
+  } else {
+    memories = await getRelevantMemories(query, 10);
+  }
 
   const instructions = buildMainInstructions({
     persona,
