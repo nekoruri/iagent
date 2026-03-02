@@ -31,6 +31,26 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     expect(weather!.type).toBe('builtin');
   });
 
+  it('info-cleanup-check が無効で定義され、fixed-time 20:00 スケジュールを持つ', () => {
+    const task = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'info-cleanup-check');
+    expect(task).toBeDefined();
+    expect(task!.enabled).toBe(false);
+    expect(task!.type).toBe('builtin');
+    expect(task!.schedule).toEqual({ type: 'fixed-time', hour: 20, minute: 0 });
+    expect(task!.description).toContain('getInfoThresholdStatus');
+  });
+
+  it('weekly-summary が無効で定義され、fixed-time 21:00 スケジュールを持つ', () => {
+    const task = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'weekly-summary');
+    expect(task).toBeDefined();
+    expect(task!.enabled).toBe(false);
+    expect(task!.type).toBe('builtin');
+    expect(task!.schedule).toEqual({ type: 'fixed-time', hour: 21, minute: 0 });
+    expect(task!.description).toContain('getWeeklyReflections');
+    expect(task!.description).toContain('getHeartbeatFeedbackSummary');
+    expect(task!.description).toContain('saveReflection');
+  });
+
   it('briefing-morning が無効で定義され、fixed-time 07:00 スケジュールを持つ', () => {
     const briefing = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'briefing-morning');
     expect(briefing).toBeDefined();

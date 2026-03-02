@@ -49,6 +49,24 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     schedule: { type: 'fixed-time', hour: 23, minute: 0 },
   },
   {
+    id: 'info-cleanup-check',
+    name: '情報整理チェック',
+    description: '未分類フィード・未読記事・クリップの件数が閾値を超えていないかチェックし、超過していれば整理を提案します。'
+      + '手順: 1) getInfoThresholdStatus で各カウントと閾値を取得 → 2) exceeded が false なら hasChanges: false で終了 → 3) exceeded が true の場合、超過項目ごとに具体的な整理アクションを提案（例: 未分類フィードが多い→分類を実行、クリップが多い→古いクリップの整理を提案）。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 20, minute: 0 },
+  },
+  {
+    id: 'weekly-summary',
+    name: '週次サマリー',
+    description: '月曜日に1週間のふりかえりを集約し、週次レビューを生成します。'
+      + '手順: 1) getCurrentTime で現在の曜日を確認 → 月曜日でなければ hasChanges: false で終了 → 2) getWeeklyReflections(periodDays=7) で今週のふりかえりを取得 → 3) getHeartbeatFeedbackSummary(periodHours=168) で7日分のフィードバック統計を取得 → 4) 分析: 共通テーマ抽出、Accept率の変化傾向、改善・悪化したタスク、来週の改善ポイントを整理 → 5) saveReflection で週次レビューを保存（tags: weekly-review、importance: 4） → 6) ふりかえりもフィードバックも0件の場合のみ hasChanges: false。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 21, minute: 0 },
+  },
+  {
     id: 'briefing-morning',
     name: '朝のブリーフィング',
     description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'

@@ -3,7 +3,8 @@ import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, 
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
-import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories } from '../store/memoryStore';
+import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories, listMemories } from '../store/memoryStore';
+import { listClips } from '../store/clipStore';
 import { getHeartbeatFeedbackSummary } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
@@ -32,7 +33,7 @@ export const WORKER_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'getCurrentTime',
-      description: '現在の日時を日本語形式で返します。',
+      description: '現在の日時を日本語形式で返します。曜日情報（dayOfWeek: 0=日〜6=土、dayOfWeekName: 日本語曜日名）も含みます。',
       parameters: {
         type: 'object',
         properties: {},
@@ -190,6 +191,30 @@ export const WORKER_TOOLS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getInfoThresholdStatus',
+      description: '未分類フィード・未読分類済み記事・クリップの件数と閾値を返します。閾値超過時に整理を提案するために使います。',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getWeeklyReflections',
+      description: '指定期間内の reflection カテゴリの記憶を取得します。週次サマリー生成に使います。',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodDays: { type: 'number', description: '取得期間（日数、デフォルト 7、1〜30）' },
+        },
+      },
+    },
+  },
 ];
 
 /** Worker 内でツールを実行する */
@@ -221,8 +246,16 @@ export async function executeWorkerTool(
       });
     }
     case 'getCurrentTime': {
+      const now = new Date();
+      const dayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+      // Intl.DateTimeFormat で環境非依存に Asia/Tokyo の曜日を取得
+      const weekdayPart = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', weekday: 'short' }).format(now);
+      const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const dayOfWeek = weekdayMap[weekdayPart] ?? now.getDay();
       return JSON.stringify({
-        currentTime: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+        currentTime: now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+        dayOfWeek,
+        dayOfWeekName: dayNames[dayOfWeek],
       });
     }
     case 'listFeeds': {
@@ -520,6 +553,56 @@ export async function executeWorkerTool(
         })),
         count: memories.length,
         query,
+      });
+    }
+    case 'getInfoThresholdStatus': {
+      const thresholds = { unclassifiedFeed: 50, unreadClassified: 30, clips: 100 };
+      // feed-items は 1 回のフルスキャンで両方のカウントを算出（二重走査回避）
+      const db3 = await getDB();
+      const [allFeedItems, clips] = await Promise.all([
+        db3.getAll('feed-items') as Promise<FeedItem[]>,
+        listClips(),
+      ]);
+      let unclassifiedFeedCount = 0;
+      let unreadClassifiedCount = 0;
+      for (const item of allFeedItems) {
+        if (!item.isRead && !item.tier) unclassifiedFeedCount++;
+        else if (!item.isRead && item.tier && item.tier !== 'skip') unreadClassifiedCount++;
+      }
+      const totalClipCount = clips.length;
+      const details = {
+        unclassifiedFeedExceeded: unclassifiedFeedCount > thresholds.unclassifiedFeed,
+        unreadClassifiedExceeded: unreadClassifiedCount > thresholds.unreadClassified,
+        clipsExceeded: totalClipCount > thresholds.clips,
+      };
+      return JSON.stringify({
+        unclassifiedFeedCount,
+        unreadClassifiedCount,
+        totalClipCount,
+        thresholds,
+        exceeded: details.unclassifiedFeedExceeded || details.unreadClassifiedExceeded || details.clipsExceeded,
+        details,
+      });
+    }
+    case 'getWeeklyReflections': {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 7));
+      const cutoff = Date.now() - periodDays * DAY_MS;
+      const allReflections = await listMemories('reflection');
+      const filtered = allReflections
+        .filter((m) => m.createdAt >= cutoff)
+        .map((m) => ({
+          id: m.id,
+          content: m.content,
+          importance: m.importance,
+          tags: m.tags,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt,
+        }));
+      return JSON.stringify({
+        reflections: filtered,
+        count: filtered.length,
+        periodDays,
       });
     }
     default:
