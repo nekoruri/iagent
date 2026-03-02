@@ -33,7 +33,7 @@ export const WORKER_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'getCurrentTime',
-      description: '現在の日時を日本語形式で返します。',
+      description: '現在の日時を日本語形式で返します。曜日情報（dayOfWeek: 0=日〜6=土、dayOfWeekName: 日本語曜日名）も含みます。',
       parameters: {
         type: 'object',
         properties: {},
@@ -248,12 +248,14 @@ export async function executeWorkerTool(
     case 'getCurrentTime': {
       const now = new Date();
       const dayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
-      // Asia/Tokyo の曜日を正確に取得
-      const tokyoDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+      // Intl.DateTimeFormat で環境非依存に Asia/Tokyo の曜日を取得
+      const weekdayPart = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', weekday: 'short' }).format(now);
+      const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const dayOfWeek = weekdayMap[weekdayPart] ?? now.getDay();
       return JSON.stringify({
         currentTime: now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
-        dayOfWeek: tokyoDate.getDay(),
-        dayOfWeekName: dayNames[tokyoDate.getDay()],
+        dayOfWeek,
+        dayOfWeekName: dayNames[dayOfWeek],
       });
     }
     case 'listFeeds': {
