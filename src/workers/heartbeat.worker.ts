@@ -26,6 +26,12 @@ async function tick(): Promise<void> {
   const fresh = await loadFreshConfig(config.openaiApiKey, config.heartbeat);
   config = { openaiApiKey: fresh.apiKey, heartbeat: fresh.heartbeat };
 
+  // focusMode は最新設定で判定（別タブでの変更を反映）
+  if (config.heartbeat.focusMode) {
+    console.debug('[Heartbeat Worker] フォーカスモード中 — スキップ');
+    return;
+  }
+
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(config.heartbeat);
   if (tasks.length === 0) return;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { HeartbeatEngine, type HeartbeatNotification } from '../core/heartbeat';
 import { HeartbeatWorkerBridge } from '../core/heartbeatWorkerBridge';
-import { getConfig } from '../core/config';
+import { getConfig, saveConfig } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
 import { sendHeartbeatNotifications } from '../core/notifier';
 import { getPushSubscription, registerPeriodicSync } from '../core/pushSubscription';
@@ -149,5 +149,18 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
     }
   }, []);
 
-  return { syncHeartbeatConfig: syncConfig };
+  const toggleFocusMode = useCallback(() => {
+    const current = getConfig();
+    const updated = {
+      ...current,
+      heartbeat: {
+        ...current.heartbeat!,
+        focusMode: !current.heartbeat!.focusMode,
+      },
+    };
+    saveConfig(updated);
+    syncConfig();
+  }, [syncConfig]);
+
+  return { syncHeartbeatConfig: syncConfig, toggleFocusMode };
 }

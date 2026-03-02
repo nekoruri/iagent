@@ -15,6 +15,7 @@ function makeConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
     quietHoursEnd: 6,
     tasks: [],
     desktopNotification: false,
+    focusMode: false,
     ...overrides,
   };
 }
@@ -669,6 +670,118 @@ describe('HeartbeatEngine - tick', () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(mockRunFn).not.toHaveBeenCalled();
+    engine.stop();
+  });
+
+  it('focusMode=true でスキップする', async () => {
+    const mockRunFn = vi.fn();
+    const consoleLogSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.resetModules();
+    vi.doMock('../store/db', async () => await import('../store/__mocks__/db'));
+    vi.doMock('./config', () => ({
+      getConfig: vi.fn().mockReturnValue({
+        openaiApiKey: 'sk-test',
+        heartbeat: {
+          enabled: true,
+          intervalMinutes: 1,
+          quietHoursStart: 0, quietHoursEnd: 0,
+          tasks: [{ id: 't', name: 't', description: 't', enabled: true, type: 'custom' as const }],
+          desktopNotification: false,
+          focusMode: true,
+        },
+      }),
+    }));
+    vi.doMock('@openai/agents', () => ({ run: mockRunFn, user: (msg: string) => ({ role: 'user', content: msg }) }));
+    vi.doMock('@openai/agents-openai', () => ({ setDefaultOpenAIClient: vi.fn() }));
+    vi.doMock('openai', () => ({ default: vi.fn().mockImplementation(() => ({})) }));
+    vi.doMock('./agent', () => ({ createHeartbeatAgent: vi.fn().mockResolvedValue({}) }));
+    vi.doMock('../telemetry/tracer', () => ({
+      tracer: {
+        startTrace: vi.fn().mockReturnValue({
+          rootSpan: { setAttribute: vi.fn(), addEvent: vi.fn(), endWithError: vi.fn() },
+          finish: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+    }));
+    vi.doMock('../telemetry/semantics', () => ({
+      LLM_ATTRS: { SYSTEM: 'a', MODEL: 'b' },
+      HEARTBEAT_ATTRS: { TASK_COUNT: 'c', TASK_ID: 'd', HAS_CHANGES: 'e' },
+    }));
+    vi.doMock('../store/heartbeatStore', () => ({
+      loadHeartbeatState: vi.fn().mockResolvedValue({ lastChecked: 0, recentResults: [] }),
+      addHeartbeatResult: vi.fn().mockResolvedValue(undefined),
+      updateLastChecked: vi.fn().mockResolvedValue(undefined),
+      updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+    }));
+
+    const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
+    const engine = new FreshEngine(() => []);
+    engine.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockRunFn).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('[Heartbeat] フォーカスモード中 — スキップ');
+    // console.debug に変更済み（ノイズ軽減）
+    engine.stop();
+    consoleLogSpy.mockRestore();
+  });
+
+  it('focusMode=false で通常通り実行される', async () => {
+    const mockRunFn = vi.fn().mockResolvedValue({
+      finalOutput: JSON.stringify({
+        results: [{ taskId: 't', hasChanges: false, summary: '' }],
+      }),
+    });
+    vi.resetModules();
+    vi.doMock('../store/db', async () => await import('../store/__mocks__/db'));
+    vi.doMock('./config', () => ({
+      getConfig: vi.fn().mockReturnValue({
+        openaiApiKey: 'sk-test',
+        heartbeat: {
+          enabled: true,
+          intervalMinutes: 1,
+          quietHoursStart: 0, quietHoursEnd: 0,
+          tasks: [{ id: 't', name: 't', description: 't', enabled: true, type: 'custom' as const }],
+          desktopNotification: false,
+          focusMode: false,
+        },
+      }),
+    }));
+    vi.doMock('@openai/agents', () => ({ run: mockRunFn, user: (msg: string) => ({ role: 'user', content: msg }) }));
+    vi.doMock('@openai/agents-openai', () => ({ setDefaultOpenAIClient: vi.fn() }));
+    vi.doMock('openai', () => ({ default: vi.fn().mockImplementation(() => ({})) }));
+    vi.doMock('./agent', () => ({ createHeartbeatAgent: vi.fn().mockResolvedValue({}) }));
+    vi.doMock('../telemetry/tracer', () => ({
+      tracer: {
+        startTrace: vi.fn().mockReturnValue({
+          rootSpan: { setAttribute: vi.fn(), addEvent: vi.fn(), endWithError: vi.fn() },
+          finish: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+    }));
+    vi.doMock('../telemetry/semantics', () => ({
+      LLM_ATTRS: { SYSTEM: 'a', MODEL: 'b' },
+      HEARTBEAT_ATTRS: { TASK_COUNT: 'c', TASK_ID: 'd', HAS_CHANGES: 'e' },
+    }));
+    vi.doMock('../store/heartbeatStore', () => ({
+      loadHeartbeatState: vi.fn().mockResolvedValue({ lastChecked: 0, recentResults: [] }),
+      addHeartbeatResult: vi.fn().mockResolvedValue(undefined),
+      updateLastChecked: vi.fn().mockResolvedValue(undefined),
+      updateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      getTaskLastRun: vi.fn().mockResolvedValue(0),
+      getAllTaskLastRun: vi.fn().mockResolvedValue({}),
+      batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+    }));
+
+    const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
+    const engine = new FreshEngine(() => []);
+    engine.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockRunFn).toHaveBeenCalled();
     engine.stop();
   });
 

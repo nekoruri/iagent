@@ -117,6 +117,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
     quietHoursEnd: 6,
     tasks: BUILTIN_HEARTBEAT_TASKS.map((t) => ({ ...t })),
     desktopNotification: false,
+    focusMode: false,
   };
 }
 

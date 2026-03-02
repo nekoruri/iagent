@@ -84,6 +84,10 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const hbConfig = freshConfig?.heartbeat;
   if (!hbConfig || !hbConfig.enabled) return [];
   if (isQuietHours(hbConfig)) return [];
+  if (hbConfig.focusMode) {
+    console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
+    return [];
+  }
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
   if (!resolvedApiKey) return [];
