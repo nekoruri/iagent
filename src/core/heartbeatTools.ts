@@ -5,7 +5,7 @@ import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
 import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories, listMemories } from '../store/memoryStore';
 import { listClips } from '../store/clipStore';
-import { getHeartbeatFeedbackSummary, loadHeartbeatState } from '../store/heartbeatStore';
+import { getHeartbeatFeedbackSummary, loadHeartbeatState, type FeedbackSummary } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
 import { parseDeadline, daysUntilDeadline } from './deadlineParser';
@@ -318,6 +318,171 @@ export function computeUserActivityPatterns(
     topTags,
     bestHours,
     bestDays,
+  };
+}
+
+// --- 提案品質の自動最適化 (F16) ---
+
+export type TaskAdjustmentType = 'maintain' | 'improve' | 'reduce-frequency' | 'disable-candidate';
+
+export interface TaskOptimization {
+  taskId: string;
+  currentAcceptRate: number;       // 0.0-1.0
+  previousAcceptRate: number;
+  trend: 'improving' | 'declining' | 'stable';
+  adjustment: TaskAdjustmentType;
+  reason: string;
+}
+
+export interface TimingOptimization {
+  currentBestHours: number[];
+  currentBestDays: number[];
+  suggestedQuietHours: number[];   // Accept 率低い時間帯
+  suggestedQuietDays: number[];
+}
+
+export interface CategoryOptimization {
+  tag: string;
+  trend: 'rising' | 'falling' | 'stable';
+  weightAdjustment: number;        // -20 ~ +20
+  reason: string;
+}
+
+export interface SuggestionOptimization {
+  analyzedAt: number;
+  periodDays: number;
+  overallAcceptRate: number;
+  overallScore: number;            // 0-100
+  taskOptimizations: TaskOptimization[];
+  timingOptimization: TimingOptimization;
+  categoryOptimizations: CategoryOptimization[];
+  actionableSummary: string;
+}
+
+/**
+ * フィードバック統計 + 行動パターンから提案最適化ルールを算出する（純粋関数 — テスト用に公開）
+ */
+export function computeSuggestionOptimizations(
+  feedback: FeedbackSummary,
+  patterns: UserActivityPatterns,
+  now: Date,
+): SuggestionOptimization {
+  const analyzedAt = now.getTime();
+  const periodDays = Math.round(feedback.periodMs / DAY_MS) || 1;
+  const overallAcceptRate = feedback.overallAcceptRate;
+  const overallScore = Math.min(100, Math.round((overallAcceptRate / 0.7) * 100));
+
+  // --- タスク別最適化 ---
+  const taskOptimizations: TaskOptimization[] = feedback.taskStats.map((stat) => {
+    const rate = stat.acceptRate;
+    const total = stat.total;
+
+    // taskTrends からトレンドを取得
+    const taskTrend = patterns.taskTrends.find((t) => t.taskId === stat.taskId);
+    const trend: TaskOptimization['trend'] = taskTrend?.trend ?? 'stable';
+    const previousAcceptRate = taskTrend?.previousAcceptRate ?? rate;
+
+    let adjustment: TaskAdjustmentType;
+    let reason: string;
+
+    if (rate >= 0.7) {
+      adjustment = 'maintain';
+      reason = `Accept率 ${Math.round(rate * 100)}% — 良好`;
+    } else if (rate >= 0.4) {
+      if (trend === 'improving') {
+        adjustment = 'maintain';
+        reason = `Accept率 ${Math.round(rate * 100)}% だが改善傾向`;
+      } else {
+        adjustment = 'improve';
+        reason = `Accept率 ${Math.round(rate * 100)}% — 内容の改善が必要`;
+      }
+    } else if (rate >= 0.2) {
+      adjustment = 'reduce-frequency';
+      reason = `Accept率 ${Math.round(rate * 100)}% — 頻度を下げて質を重視`;
+    } else {
+      if (total >= 5) {
+        adjustment = 'disable-candidate';
+        reason = `Accept率 ${Math.round(rate * 100)}%（${total}件中）— 無効化を検討`;
+      } else {
+        adjustment = 'improve';
+        reason = `Accept率 ${Math.round(rate * 100)}% — サンプル不足（${total}件）、改善を試行`;
+      }
+    }
+
+    return {
+      taskId: stat.taskId,
+      currentAcceptRate: rate,
+      previousAcceptRate,
+      trend,
+      adjustment,
+      reason,
+    };
+  });
+
+  // --- タイミング最適化 ---
+  const suggestedQuietHours = patterns.hourlyActivity
+    .filter((h) => h.total >= 3 && h.acceptRate < 0.3)
+    .map((h) => h.hour);
+
+  const suggestedQuietDays = patterns.dailyActivity
+    .filter((d) => d.totalResults >= 3 && d.acceptRate < 0.3)
+    .map((d) => d.dayOfWeek);
+
+  const timingOptimization: TimingOptimization = {
+    currentBestHours: patterns.bestHours,
+    currentBestDays: patterns.bestDays,
+    suggestedQuietHours,
+    suggestedQuietDays,
+  };
+
+  // --- カテゴリ最適化 ---
+  const categoryOptimizations: CategoryOptimization[] = patterns.topTags.map((tagFreq) => {
+    const diff = tagFreq.recentCount - tagFreq.previousCount;
+    const weightAdjustment = Math.sign(diff) * Math.min(Math.abs(diff) * 5, 20);
+    let reason: string;
+    if (tagFreq.trend === 'rising') {
+      reason = `関心上昇（前期 ${tagFreq.previousCount} → 後期 ${tagFreq.recentCount}）`;
+    } else if (tagFreq.trend === 'falling') {
+      reason = `関心低下（前期 ${tagFreq.previousCount} → 後期 ${tagFreq.recentCount}）`;
+    } else {
+      reason = `安定（前期 ${tagFreq.previousCount} → 後期 ${tagFreq.recentCount}）`;
+    }
+    return {
+      tag: tagFreq.tag,
+      trend: tagFreq.trend,
+      weightAdjustment,
+      reason,
+    };
+  });
+
+  // --- サマリー生成 ---
+  const maintainCount = taskOptimizations.filter((t) => t.adjustment === 'maintain').length;
+  const improveCount = taskOptimizations.filter((t) => t.adjustment === 'improve').length;
+  const reduceCount = taskOptimizations.filter((t) => t.adjustment === 'reduce-frequency').length;
+  const disableCount = taskOptimizations.filter((t) => t.adjustment === 'disable-candidate').length;
+
+  const summaryParts: string[] = [
+    `総合スコア: ${overallScore}/100（Accept率 ${Math.round(overallAcceptRate * 100)}%）`,
+  ];
+  if (maintainCount > 0) summaryParts.push(`維持: ${maintainCount}タスク`);
+  if (improveCount > 0) summaryParts.push(`改善必要: ${improveCount}タスク`);
+  if (reduceCount > 0) summaryParts.push(`頻度削減: ${reduceCount}タスク`);
+  if (disableCount > 0) summaryParts.push(`無効化候補: ${disableCount}タスク`);
+  if (suggestedQuietHours.length > 0) summaryParts.push(`低受容時間帯: ${suggestedQuietHours.join(',')}時`);
+  if (suggestedQuietDays.length > 0) {
+    const dayLabels = suggestedQuietDays.map((d) => DAY_NAMES[d]);
+    summaryParts.push(`低受容曜日: ${dayLabels.join(',')}`);
+  }
+
+  return {
+    analyzedAt,
+    periodDays,
+    overallAcceptRate,
+    overallScore,
+    taskOptimizations,
+    timingOptimization,
+    categoryOptimizations,
+    actionableSummary: summaryParts.join('。'),
   };
 }
 
@@ -736,6 +901,20 @@ export const WORKER_TOOLS = [
       name: 'getUserActivityPatterns',
       description: 'Heartbeat 結果と記憶データからユーザーの行動パターンを分析します。'
         + '時間帯別の通知受容率、曜日別アクティビティ、タスク別トレンド、関心トピック変化を集計します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodDays: { type: 'number', description: '分析対象期間（日数、デフォルト 14、1〜30）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getSuggestionOptimizations',
+      description: 'フィードバック統計と行動パターンを分析し、提案品質の最適化ルールを算出します。'
+        + 'タスク別の調整方針（維持/改善/頻度削減/無効化候補）、タイミング最適化、カテゴリ重み調整を含みます。',
       parameters: {
         type: 'object',
         properties: {
@@ -1213,6 +1392,19 @@ export async function executeWorkerTool(
       const filteredMemories = allMemories.filter((m) => m.createdAt >= cutoff);
       const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
       return JSON.stringify({ ...patterns, periodDays });
+    }
+    case 'getSuggestionOptimizations': {
+      const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 14));
+      const periodMs = periodDays * DAY_MS;
+      const feedbackSummary = await getHeartbeatFeedbackSummary(periodMs);
+      const cutoff = Date.now() - periodMs;
+      const state = await loadHeartbeatState();
+      const filteredResults = state.recentResults.filter((r) => r.timestamp >= cutoff);
+      const allMemories = await listMemories();
+      const filteredMemories = allMemories.filter((m) => m.createdAt >= cutoff);
+      const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
+      const optimizations = computeSuggestionOptimizations(feedbackSummary, patterns, new Date());
+      return JSON.stringify({ ...optimizations, periodDays });
     }
     default:
       return JSON.stringify({ error: `不明なツール: ${name}` });

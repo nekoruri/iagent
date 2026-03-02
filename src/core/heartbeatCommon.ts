@@ -135,7 +135,7 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     const tagged = {
       ...r,
       source,
-      pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review',
+      pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
     };
     await addHeartbeatResult(tagged);
     await updateTaskLastRun(r.taskId, now);

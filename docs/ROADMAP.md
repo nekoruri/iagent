@@ -218,6 +218,7 @@
 - [x] 頻度制御エンジン F3 — 曜日別スキップ（quietDays）+ 日次通知上限（maxNotificationsPerDay）+ チャットサジェスト頻度（suggestionFrequency: high/medium/low）で通知疲れを防止
 - [x] 月次レビュータスク F15 — monthly-review ビルトインタスク（08:00 固定スケジュール、LLM 月初判定）+ getMonthlyGoalStats Worker ツール（goal メモリの活動状態・期日状態を集計: active/new/stale/overdue 分類 + deadline 残り日数）+ computeMonthlyGoalStats 純粋関数（テスト容易性確保）+ 結果ピン留め
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）+ getUserActivityPatterns Worker ツール（時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）+ computeUserActivityPatterns 純粋関数（テスト容易性確保）+ reflection 保存で briefing/他タスクが自動参照
+- [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）+ getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）+ computeSuggestionOptimizations 純粋関数（テスト容易性確保）+ instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示付きで挿入）+ 結果ピン留め
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -288,3 +289,4 @@
 - [x] 頻度制御エンジン F3 — 曜日別スキップ（quietDays: HeartbeatConfig）、日次通知上限（maxNotificationsPerDay: recentResults カウント）、チャットサジェスト頻度（suggestionFrequency: AppConfig、high/medium/low で memory/clip/feed 検索範囲制御）、設定 UI（曜日チェックボックス + 上限スライダー + 頻度セレクト）。（2026-03-02）
 - [x] 月次レビュータスク F15 — monthly-review ビルトインタスク（08:00 固定スケジュール、LLM 月初判定）、getMonthlyGoalStats Worker ツール（goal メモリの活動状態・期日状態を集計: active/new/stale/overdue 分類 + deadline 残り日数）、computeMonthlyGoalStats 純粋関数（テスト容易性確保）、結果ピン留め。（2026-03-02）
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）、getUserActivityPatterns Worker ツール（Heartbeat 結果 + Memory から時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）、computeUserActivityPatterns 純粋関数（テスト容易性確保）、reflection 保存で briefing/他タスクが自動参照。（2026-03-03）
+- [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）、getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）、computeSuggestionOptimizations 純粋関数（テスト容易性確保）、instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示で挿入）、結果ピン留め。（2026-03-03）
