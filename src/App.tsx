@@ -242,6 +242,8 @@ export default function App() {
                 className={`btn-icon${focusMode ? ' focus-active' : ''}`}
                 onClick={handleToggleFocusMode}
                 title={focusMode ? 'フォーカスモード解除' : 'フォーカスモード（通知一時停止）'}
+                aria-label={focusMode ? 'フォーカスモード解除' : 'フォーカスモード（通知一時停止）'}
+                aria-pressed={focusMode}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   {focusMode ? (

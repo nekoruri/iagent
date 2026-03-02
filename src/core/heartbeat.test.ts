@@ -675,7 +675,7 @@ describe('HeartbeatEngine - tick', () => {
 
   it('focusMode=true でスキップする', async () => {
     const mockRunFn = vi.fn();
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleLogSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.resetModules();
     vi.doMock('../store/db', async () => await import('../store/__mocks__/db'));
     vi.doMock('./config', () => ({
@@ -724,6 +724,7 @@ describe('HeartbeatEngine - tick', () => {
 
     expect(mockRunFn).not.toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith('[Heartbeat] フォーカスモード中 — スキップ');
+    // console.debug に変更済み（ノイズ軽減）
     engine.stop();
     consoleLogSpy.mockRestore();
   });

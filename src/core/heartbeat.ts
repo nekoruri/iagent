@@ -146,7 +146,7 @@ export class HeartbeatEngine {
     if (!config || !config.enabled) return;
     if (isQuietHours(config)) return;
     if (config.focusMode) {
-      console.log('[Heartbeat] フォーカスモード中 — スキップ');
+      console.debug('[Heartbeat] フォーカスモード中 — スキップ');
       return;
     }
 
