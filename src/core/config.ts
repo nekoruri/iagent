@@ -76,6 +76,23 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     schedule: { type: 'fixed-time', hour: 8, minute: 0 },
   },
   {
+    id: 'pattern-recognition',
+    name: 'パターン認識',
+    description: 'ユーザーの行動パターンを分析し、洞察を長期記憶に保存します。'
+      + '手順: 1) getUserActivityPatterns(periodDays=14) で直近2週間の行動パターンを取得 '
+      + '→ 2) totalResults < 5 または totalWithFeedback < 3 なら hasChanges: false で終了 '
+      + '→ 3) 分析結果を以下の観点で解釈: '
+      + '(a) 通知の最適タイミング（bestHours/bestDays の Accept 率が高い時間帯・曜日）、'
+      + '(b) タスク品質トレンド（improving/declining のタスクとその要因推察）、'
+      + '(c) 関心の変化（rising/falling のトピックタグ）、'
+      + '(d) 改善提案（declining タスクへの具体的な改善案）'
+      + '→ 4) saveReflection で洞察を保存（tags: user-pattern,activity-analysis、importance: 4）。'
+      + '洞察は箇条書きで構造化してください。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 22, minute: 0 },
+  },
+  {
     id: 'briefing-morning',
     name: '朝のブリーフィング',
     description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'
