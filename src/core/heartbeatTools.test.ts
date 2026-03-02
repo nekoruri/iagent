@@ -761,7 +761,7 @@ describe('normalizeUrl', () => {
   });
 
   it('不正 URL はそのまま小文字化してフォールバック', () => {
-    const result = normalizeUrl('not-a-url');
+    const result = normalizeUrl('NOT-A-URL');
     expect(result).toBe('not-a-url');
   });
 
@@ -863,10 +863,10 @@ describe('groupByTopic', () => {
 
   it('最長タイトルが topicTitle になる', () => {
     const items: UnifiedItem[] = [
-      { id: '1', source: 'feed', title: 'Short', link: 'https://a.com/x', isRead: false, publishedAt: 1000, feedTitle: 'A' },
-      { id: '2', source: 'clip', title: 'Short', link: 'https://a.com/x', isRead: true, publishedAt: 2000 },
+      { id: '1', source: 'feed', title: 'Short', link: 'https://a.com/x', isRead: false, publishedAt: 1000, feedId: 'fa', feedTitle: 'A' },
+      { id: '2', source: 'clip', title: 'Much Longer Title Here', link: 'https://a.com/x', isRead: true, publishedAt: 2000 },
     ];
     const groups = groupByTopic(items);
-    expect(groups[0].topicTitle).toBe('Short');
+    expect(groups[0].topicTitle).toBe('Much Longer Title Here');
   });
 });
