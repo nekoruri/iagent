@@ -1,5 +1,5 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Clip, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
