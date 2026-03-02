@@ -75,6 +75,7 @@ describe('getDefaultHeartbeatConfig', () => {
     expect(config.quietHoursStart).toBe(0);
     expect(config.quietHoursEnd).toBe(6);
     expect(config.desktopNotification).toBe(false);
+    expect(config.focusMode).toBe(false);
     expect(config.tasks).toHaveLength(BUILTIN_HEARTBEAT_TASKS.length);
   });
 
@@ -140,6 +141,23 @@ describe('getConfig / saveConfig', () => {
     expect(config.heartbeat!.enabled).toBe(true);
     expect(config.heartbeat!.intervalMinutes).toBe(15);
     expect(config.heartbeat!.desktopNotification).toBe(false);
+  });
+
+  it('既存の heartbeat に focusMode が無い場合デフォルト false でマージする', () => {
+    const oldHeartbeat = {
+      enabled: true,
+      intervalMinutes: 30,
+      quietHoursStart: 0,
+      quietHoursEnd: 6,
+      tasks: [],
+      desktopNotification: false,
+    };
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: oldHeartbeat,
+    }));
+    const config = getConfig();
+    expect(config.heartbeat!.focusMode).toBe(false);
   });
 
   it('保存済み tasks に不足しているビルトインタスクが自動追加される', () => {

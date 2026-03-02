@@ -21,6 +21,10 @@ async function tick(): Promise<void> {
   const hbConfig = config.heartbeat;
   if (!hbConfig.enabled) return;
   if (isQuietHours(hbConfig)) return;
+  if (hbConfig.focusMode) {
+    console.log('[Heartbeat Worker] フォーカスモード中 — スキップ');
+    return;
+  }
 
   // 最新設定を IndexedDB から取得（メインスレッドで変更されている可能性がある）
   const fresh = await loadFreshConfig(config.openaiApiKey, config.heartbeat);

@@ -145,6 +145,10 @@ export class HeartbeatEngine {
     const config = getConfig().heartbeat;
     if (!config || !config.enabled) return;
     if (isQuietHours(config)) return;
+    if (config.focusMode) {
+      console.log('[Heartbeat] フォーカスモード中 — スキップ');
+      return;
+    }
 
     const tasks = await getTasksDue(config);
     if (tasks.length === 0) return;

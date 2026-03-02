@@ -94,6 +94,7 @@ export interface HeartbeatConfig {
   quietHoursEnd: number;
   tasks: HeartbeatTask[];
   desktopNotification: boolean;
+  focusMode: boolean;
 }
 
 export interface PushConfig {

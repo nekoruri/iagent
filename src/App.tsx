@@ -88,11 +88,19 @@ export default function App() {
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(
     () => getConfig().heartbeat?.enabled ?? false,
   );
+  const [focusMode, setFocusMode] = useState(
+    () => getConfig().heartbeat?.focusMode ?? false,
+  );
 
-  const { syncHeartbeatConfig } = useHeartbeat({
+  const { syncHeartbeatConfig, toggleFocusMode: rawToggleFocusMode } = useHeartbeat({
     isStreaming,
     onNotification: handleHeartbeatNotification,
   });
+
+  const handleToggleFocusMode = useCallback(() => {
+    rawToggleFocusMode();
+    setFocusMode(getConfig().heartbeat?.focusMode ?? false);
+  }, [rawToggleFocusMode]);
 
   useEffect(() => {
     if (loaded && !isConfigured()) {
@@ -162,6 +170,7 @@ export default function App() {
     setShowWizard(false);
     syncHeartbeatConfig();
     setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
+    setFocusMode(getConfig().heartbeat?.focusMode ?? false);
     localStorage.setItem(HEARTBEAT_HINT_KEY, '1');
     // 初回セットアップ後に最初の会話を作成
     if (!activeConversationId) {
@@ -173,6 +182,7 @@ export default function App() {
     setSettingsOpen(false);
     syncHeartbeatConfig();
     setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
+    setFocusMode(getConfig().heartbeat?.focusMode ?? false);
 
     // 初回設定完了時に heartbeat の案内を表示
     const config = getConfig();
@@ -227,6 +237,21 @@ export default function App() {
             )}
           </div>
           <div className="header-actions">
+            {heartbeatEnabled && (
+              <button
+                className={`btn-icon${focusMode ? ' focus-active' : ''}`}
+                onClick={handleToggleFocusMode}
+                title={focusMode ? 'フォーカスモード解除' : 'フォーカスモード（通知一時停止）'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  {focusMode ? (
+                    <path d="M5.164 14H9.78c-.424.964-1.505 2-2.78 2s-2.356-1.036-2.78-2zm6.288-7c0-3.065-2.08-5.455-4.452-5.938V.5a.5.5 0 0 0-1 0v.562C3.67 1.545 1.592 3.935 1.592 7L0 13h4.5a.5.5 0 0 0 0-1H1.66l1.136-4.266A5.7 5.7 0 0 1 7 3c1.987 0 3.76 1.15 4.576 2.862L13.152 13H9.5a.5.5 0 0 0 0 1H14l-1.548-6zM14 1a.5.5 0 0 1 .354.146l.292.293a.5.5 0 0 1-.708.708L14 2.207l-.354.354a.5.5 0 0 1-.708-.708l.354-.354-.354-.353a.5.5 0 0 1 .708-.708L14 .793l.354-.354A.5.5 0 0 1 14.354.146zM1.5 3.5a.5.5 0 0 1 0-.708l.354-.353L1.5.793a.5.5 0 1 1 .708-.708l.353.354.354-.354a.5.5 0 1 1 .708.708L3.268 1.146l.354.354a.5.5 0 0 1-.708.708l-.354-.354-.354.354a.5.5 0 0 1-.708 0z" />
+                  ) : (
+                    <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z" />
+                  )}
+                </svg>
+              </button>
+            )}
             <button className="btn-icon" onClick={handleSidebarCreate} title="新しい会話">
               +
             </button>

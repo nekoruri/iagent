@@ -157,6 +157,11 @@ body {
   background: var(--bg-tertiary);
 }
 
+.btn-icon.focus-active {
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+
 .app-main {
   flex: 1;
   overflow: hidden;
