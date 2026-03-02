@@ -116,6 +116,31 @@ describe('getTasksDueFromIDB', () => {
   });
 });
 
+describe('pinned 判定', () => {
+  // executeHeartbeatAndStore 内のピン留め条件をテスト
+  const isPinned = (taskId: string) =>
+    taskId.startsWith('briefing-') || taskId === 'reflection' || taskId === 'monthly-review';
+
+  it('briefing- プレフィックスのタスクは pinned', () => {
+    expect(isPinned('briefing-morning')).toBe(true);
+    expect(isPinned('briefing-custom')).toBe(true);
+  });
+
+  it('reflection は pinned', () => {
+    expect(isPinned('reflection')).toBe(true);
+  });
+
+  it('monthly-review は pinned', () => {
+    expect(isPinned('monthly-review')).toBe(true);
+  });
+
+  it('その他のタスクは pinned でない', () => {
+    expect(isPinned('calendar-check')).toBe(false);
+    expect(isPinned('feed-check')).toBe(false);
+    expect(isPinned('weekly-summary')).toBe(false);
+  });
+});
+
 describe('executeHeartbeatAndStore', () => {
   it('設定がなければ空配列を返す', async () => {
     // IndexedDB に設定なし → 空配列

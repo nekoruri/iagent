@@ -68,17 +68,17 @@ export function computeMonthlyGoalStats(goals: Memory[], now: Date): MonthlyGoal
       if (days < 0) isOverdue = true;
     }
 
-    // ステータス判定
+    // ステータス判定（overdue > stale > new > active の優先順）
     let status: GoalStatus;
     if (isOverdue) {
       status = 'overdue';
       overdueCount++;
-    } else if (daysSinceCreation < NEW_DAYS) {
-      status = 'new';
-      newCount++;
     } else if (daysSinceUpdate >= STALE_DAYS) {
       status = 'stale';
       staleCount++;
+    } else if (daysSinceCreation < NEW_DAYS) {
+      status = 'new';
+      newCount++;
     } else {
       status = 'active';
       activeCount++;

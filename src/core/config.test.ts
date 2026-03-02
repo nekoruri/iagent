@@ -65,6 +65,18 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     expect(briefing).toBeDefined();
     expect(briefing!.description).toContain('getCrossSourceTopics');
   });
+
+  it('monthly-review が無効で定義され、fixed-time 08:00 スケジュールを持つ', () => {
+    const task = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'monthly-review');
+    expect(task).toBeDefined();
+    expect(task!.enabled).toBe(false);
+    expect(task!.type).toBe('builtin');
+    expect(task!.schedule).toEqual({ type: 'fixed-time', hour: 8, minute: 0 });
+    expect(task!.description).toContain('getMonthlyGoalStats');
+    expect(task!.description).toContain('getWeeklyReflections');
+    expect(task!.description).toContain('getHeartbeatFeedbackSummary');
+    expect(task!.description).toContain('saveReflection');
+  });
 });
 
 describe('getDefaultHeartbeatConfig', () => {

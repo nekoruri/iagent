@@ -824,6 +824,15 @@ describe('computeMonthlyGoalStats', () => {
     expect(stats.goals[0].status).toBe('active'); // 期日未到来なので overdue ではない
   });
 
+  it('新規作成かつ停滞の goal は stale を優先する', () => {
+    // 20日前に作成（30日以内 = new 候補）だが 10日間更新なし（7日以上 = stale 候補）
+    const goals = [makeGoal({ content: '新しいけど放置', createdAt: nowMs - 20 * DAY_MS, updatedAt: nowMs - 10 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.staleGoals).toBe(1);
+    expect(stats.newGoalsThisMonth).toBe(0);
+    expect(stats.goals[0].status).toBe('stale');
+  });
+
   it('期日なしの goal に deadline を付加しない', () => {
     const goals = [makeGoal({ content: '健康的な生活を送る' })];
     const stats = computeMonthlyGoalStats(goals, now);
