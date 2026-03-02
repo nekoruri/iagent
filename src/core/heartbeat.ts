@@ -6,7 +6,7 @@ import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
-import { addHeartbeatResult, getAllTaskLastRun, updateTaskLastRun, batchUpdateTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, getAllTaskLastRun, updateTaskLastRun, batchUpdateTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -35,13 +35,29 @@ export function groupTasksByMcpTools(
 
 /** 現在がサイレント時間帯かどうかを判定する */
 export function isQuietHours(config: HeartbeatConfig, now?: Date): boolean {
-  const hour = (now ?? new Date()).getHours();
+  const current = now ?? new Date();
+  const hour = current.getHours();
+  const day = current.getDay(); // 0=日曜...6=土曜
+
+  // 曜日チェック（quietDays 未定義でも安全）
+  if (config.quietDays?.includes(day)) {
+    return true;
+  }
+
+  // 時間帯チェック（既存ロジック）
   const { quietHoursStart, quietHoursEnd } = config;
   if (quietHoursStart <= quietHoursEnd) {
     return hour >= quietHoursStart && hour < quietHoursEnd;
   }
   // 例: 23時〜6時のように日をまたぐ場合
   return hour >= quietHoursStart || hour < quietHoursEnd;
+}
+
+/** 今日の通知数（hasChanges=true の結果）をカウントする */
+export function getTodayNotificationCount(results: HeartbeatResult[], now?: Date): number {
+  const current = now ?? new Date();
+  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate()).getTime();
+  return results.filter(r => r.timestamp >= todayStart && r.hasChanges).length;
 }
 
 /** タスクごとのスケジュールを評価し、実行すべきタスクを返す */
@@ -148,6 +164,16 @@ export class HeartbeatEngine {
     if (config.focusMode) {
       console.debug('[Heartbeat] フォーカスモード中 — スキップ');
       return;
+    }
+
+    // 日次通知上限チェック
+    if (config.maxNotificationsPerDay > 0) {
+      const state = await loadHeartbeatState();
+      const todayCount = getTodayNotificationCount(state.recentResults);
+      if (todayCount >= config.maxNotificationsPerDay) {
+        console.debug('[Heartbeat] 日次通知上限到達 — スキップ');
+        return;
+      }
     }
 
     const tasks = await getTasksDue(config);

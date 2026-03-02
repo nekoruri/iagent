@@ -25,16 +25,25 @@ export async function createAgent(mcpServers?: MCPServer[], userMessage?: string
   const persona = config.persona ?? getDefaultPersonaConfig();
   const query = userMessage ?? '';
 
-  // ユーザーメッセージがある場合、memory/clip/feed を並列検索
+  // ユーザーメッセージがある場合、suggestionFrequency に応じて memory/clip/feed を検索
+  const suggestionFrequency = config.suggestionFrequency ?? 'high';
   let memories;
   let clips;
   let feedItems;
   if (query) {
-    [memories, clips, feedItems] = await Promise.all([
-      getRelevantMemories(query, 10),
-      getRelevantClips(query, 5),
-      getRelevantFeedItems(query, 5),
-    ]);
+    if (suggestionFrequency === 'high') {
+      [memories, clips, feedItems] = await Promise.all([
+        getRelevantMemories(query, 10),
+        getRelevantClips(query, 5),
+        getRelevantFeedItems(query, 5),
+      ]);
+    } else if (suggestionFrequency === 'medium') {
+      memories = await getRelevantMemories(query, 10);
+      // clip/feed はスキップ
+    } else {
+      // 'low': メモリのみ最小限
+      memories = await getRelevantMemories(query, 3);
+    }
   } else {
     memories = await getRelevantMemories(query, 10);
   }

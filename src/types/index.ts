@@ -26,6 +26,8 @@ export interface ToolCallInfo {
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+export type SuggestionFrequency = 'high' | 'medium' | 'low';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -92,6 +94,8 @@ export interface HeartbeatConfig {
   intervalMinutes: number;
   quietHoursStart: number;
   quietHoursEnd: number;
+  quietDays: number[];               // 0=日曜...6=土曜。この曜日は全タスクスキップ
+  maxNotificationsPerDay: number;    // 日次通知上限（0=無制限）
   tasks: HeartbeatTask[];
   desktopNotification: boolean;
   focusMode: boolean;
@@ -128,6 +132,7 @@ export interface AppConfig {
   otel?: OtelConfig;
   persona?: PersonaConfig;
   theme?: ThemeMode;
+  suggestionFrequency?: SuggestionFrequency;
 }
 
 export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'reflection' | 'other';

@@ -85,6 +85,16 @@ describe('getDefaultHeartbeatConfig', () => {
     expect(a).not.toBe(b);
     expect(a.tasks).not.toBe(b.tasks);
   });
+
+  it('quietDays のデフォルトは空配列', () => {
+    const config = getDefaultHeartbeatConfig();
+    expect(config.quietDays).toEqual([]);
+  });
+
+  it('maxNotificationsPerDay のデフォルトは 0', () => {
+    const config = getDefaultHeartbeatConfig();
+    expect(config.maxNotificationsPerDay).toBe(0);
+  });
 });
 
 describe('getConfig / saveConfig', () => {
@@ -141,6 +151,23 @@ describe('getConfig / saveConfig', () => {
     expect(config.heartbeat!.enabled).toBe(true);
     expect(config.heartbeat!.intervalMinutes).toBe(15);
     expect(config.heartbeat!.desktopNotification).toBe(false);
+  });
+
+  it('既存の heartbeat に quietDays/maxNotificationsPerDay が無い場合デフォルトでマージする', () => {
+    const oldHeartbeat = {
+      enabled: true,
+      intervalMinutes: 15,
+      quietHoursStart: 23,
+      quietHoursEnd: 7,
+      tasks: [],
+    };
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: oldHeartbeat,
+    }));
+    const config = getConfig();
+    expect(config.heartbeat!.quietDays).toEqual([]);
+    expect(config.heartbeat!.maxNotificationsPerDay).toBe(0);
   });
 
   it('既存の heartbeat に focusMode が無い場合デフォルト false でマージする', () => {
@@ -311,6 +338,53 @@ describe('theme in getConfig', () => {
     saveConfig({ ...config, theme: 'light' });
     const loaded = getConfig();
     expect(loaded.theme).toBe('light');
+  });
+});
+
+describe('suggestionFrequency in getConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('suggestionFrequency 未設定時に undefined が返る', () => {
+    const config = getConfig();
+    expect(config.suggestionFrequency).toBeUndefined();
+  });
+
+  it('suggestionFrequency が high の場合 high が返る', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      suggestionFrequency: 'high',
+    }));
+    const config = getConfig();
+    expect(config.suggestionFrequency).toBe('high');
+  });
+
+  it('suggestionFrequency が medium の場合 medium が返る', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      suggestionFrequency: 'medium',
+    }));
+    const config = getConfig();
+    expect(config.suggestionFrequency).toBe('medium');
+  });
+
+  it('suggestionFrequency が low の場合 low が返る', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      suggestionFrequency: 'low',
+    }));
+    const config = getConfig();
+    expect(config.suggestionFrequency).toBe('low');
+  });
+
+  it('不正な suggestionFrequency 値の場合 undefined にフォールバックする', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      suggestionFrequency: 'invalid-value',
+    }));
+    const config = getConfig();
+    expect(config.suggestionFrequency).toBeUndefined();
   });
 });
 
