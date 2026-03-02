@@ -1305,7 +1305,7 @@ describe('computeSuggestionOptimizations', () => {
       taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 5, total: 10, acceptRate: 0.5 })],
     });
     const patterns = makePatterns({
-      taskTrends: [{ taskId: 'task-a', recentAcceptRate: 0.3, previousAcceptRate: 0.7, trend: 'declining' }],
+      taskTrends: [{ taskId: 'task-a', recentAcceptRate: 0.45, previousAcceptRate: 0.7, trend: 'declining' }],
     });
     const result = computeSuggestionOptimizations(feedback, patterns, now);
     expect(result.taskOptimizations[0].adjustment).toBe('improve');
@@ -1441,6 +1441,8 @@ describe('executeWorkerTool: getSuggestionOptimizations', () => {
     expect(result.periodDays).toBe(14);
     expect(result.overallScore).toBe(0);
     expect(result.taskOptimizations).toEqual([]);
+    expect(result.totalResults).toBe(0);
+    expect(result.totalWithFeedback).toBe(0);
   });
 
   it('periodDays をクランプする（上限 30）', async () => {

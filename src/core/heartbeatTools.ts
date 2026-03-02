@@ -374,44 +374,44 @@ export function computeSuggestionOptimizations(
 
   // --- タスク別最適化 ---
   const taskOptimizations: TaskOptimization[] = feedback.taskStats.map((stat) => {
-    const rate = stat.acceptRate;
     const total = stat.total;
 
-    // taskTrends からトレンドを取得
+    // taskTrends からトレンドを取得（currentAcceptRate は直近半分のレートを優先）
     const taskTrend = patterns.taskTrends.find((t) => t.taskId === stat.taskId);
     const trend: TaskOptimization['trend'] = taskTrend?.trend ?? 'stable';
-    const previousAcceptRate = taskTrend?.previousAcceptRate ?? rate;
+    const currentAcceptRate = taskTrend?.recentAcceptRate ?? stat.acceptRate;
+    const previousAcceptRate = taskTrend?.previousAcceptRate ?? currentAcceptRate;
 
     let adjustment: TaskAdjustmentType;
     let reason: string;
 
-    if (rate >= 0.7) {
+    if (currentAcceptRate >= 0.7) {
       adjustment = 'maintain';
-      reason = `Accept率 ${Math.round(rate * 100)}% — 良好`;
-    } else if (rate >= 0.4) {
+      reason = `Accept率 ${Math.round(currentAcceptRate * 100)}% — 良好`;
+    } else if (currentAcceptRate >= 0.4) {
       if (trend === 'improving') {
         adjustment = 'maintain';
-        reason = `Accept率 ${Math.round(rate * 100)}% だが改善傾向`;
+        reason = `Accept率 ${Math.round(currentAcceptRate * 100)}% だが改善傾向`;
       } else {
         adjustment = 'improve';
-        reason = `Accept率 ${Math.round(rate * 100)}% — 内容の改善が必要`;
+        reason = `Accept率 ${Math.round(currentAcceptRate * 100)}% — 内容の改善が必要`;
       }
-    } else if (rate >= 0.2) {
+    } else if (currentAcceptRate >= 0.2) {
       adjustment = 'reduce-frequency';
-      reason = `Accept率 ${Math.round(rate * 100)}% — 頻度を下げて質を重視`;
+      reason = `Accept率 ${Math.round(currentAcceptRate * 100)}% — 頻度を下げて質を重視`;
     } else {
       if (total >= 5) {
         adjustment = 'disable-candidate';
-        reason = `Accept率 ${Math.round(rate * 100)}%（${total}件中）— 無効化を検討`;
+        reason = `Accept率 ${Math.round(currentAcceptRate * 100)}%（${total}件中）— 無効化を検討`;
       } else {
         adjustment = 'improve';
-        reason = `Accept率 ${Math.round(rate * 100)}% — サンプル不足（${total}件）、改善を試行`;
+        reason = `Accept率 ${Math.round(currentAcceptRate * 100)}% — サンプル不足（${total}件）、改善を試行`;
       }
     }
 
     return {
       taskId: stat.taskId,
-      currentAcceptRate: rate,
+      currentAcceptRate,
       previousAcceptRate,
       trend,
       adjustment,
@@ -914,7 +914,9 @@ export const WORKER_TOOLS = [
     function: {
       name: 'getSuggestionOptimizations',
       description: 'フィードバック統計と行動パターンを分析し、提案品質の最適化ルールを算出します。'
-        + 'タスク別の調整方針（維持/改善/頻度削減/無効化候補）、タイミング最適化、カテゴリ重み調整を含みます。',
+        + 'タスク別の調整方針（維持/改善/頻度削減/無効化候補）、タイミング最適化、カテゴリ重み調整を含みます。'
+        + 'Accept率は 0.0〜1.0 の小数（overallAcceptRate, currentAcceptRate 等）、overallScore は 0〜100 の整数です。'
+        + 'totalWithFeedback, totalResults も返されるため、サンプル数の判定に利用してください。',
       parameters: {
         type: 'object',
         properties: {
@@ -1401,10 +1403,18 @@ export async function executeWorkerTool(
       const state = await loadHeartbeatState();
       const filteredResults = state.recentResults.filter((r) => r.timestamp >= cutoff);
       const allMemories = await listMemories();
-      const filteredMemories = allMemories.filter((m) => m.createdAt >= cutoff);
+      // 自己生成タグ（suggestion-optimization）を持つ reflection を除外し、自己参照ループを防止
+      const filteredMemories = allMemories.filter(
+        (m) => m.createdAt >= cutoff && !m.tags.includes('suggestion-optimization'),
+      );
       const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
       const optimizations = computeSuggestionOptimizations(feedbackSummary, patterns, new Date());
-      return JSON.stringify({ ...optimizations, periodDays });
+      return JSON.stringify({
+        ...optimizations,
+        periodDays,
+        totalResults: feedbackSummary.totalResults,
+        totalWithFeedback: feedbackSummary.totalWithFeedback,
+      });
     }
     default:
       return JSON.stringify({ error: `不明なツール: ${name}` });
