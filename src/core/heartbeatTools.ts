@@ -292,29 +292,22 @@ export function computeUserActivityPatterns(
     }
   }
 
-  const topTags: TagFrequency[] = [];
+  const topTagTuples: { tagFrequency: TagFrequency; total: number }[] = [];
   for (const [tag, counts] of tagCounts) {
     const total = counts.prev + counts.recent;
     const diff = counts.recent - counts.prev;
     let trend: TagFrequency['trend'] = 'stable';
     if (diff > 0) trend = 'rising';
     else if (diff < 0) trend = 'falling';
-    topTags.push({ tag, recentCount: counts.recent, previousCount: counts.prev, trend });
-    // total を一時的にソート用に保持（上位 10 選定後に切り捨て）
-    (topTags[topTags.length - 1] as TagFrequency & { _total: number })._total = total;
+    topTagTuples.push({
+      tagFrequency: { tag, recentCount: counts.recent, previousCount: counts.prev, trend },
+      total,
+    });
   }
 
   // 出現合計降順でソートし上位 10
-  topTags.sort((a, b) => {
-    const aTotal = (a as TagFrequency & { _total?: number })._total ?? 0;
-    const bTotal = (b as TagFrequency & { _total?: number })._total ?? 0;
-    return bTotal - aTotal;
-  });
-  topTags.splice(10);
-  // _total クリーンアップ
-  for (const t of topTags) {
-    delete (t as TagFrequency & { _total?: number })._total;
-  }
+  topTagTuples.sort((a, b) => b.total - a.total);
+  const topTags = topTagTuples.slice(0, 10).map((t) => t.tagFrequency);
 
   return {
     totalResults,
