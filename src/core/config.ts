@@ -67,6 +67,15 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     schedule: { type: 'fixed-time', hour: 21, minute: 0 },
   },
   {
+    id: 'monthly-review',
+    name: '月次レビュー',
+    description: '月初（1日）に過去1ヶ月の goal の活動状態・期限を集計し、月次レビューを生成します。'
+      + '手順: 1) getCurrentTime で現在の日付を確認 → 1日でなければ hasChanges: false で終了 → 2) getMonthlyGoalStats で goal 全体の統計を取得 → 3) getWeeklyReflections(periodDays=30) で過去30日のふりかえりを取得 → 4) getHeartbeatFeedbackSummary(periodHours=720) で30日分のフィードバック統計を取得 → 5) 分析: 各 goal の活動状態を「活動中」「新規」「停滞」「期限超過」に分類し、月間の傾向（目標の進捗、新たに追加された目標、放置されている目標）を整理 → 6) 改善提案: 停滞 goal には小さな一歩を提案、期限超過 goal には見直し（継続・修正・削除）を提案、活動中 goal には次月の注力ポイントを提案 → 7) saveReflection で月次レビューを保存（tags: monthly-review、importance: 4） → 8) goal もふりかえりもフィードバックも0件の場合のみ hasChanges: false。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 8, minute: 0 },
+  },
+  {
     id: 'briefing-morning',
     name: '朝のブリーフィング',
     description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'

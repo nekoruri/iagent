@@ -6,8 +6,10 @@ vi.mock('../store/db');
 import {
   WORKER_TOOLS, executeWorkerTool,
   normalizeUrl, extractKeyTokens, countCommonTokens, groupByTopic,
+  computeMonthlyGoalStats,
 } from './heartbeatTools';
 import type { UnifiedItem } from './heartbeatTools';
+import type { Memory } from '../types';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
 import { saveFeed, saveFeedItems } from '../store/feedStore';
@@ -19,7 +21,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(16);
+    expect(WORKER_TOOLS).toHaveLength(17);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -37,6 +39,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getInfoThresholdStatus');
     expect(names).toContain('getWeeklyReflections');
     expect(names).toContain('getCrossSourceTopics');
+    expect(names).toContain('getMonthlyGoalStats');
   });
 
   it('全ツールが function タイプである', () => {
@@ -727,12 +730,140 @@ describe('executeWorkerTool', () => {
     });
   });
 
+  describe('getMonthlyGoalStats', () => {
+    it('goal メモリの統計を返す', async () => {
+      await saveMemory('TOEIC 800点を目指す（2026年6月末）', 'goal', { importance: 4 });
+      await saveMemory('毎日30分の読書', 'goal', { importance: 3 });
+
+      const result = await executeWorkerTool('getMonthlyGoalStats', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalGoals).toBe(2);
+      expect(parsed.goals).toHaveLength(2);
+      expect(parsed.goals[0]).toHaveProperty('status');
+      expect(parsed.goals[0]).toHaveProperty('daysSinceCreation');
+      expect(parsed.goals[0]).toHaveProperty('daysSinceUpdate');
+    });
+
+    it('goal なしで正常動作', async () => {
+      const result = await executeWorkerTool('getMonthlyGoalStats', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalGoals).toBe(0);
+      expect(parsed.goals).toEqual([]);
+    });
+  });
+
   describe('不明なツール', () => {
     it('エラーメッセージを返す', async () => {
       const result = await executeWorkerTool('unknownTool', {});
       const parsed = JSON.parse(result);
       expect(parsed.error).toContain('不明なツール');
     });
+  });
+});
+
+// --- computeMonthlyGoalStats テスト ---
+describe('computeMonthlyGoalStats', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = new Date('2026-03-01T08:00:00');
+  const nowMs = now.getTime();
+
+  function makeGoal(overrides: Partial<Memory> & { content: string }): Memory {
+    return {
+      id: crypto.randomUUID(),
+      category: 'goal',
+      importance: 3,
+      tags: [],
+      accessCount: 0,
+      lastAccessedAt: nowMs,
+      contentHash: 'dummy',
+      createdAt: nowMs - 60 * DAY_MS,
+      updatedAt: nowMs - 1 * DAY_MS,
+      ...overrides,
+    };
+  }
+
+  it('活動中の goal を正しく分類する', () => {
+    const goals = [makeGoal({ content: '毎日30分の読書', updatedAt: nowMs - 2 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.totalGoals).toBe(1);
+    expect(stats.activeGoals).toBe(1);
+    expect(stats.goals[0].status).toBe('active');
+  });
+
+  it('停滞中の goal を正しく分類する（7日以上更新なし）', () => {
+    const goals = [makeGoal({ content: 'ダイエット', updatedAt: nowMs - 10 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.staleGoals).toBe(1);
+    expect(stats.goals[0].status).toBe('stale');
+    expect(stats.goals[0].daysSinceUpdate).toBe(10);
+  });
+
+  it('新規 goal を正しく分類する（30日以内に作成）', () => {
+    const goals = [makeGoal({ content: '新しい目標', createdAt: nowMs - 5 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.newGoalsThisMonth).toBe(1);
+    expect(stats.goals[0].status).toBe('new');
+  });
+
+  it('期限超過の goal を正しく分類する', () => {
+    const goals = [makeGoal({ content: 'レポート提出 2026年2月15日', updatedAt: nowMs - 2 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.overdueGoals).toBe(1);
+    expect(stats.goalsWithDeadline).toBe(1);
+    expect(stats.goals[0].status).toBe('overdue');
+    expect(stats.goals[0].deadline).toBeDefined();
+    expect(stats.goals[0].deadline!.daysUntil).toBeLessThan(0);
+  });
+
+  it('期日が未来の goal に deadline 情報を付加する', () => {
+    const goals = [makeGoal({ content: 'TOEIC 800点 2026年6月末', updatedAt: nowMs - 2 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.goalsWithDeadline).toBe(1);
+    expect(stats.goals[0].deadline).toBeDefined();
+    expect(stats.goals[0].deadline!.daysUntil).toBeGreaterThan(0);
+    expect(stats.goals[0].status).toBe('active'); // 期日未到来なので overdue ではない
+  });
+
+  it('新規作成かつ停滞の goal は stale を優先する', () => {
+    // 20日前に作成（30日以内 = new 候補）だが 10日間更新なし（7日以上 = stale 候補）
+    const goals = [makeGoal({ content: '新しいけど放置', createdAt: nowMs - 20 * DAY_MS, updatedAt: nowMs - 10 * DAY_MS })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.staleGoals).toBe(1);
+    expect(stats.newGoalsThisMonth).toBe(0);
+    expect(stats.goals[0].status).toBe('stale');
+  });
+
+  it('期日なしの goal に deadline を付加しない', () => {
+    const goals = [makeGoal({ content: '健康的な生活を送る' })];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.goalsWithDeadline).toBe(0);
+    expect(stats.goals[0].deadline).toBeUndefined();
+  });
+
+  it('複数 goal のミックスで正しく集計する', () => {
+    const goals = [
+      makeGoal({ content: '活動中の目標', updatedAt: nowMs - 2 * DAY_MS }),
+      makeGoal({ content: '停滞中の目標', updatedAt: nowMs - 14 * DAY_MS }),
+      makeGoal({ content: '新規目標', createdAt: nowMs - 3 * DAY_MS }),
+      makeGoal({ content: '期限超過 2026年2月10日', updatedAt: nowMs - 2 * DAY_MS }),
+    ];
+    const stats = computeMonthlyGoalStats(goals, now);
+    expect(stats.totalGoals).toBe(4);
+    expect(stats.activeGoals).toBe(1);
+    expect(stats.staleGoals).toBe(1);
+    expect(stats.newGoalsThisMonth).toBe(1);
+    expect(stats.overdueGoals).toBe(1);
+  });
+
+  it('goal なしで全カウント 0', () => {
+    const stats = computeMonthlyGoalStats([], now);
+    expect(stats.totalGoals).toBe(0);
+    expect(stats.activeGoals).toBe(0);
+    expect(stats.staleGoals).toBe(0);
+    expect(stats.overdueGoals).toBe(0);
+    expect(stats.goalsWithDeadline).toBe(0);
+    expect(stats.newGoalsThisMonth).toBe(0);
+    expect(stats.goals).toEqual([]);
   });
 });
 
