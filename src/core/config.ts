@@ -1,4 +1,4 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, ThemeMode } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode } from '../types';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -115,6 +115,8 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
     intervalMinutes: 30,
     quietHoursStart: 0,
     quietHoursEnd: 6,
+    quietDays: [],
+    maxNotificationsPerDay: 0,
     tasks: BUILTIN_HEARTBEAT_TASKS.map((t) => ({ ...t })),
     desktopNotification: false,
     focusMode: false,
@@ -160,6 +162,9 @@ export function getConfig(): AppConfig {
     theme: (['light', 'dark', 'system'].includes(parsed.theme as string)
       ? parsed.theme as ThemeMode
       : 'system'),
+    suggestionFrequency: (['high', 'medium', 'low'].includes(parsed.suggestionFrequency as string)
+      ? parsed.suggestionFrequency as SuggestionFrequency
+      : undefined),
   };
 }
 

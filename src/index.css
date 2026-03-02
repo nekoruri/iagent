@@ -982,6 +982,25 @@ body {
   white-space: nowrap;
 }
 
+.hb-quiet-days {
+  margin-top: 0.5rem;
+}
+
+.hb-day-checkboxes {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.hb-day-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .hb-tasks-section {
   display: flex;
   flex-direction: column;

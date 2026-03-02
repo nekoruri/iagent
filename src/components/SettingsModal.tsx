@@ -8,7 +8,7 @@ import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode, SuggestionFrequency } from '../types';
 
 interface Props {
   open: boolean;
@@ -427,6 +427,18 @@ export function SettingsModal({ open, onClose }: Props) {
                   rows={3}
                 />
               </label>
+
+              <label className="hb-range-label">
+                チャット内サジェスト:
+                <select
+                  value={config.suggestionFrequency ?? 'high'}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, suggestionFrequency: e.target.value as SuggestionFrequency }))}
+                >
+                  <option value="high">高（memory + clip + feed）</option>
+                  <option value="medium">中（memory のみ）</option>
+                  <option value="low">低（最小限）</option>
+                </select>
+              </label>
             </div>
           </details>
 
@@ -573,6 +585,38 @@ export function SettingsModal({ open, onClose }: Props) {
                   ))}
                 </select>
               </div>
+
+              <div className="hb-quiet-days">
+                <span className="hb-quiet-label">スキップ曜日:</span>
+                <div className="hb-day-checkboxes">
+                  {['日', '月', '火', '水', '木', '金', '土'].map((label, i) => (
+                    <label key={i} className="hb-day-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={heartbeat.quietDays?.includes(i) ?? false}
+                        onChange={(e) => {
+                          const current = heartbeat.quietDays ?? [];
+                          const updated = e.target.checked
+                            ? [...current, i]
+                            : current.filter(d => d !== i);
+                          updateHeartbeat({ quietDays: updated });
+                        }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <label className="hb-range-label">
+                日次通知上限: {heartbeat.maxNotificationsPerDay === 0 ? '無制限' : `${heartbeat.maxNotificationsPerDay}件`}
+                <input
+                  type="range"
+                  min={0} max={30} step={1}
+                  value={heartbeat.maxNotificationsPerDay ?? 0}
+                  onChange={(e) => updateHeartbeat({ maxNotificationsPerDay: Number(e.target.value) })}
+                />
+              </label>
 
               {/* Push 通知設定（Layer 3） */}
               <div className="hb-push-section">

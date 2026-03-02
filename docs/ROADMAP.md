@@ -215,6 +215,7 @@
 - [x] 週次サマリー F10 — weekly-summary ビルトインタスク（21:00 固定スケジュール、LLM 月曜判定）+ getWeeklyReflections Worker ツール（期間内 reflection 取得）+ フィードバック統計連携
 - [x] ソース横断トピック統合 F17 — getCrossSourceTopics Worker ツール（RSS + クリップ横断検索 + URL/タイトル類似度による Union-Find グルーピング + sourceCount≥2 フィルタ）、briefing-morning description にトピック統合手順追加
 - [x] フォーカスモード F4 — 手動 ON/OFF で Heartbeat 通知を一時停止（3層全て: メインスレッド/Worker/SW の tick 抑制 + ヘッダーベルアイコントグル）
+- [x] 頻度制御エンジン F3 — 曜日別スキップ（quietDays）+ 日次通知上限（maxNotificationsPerDay）+ チャットサジェスト頻度（suggestionFrequency: high/medium/low）で通知疲れを防止
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -282,3 +283,4 @@
 - [x] 閾値トリガー F13 + 週次サマリー F10 — info-cleanup-check ビルトインタスク（20:00、getInfoThresholdStatus Worker ツール: 未分類フィード/未読分類済み/クリップの閾値超過判定）、weekly-summary ビルトインタスク（21:00、LLM 月曜判定 + getWeeklyReflections Worker ツール + フィードバック統計連携）。テスト 876→887 件。（2026-03-02）
 - [x] ソース横断トピック統合 F17 — getCrossSourceTopics Worker ツール（RSS+クリップ横断検索、normalizeUrl/extractKeyTokens/countCommonTokens/groupByTopic ヘルパー、Union-Find 二段階マージ: URL完全一致+タイトルキーワード重複≥40%）、briefing-morning description にトピック統合手順追加。（2026-03-02）
 - [x] フォーカスモード F4 — HeartbeatConfig に focusMode フィールド追加、3層全て（メインスレッド/Dedicated Worker/SW）の tick でフォーカスモードチェック、ヘッダーにベル/ベルスラッシュ トグルボタン追加、useHeartbeat に toggleFocusMode 関数追加。テスト 887→915 件。（2026-03-02）
+- [x] 頻度制御エンジン F3 — 曜日別スキップ（quietDays: HeartbeatConfig）、日次通知上限（maxNotificationsPerDay: recentResults カウント）、チャットサジェスト頻度（suggestionFrequency: AppConfig、high/medium/low で memory/clip/feed 検索範囲制御）、設定 UI（曜日チェックボックス + 上限スライダー + 頻度セレクト）。（2026-03-02）

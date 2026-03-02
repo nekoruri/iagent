@@ -1,6 +1,6 @@
-import { isQuietHours } from './heartbeat';
+import { isQuietHours, getTodayNotificationCount } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
-import { addHeartbeatResult, updateTaskLastRun, getAllTaskLastRun } from '../store/heartbeatStore';
+import { addHeartbeatResult, updateTaskLastRun, getAllTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
@@ -87,6 +87,16 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   if (hbConfig.focusMode) {
     console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
     return [];
+  }
+
+  // 日次通知上限チェック
+  if (hbConfig.maxNotificationsPerDay > 0) {
+    const state = await loadHeartbeatState();
+    const todayCount = getTodayNotificationCount(state.recentResults);
+    if (todayCount >= hbConfig.maxNotificationsPerDay) {
+      console.debug(`[Heartbeat:${source ?? 'unknown'}] 日次通知上限到達 — スキップ`);
+      return [];
+    }
   }
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
