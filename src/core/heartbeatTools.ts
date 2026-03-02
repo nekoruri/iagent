@@ -1,5 +1,5 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
+import type { CalendarEvent, Clip, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
@@ -10,6 +10,182 @@ import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../s
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
 
 const MAX_ITEMS_PER_FEED = 100;
+
+// --- ソース横断トピック統合ヘルパー ---
+
+/** 統一アイテム形式 */
+export interface UnifiedItem {
+  id: string;
+  source: 'feed' | 'clip';
+  title: string;
+  link: string;
+  isRead: boolean;
+  publishedAt: number;
+  tier?: FeedItemTier;
+  feedTitle?: string;
+}
+
+/** トピックグループ */
+export interface TopicGroup {
+  topicTitle: string;
+  sourceCount: number;
+  anyUnread: boolean;
+  latestAt: number;
+  items: UnifiedItem[];
+}
+
+/** UTM パラメータ除去 + 末尾スラッシュ統一 + フラグメント除去 + 小文字化 */
+export function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const removeParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref'];
+    for (const p of removeParams) {
+      u.searchParams.delete(p);
+    }
+    u.hash = '';
+    let normalized = u.toString().toLowerCase();
+    if (normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+    return normalized;
+  } catch {
+    return url.toLowerCase();
+  }
+}
+
+const STOP_WORDS_EN = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'as', 'it', 'its', 'be', 'has', 'have', 'had',
+  'do', 'does', 'did', 'will', 'would', 'can', 'could', 'may', 'this', 'that',
+  'not', 'but', 'and', 'or', 'if', 'so', 'no', 'all', 'how', 'new',
+]);
+const STOP_WORDS_JA = new Set([
+  'の', 'に', 'は', 'を', 'が', 'で', 'と', 'も', 'な', 'た', 'し', 'て',
+  'い', 'る', 'へ', 'から', 'まで', 'より', 'など', 'こと', 'もの', 'ため',
+  'する', 'した', 'され', 'これ', 'それ', 'この', 'その', 'ある', 'いる',
+]);
+
+/** タイトルからキートークンを抽出（ストップワード除外） */
+export function extractKeyTokens(title: string): Set<string> {
+  // 記号・空白で分割
+  const raw = title
+    .toLowerCase()
+    .split(/[\s\-_/|:;,!?()[\]{}""''「」『』【】〈〉（）・、。]+/)
+    .filter((t) => t.length >= 2);
+
+  const tokens = new Set<string>();
+  for (const t of raw) {
+    if (STOP_WORDS_EN.has(t) || STOP_WORDS_JA.has(t)) continue;
+    tokens.add(t);
+  }
+  return tokens;
+}
+
+/** 2 つのトークン集合の共通要素数を返す */
+export function countCommonTokens(a: Set<string>, b: Set<string>): number {
+  let count = 0;
+  for (const t of a) {
+    if (b.has(t)) count++;
+  }
+  return count;
+}
+
+/** Union-Find */
+class UnionFind {
+  private parent: number[];
+  private rank: number[];
+  constructor(n: number) {
+    this.parent = Array.from({ length: n }, (_, i) => i);
+    this.rank = new Array(n).fill(0);
+  }
+  find(x: number): number {
+    if (this.parent[x] !== x) this.parent[x] = this.find(this.parent[x]);
+    return this.parent[x];
+  }
+  union(x: number, y: number): void {
+    const rx = this.find(x);
+    const ry = this.find(y);
+    if (rx === ry) return;
+    if (this.rank[rx] < this.rank[ry]) { this.parent[rx] = ry; }
+    else if (this.rank[rx] > this.rank[ry]) { this.parent[ry] = rx; }
+    else { this.parent[ry] = rx; this.rank[rx]++; }
+  }
+}
+
+/** アイテムをトピックごとにグルーピング */
+export function groupByTopic(items: UnifiedItem[]): TopicGroup[] {
+  if (items.length === 0) return [];
+
+  const uf = new UnionFind(items.length);
+
+  // URL 正規化マップ
+  const urlMap = new Map<string, number[]>();
+  for (let i = 0; i < items.length; i++) {
+    const norm = normalizeUrl(items[i].link);
+    const list = urlMap.get(norm);
+    if (list) { list.push(i); } else { urlMap.set(norm, [i]); }
+  }
+
+  // Phase 1: URL 完全一致でマージ
+  for (const indices of urlMap.values()) {
+    for (let j = 1; j < indices.length; j++) {
+      uf.union(indices[0], indices[j]);
+    }
+  }
+
+  // Phase 2: タイトルキーワード重複でマージ
+  const tokenSets = items.map((item) => extractKeyTokens(item.title));
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (uf.find(i) === uf.find(j)) continue;
+      const common = countCommonTokens(tokenSets[i], tokenSets[j]);
+      const minSize = Math.min(tokenSets[i].size, tokenSets[j].size);
+      if (common >= 2 && minSize > 0 && common / minSize >= 0.4) {
+        uf.union(i, j);
+      }
+    }
+  }
+
+  // グループ構築
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < items.length; i++) {
+    const root = uf.find(i);
+    const g = groups.get(root);
+    if (g) { g.push(i); } else { groups.set(root, [i]); }
+  }
+
+  const result: TopicGroup[] = [];
+  for (const indices of groups.values()) {
+    const groupItems = indices.map((i) => items[i]);
+
+    // sourceCount: feed は feedTitle で区別、clip = 1 ソース
+    const sources = new Set<string>();
+    for (const item of groupItems) {
+      if (item.source === 'feed') {
+        sources.add(`feed:${item.feedTitle ?? ''}`);
+      } else {
+        sources.add('clip');
+      }
+    }
+
+    // 最長タイトルを代表に
+    const topicTitle = groupItems.reduce((best, cur) =>
+      cur.title.length > best.title.length ? cur : best
+    ).title;
+
+    result.push({
+      topicTitle,
+      sourceCount: sources.size,
+      anyUnread: groupItems.some((item) => !item.isRead),
+      latestAt: Math.max(...groupItems.map((item) => item.publishedAt)),
+      items: groupItems,
+    });
+  }
+
+  // ソート: sourceCount 降順 → latestAt 降順
+  result.sort((a, b) => b.sourceCount - a.sourceCount || b.latestAt - a.latestAt);
+  return result;
+}
 
 /** OpenAI function calling 形式のツールスキーマ */
 export const WORKER_TOOLS = [
@@ -211,6 +387,20 @@ export const WORKER_TOOLS = [
         type: 'object',
         properties: {
           periodDays: { type: 'number', description: '取得期間（日数、デフォルト 7、1〜30）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getCrossSourceTopics',
+      description: 'RSS フィード記事とクリップを横断検索し、複数ソースで言及されている同一トピックを検出・グループ化します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodDays: { type: 'number', description: '対象期間（日数、デフォルト 7、1〜30）' },
+          query: { type: 'string', description: 'キーワードフィルタ（title/content/tags で絞り込み）' },
         },
       },
     },
@@ -602,6 +792,70 @@ export async function executeWorkerTool(
       return JSON.stringify({
         reflections: filtered,
         count: filtered.length,
+        periodDays,
+      });
+    }
+    case 'getCrossSourceTopics': {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 7));
+      const cutoff = Date.now() - periodDays * DAY_MS;
+      const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : '';
+
+      const db6 = await getDB();
+      const [allFeedItems, allClips] = await Promise.all([
+        db6.getAll('feed-items') as Promise<FeedItem[]>,
+        listClips(),
+      ]);
+
+      // フィード名マップ
+      const feeds6: Feed[] = await db6.getAll('feeds');
+      const feedMap6 = new Map(feeds6.map((f) => [f.id, f.title]));
+
+      // 統一形式に変換 + フィルタ
+      const unified: UnifiedItem[] = [];
+
+      for (const item of allFeedItems) {
+        if (item.publishedAt < cutoff) continue;
+        if (item.tier === 'skip') continue;
+        if (query) {
+          const haystack = `${item.title} ${item.content}`.toLowerCase();
+          if (!haystack.includes(query)) continue;
+        }
+        unified.push({
+          id: item.id,
+          source: 'feed',
+          title: item.title,
+          link: item.link,
+          isRead: item.isRead,
+          publishedAt: item.publishedAt,
+          tier: item.tier,
+          feedTitle: feedMap6.get(item.feedId),
+        });
+      }
+
+      for (const clip of allClips) {
+        if (clip.createdAt < cutoff) continue;
+        if (query) {
+          const haystack = `${clip.title} ${clip.content} ${clip.tags.join(' ')}`.toLowerCase();
+          if (!haystack.includes(query)) continue;
+        }
+        unified.push({
+          id: clip.id,
+          source: 'clip',
+          title: clip.title,
+          link: clip.url,
+          isRead: true, // クリップは保存済み = 既読扱い
+          publishedAt: clip.createdAt,
+        });
+      }
+
+      const allGroups = groupByTopic(unified);
+      // sourceCount >= 2 のみ、上限 20
+      const topics = allGroups.filter((g) => g.sourceCount >= 2).slice(0, 20);
+
+      return JSON.stringify({
+        topics,
+        totalTopics: topics.length,
         periodDays,
       });
     }

@@ -3,7 +3,11 @@ import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
 
-import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
+import {
+  WORKER_TOOLS, executeWorkerTool,
+  normalizeUrl, extractKeyTokens, countCommonTokens, groupByTopic,
+} from './heartbeatTools';
+import type { UnifiedItem } from './heartbeatTools';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
 import { saveFeed, saveFeedItems } from '../store/feedStore';
@@ -15,7 +19,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(15);
+    expect(WORKER_TOOLS).toHaveLength(16);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -32,6 +36,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getHeartbeatFeedbackSummary');
     expect(names).toContain('getInfoThresholdStatus');
     expect(names).toContain('getWeeklyReflections');
+    expect(names).toContain('getCrossSourceTopics');
   });
 
   it('全ツールが function タイプである', () => {
@@ -579,11 +584,287 @@ describe('executeWorkerTool', () => {
     });
   });
 
+  describe('getCrossSourceTopics', () => {
+    it('URL 重複でグループ化（feed + clip 同一 URL → sourceCount=2）', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Bun 1.2 リリース', link: 'https://example.com/bun-1.2', content: '本文', publishedAt: Date.now() - 1000 },
+      ]);
+      // 同一 URL のクリップ
+      const db = await getDB();
+      await db.put('clips', {
+        id: 'clip-1',
+        url: 'https://example.com/bun-1.2',
+        title: 'Bun 1.2 がリリースされた',
+        content: 'クリップ内容',
+        tags: [],
+        createdAt: Date.now() - 2000,
+      });
+
+      const result = await executeWorkerTool('getCrossSourceTopics', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalTopics).toBe(1);
+      expect(parsed.topics[0].sourceCount).toBe(2);
+      expect(parsed.topics[0].items).toHaveLength(2);
+    });
+
+    it('タイトル類似でグループ化（異なる URL、共通キーワード → 同一トピック）', async () => {
+      const feedA = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      const feedB = await saveFeed({ url: 'https://b.com/feed', title: 'フィードB' });
+      await saveFeedItems(feedA.id, [
+        { guid: 'g1', title: 'Bun 1.2 パフォーマンス改善のリリース', link: 'https://a.com/bun', content: '本文', publishedAt: Date.now() - 1000 },
+      ]);
+      await saveFeedItems(feedB.id, [
+        { guid: 'g2', title: 'Bun 1.2 リリースとパフォーマンスの比較', link: 'https://b.com/bun', content: '本文', publishedAt: Date.now() - 2000 },
+      ]);
+
+      const result = await executeWorkerTool('getCrossSourceTopics', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalTopics).toBe(1);
+      expect(parsed.topics[0].sourceCount).toBe(2);
+    });
+
+    it('単一ソースはトピックに含まれない（sourceCount < 2 除外）', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'React 19 新機能', link: 'https://a.com/react', content: '本文', publishedAt: Date.now() - 1000 },
+      ]);
+
+      const result = await executeWorkerTool('getCrossSourceTopics', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalTopics).toBe(0);
+      expect(parsed.topics).toEqual([]);
+    });
+
+    it('periodDays クランプ（0→1、60→30）', async () => {
+      const r1 = await executeWorkerTool('getCrossSourceTopics', { periodDays: 0 });
+      const p1 = JSON.parse(r1);
+      expect(p1.periodDays).toBe(1);
+
+      const r2 = await executeWorkerTool('getCrossSourceTopics', { periodDays: 60 });
+      const p2 = JSON.parse(r2);
+      expect(p2.periodDays).toBe(30);
+    });
+
+    it('期間外データ除外（40日前 → 7日フィルタで 0 件）', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      const old = Date.now() - 40 * 24 * 60 * 60 * 1000;
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Old Article', link: 'https://a.com/old', content: '本文', publishedAt: old },
+      ]);
+      const db = await getDB();
+      await db.put('clips', {
+        id: 'clip-old',
+        url: 'https://a.com/old',
+        title: 'Old Clip',
+        content: '古いクリップ',
+        tags: [],
+        createdAt: old,
+      });
+
+      const result = await executeWorkerTool('getCrossSourceTopics', { periodDays: 7 });
+      const parsed = JSON.parse(result);
+      expect(parsed.totalTopics).toBe(0);
+    });
+
+    it('query フィルタ動作', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Bun 1.2 リリース', link: 'https://a.com/bun', content: 'Bun の話題', publishedAt: Date.now() - 1000 },
+        { guid: 'g2', title: 'React 19 新機能', link: 'https://a.com/react', content: 'React の話題', publishedAt: Date.now() - 2000 },
+      ]);
+      const db = await getDB();
+      await db.put('clips', {
+        id: 'clip-bun',
+        url: 'https://b.com/bun',
+        title: 'Bun 1.2 テスト',
+        content: 'Bun 関連',
+        tags: [],
+        createdAt: Date.now() - 3000,
+      });
+
+      const result = await executeWorkerTool('getCrossSourceTopics', { query: 'Bun' });
+      const parsed = JSON.parse(result);
+      // Bun 関連のみ（feed + clip → sourceCount=2）
+      expect(parsed.totalTopics).toBeGreaterThanOrEqual(1);
+      for (const topic of parsed.topics) {
+        const hasBun = topic.items.some((i: { title: string }) => i.title.toLowerCase().includes('bun'));
+        expect(hasBun).toBe(true);
+      }
+    });
+
+    it('skip 分類のフィード記事は除外', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'フィードA' });
+      await saveFeedItems(feed.id, [
+        { guid: 'g1', title: 'Skip Article', link: 'https://a.com/skip', content: '本文', publishedAt: Date.now() - 1000 },
+      ]);
+      // tier=skip を設定
+      const db = await getDB();
+      const items = await db.getAllFromIndex('feed-items', 'feedId', feed.id);
+      await db.put('feed-items', { ...items[0], tier: 'skip' as const });
+      // 同一 URL のクリップ
+      await db.put('clips', {
+        id: 'clip-skip',
+        url: 'https://a.com/skip',
+        title: 'Skip Clip',
+        content: 'クリップ',
+        tags: [],
+        createdAt: Date.now() - 2000,
+      });
+
+      const result = await executeWorkerTool('getCrossSourceTopics', {});
+      const parsed = JSON.parse(result);
+      // skip 記事は除外されるので sourceCount=1 (clip のみ) → トピックに含まれない
+      expect(parsed.totalTopics).toBe(0);
+    });
+
+    it('データなしで空配列', async () => {
+      const result = await executeWorkerTool('getCrossSourceTopics', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.topics).toEqual([]);
+      expect(parsed.totalTopics).toBe(0);
+      expect(parsed.periodDays).toBe(7);
+    });
+  });
+
   describe('不明なツール', () => {
     it('エラーメッセージを返す', async () => {
       const result = await executeWorkerTool('unknownTool', {});
       const parsed = JSON.parse(result);
       expect(parsed.error).toContain('不明なツール');
     });
+  });
+});
+
+// --- ヘルパー関数テスト ---
+describe('normalizeUrl', () => {
+  it('UTM パラメータを除去する', () => {
+    const url = 'https://example.com/article?utm_source=twitter&utm_medium=social&id=123';
+    const normalized = normalizeUrl(url);
+    expect(normalized).not.toContain('utm_source');
+    expect(normalized).not.toContain('utm_medium');
+    expect(normalized).toContain('id=123');
+  });
+
+  it('末尾スラッシュを統一する', () => {
+    const a = normalizeUrl('https://example.com/page/');
+    const b = normalizeUrl('https://example.com/page');
+    expect(a).toBe(b);
+  });
+
+  it('大文字小文字を統一する', () => {
+    const a = normalizeUrl('https://Example.COM/Page');
+    const b = normalizeUrl('https://example.com/page');
+    expect(a).toBe(b);
+  });
+
+  it('不正 URL はそのまま小文字化してフォールバック', () => {
+    const result = normalizeUrl('not-a-url');
+    expect(result).toBe('not-a-url');
+  });
+
+  it('フラグメントを除去する', () => {
+    const result = normalizeUrl('https://example.com/page#section');
+    expect(result).not.toContain('#section');
+  });
+});
+
+describe('extractKeyTokens', () => {
+  it('英語タイトルからトークンを抽出する', () => {
+    const tokens = extractKeyTokens('Bun 1.2 Release Performance Improvements');
+    expect(tokens.has('bun')).toBe(true);
+    expect(tokens.has('1.2')).toBe(true);
+    expect(tokens.has('release')).toBe(true);
+    expect(tokens.has('performance')).toBe(true);
+  });
+
+  it('英語ストップワードを除外する', () => {
+    const tokens = extractKeyTokens('The new release is in the works');
+    expect(tokens.has('the')).toBe(false);
+    expect(tokens.has('is')).toBe(false);
+    expect(tokens.has('in')).toBe(false);
+    expect(tokens.has('release')).toBe(true);
+    expect(tokens.has('works')).toBe(true);
+  });
+
+  it('日本語タイトルからトークンを抽出する', () => {
+    const tokens = extractKeyTokens('Bun 1.2 リリース パフォーマンス改善');
+    expect(tokens.has('bun')).toBe(true);
+    expect(tokens.has('1.2')).toBe(true);
+    expect(tokens.has('リリース')).toBe(true);
+    expect(tokens.has('パフォーマンス改善')).toBe(true);
+  });
+
+  it('2文字未満のトークンを除外する', () => {
+    const tokens = extractKeyTokens('A B cd efg');
+    expect(tokens.has('a')).toBe(false);
+    expect(tokens.has('b')).toBe(false);
+    expect(tokens.has('cd')).toBe(true);
+    expect(tokens.has('efg')).toBe(true);
+  });
+});
+
+describe('countCommonTokens', () => {
+  it('共通トークンの数を正しくカウントする', () => {
+    const a = new Set(['bun', '1.2', 'release']);
+    const b = new Set(['bun', '1.2', 'performance']);
+    expect(countCommonTokens(a, b)).toBe(2);
+  });
+
+  it('共通要素がない場合 0 を返す', () => {
+    const a = new Set(['react', 'hooks']);
+    const b = new Set(['vue', 'composable']);
+    expect(countCommonTokens(a, b)).toBe(0);
+  });
+});
+
+describe('groupByTopic', () => {
+  it('URL 一致でグルーピングする', () => {
+    const items: UnifiedItem[] = [
+      { id: '1', source: 'feed', title: 'Bun リリース', link: 'https://example.com/bun', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
+      { id: '2', source: 'clip', title: 'Bun の記事', link: 'https://example.com/bun', isRead: true, publishedAt: 2000 },
+    ];
+    const groups = groupByTopic(items);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].items).toHaveLength(2);
+    expect(groups[0].sourceCount).toBe(2);
+  });
+
+  it('タイトル類似でグルーピングする', () => {
+    const items: UnifiedItem[] = [
+      { id: '1', source: 'feed', title: 'Bun 1.2 パフォーマンス改善リリース', link: 'https://a.com/bun', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
+      { id: '2', source: 'feed', title: 'Bun 1.2 リリース パフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 2000, feedTitle: 'フィードB' },
+    ];
+    const groups = groupByTopic(items);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].sourceCount).toBe(2);
+  });
+
+  it('sourceCount 降順でソートする', () => {
+    const items: UnifiedItem[] = [
+      { id: '1', source: 'feed', title: 'React 19 新機能紹介', link: 'https://a.com/react', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
+      { id: '2', source: 'clip', title: 'React 19 新機能まとめ', link: 'https://b.com/react', isRead: true, publishedAt: 2000 },
+      { id: '3', source: 'feed', title: 'Bun 1.2 パフォーマンスリリース', link: 'https://a.com/bun', isRead: false, publishedAt: 3000, feedTitle: 'フィードA' },
+      { id: '4', source: 'feed', title: 'Bun 1.2 リリースパフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 4000, feedTitle: 'フィードB' },
+      { id: '5', source: 'clip', title: 'Bun 1.2 テストパフォーマンス', link: 'https://c.com/bun', isRead: true, publishedAt: 5000 },
+    ];
+    const groups = groupByTopic(items);
+    // Bun グループ (3ソース) が先に来るはず
+    expect(groups.length).toBeGreaterThanOrEqual(2);
+    expect(groups[0].sourceCount).toBeGreaterThanOrEqual(groups[1].sourceCount);
+  });
+
+  it('空配列で空配列を返す', () => {
+    const groups = groupByTopic([]);
+    expect(groups).toEqual([]);
+  });
+
+  it('最長タイトルが topicTitle になる', () => {
+    const items: UnifiedItem[] = [
+      { id: '1', source: 'feed', title: 'Short', link: 'https://a.com/x', isRead: false, publishedAt: 1000, feedTitle: 'A' },
+      { id: '2', source: 'clip', title: 'Short', link: 'https://a.com/x', isRead: true, publishedAt: 2000 },
+    ];
+    const groups = groupByTopic(items);
+    expect(groups[0].topicTitle).toBe('Short');
   });
 });
