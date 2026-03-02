@@ -167,6 +167,7 @@ export class HeartbeatEngine {
     }
 
     // 日次通知上限チェック
+    let remainingQuota = Infinity;
     if (config.maxNotificationsPerDay > 0) {
       const state = await loadHeartbeatState();
       const todayCount = getTodayNotificationCount(state.recentResults);
@@ -174,15 +175,16 @@ export class HeartbeatEngine {
         console.debug('[Heartbeat] 日次通知上限到達 — スキップ');
         return;
       }
+      remainingQuota = config.maxNotificationsPerDay - todayCount;
     }
 
     const tasks = await getTasksDue(config);
     if (tasks.length === 0) return;
 
-    await this.executeCheck(tasks);
+    await this.executeCheck(tasks, remainingQuota);
   }
 
-  private async executeCheck(tasks: HeartbeatTask[]): Promise<void> {
+  private async executeCheck(tasks: HeartbeatTask[], remainingQuota = Infinity): Promise<void> {
     this.isExecuting = true;
     const trace = tracer.startTrace('heartbeat.check');
     trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
@@ -214,8 +216,12 @@ export class HeartbeatEngine {
         allHeartbeatResults.push(...results);
       }
 
-      if (allHeartbeatResults.length > 0) {
-        this.notify({ results: allHeartbeatResults });
+      // 日次通知上限で通知数をトリム（同一 tick 内で複数タスクが変化ありを返した場合の超過防止）
+      const trimmed = Number.isFinite(remainingQuota)
+        ? allHeartbeatResults.slice(0, remainingQuota)
+        : allHeartbeatResults;
+      if (trimmed.length > 0) {
+        this.notify({ results: trimmed });
       }
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
