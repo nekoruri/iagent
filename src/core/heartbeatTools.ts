@@ -22,6 +22,7 @@ export interface UnifiedItem {
   isRead: boolean;
   publishedAt: number;
   tier?: FeedItemTier;
+  feedId?: string;
   feedTitle?: string;
 }
 
@@ -34,7 +35,7 @@ export interface TopicGroup {
   items: UnifiedItem[];
 }
 
-/** UTM パラメータ除去 + 末尾スラッシュ統一 + フラグメント除去 + 小文字化 */
+/** UTM パラメータ除去 + 末尾スラッシュ統一 + フラグメント除去 + ホスト小文字化 */
 export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -43,7 +44,10 @@ export function normalizeUrl(url: string): string {
       u.searchParams.delete(p);
     }
     u.hash = '';
-    let normalized = u.toString().toLowerCase();
+    // ホスト/スキームのみ小文字化（パス・クエリは case-sensitive なサーバーがあるため保持）
+    u.protocol = u.protocol.toLowerCase();
+    u.hostname = u.hostname.toLowerCase();
+    let normalized = u.toString();
     if (normalized.endsWith('/')) {
       normalized = normalized.slice(0, -1);
     }
@@ -158,11 +162,11 @@ export function groupByTopic(items: UnifiedItem[]): TopicGroup[] {
   for (const indices of groups.values()) {
     const groupItems = indices.map((i) => items[i]);
 
-    // sourceCount: feed は feedTitle で区別、clip = 1 ソース
+    // sourceCount: feed は feedId で区別（一意キー）、clip = 1 ソース
     const sources = new Set<string>();
     for (const item of groupItems) {
       if (item.source === 'feed') {
-        sources.add(`feed:${item.feedTitle ?? ''}`);
+        sources.add(`feed:${item.feedId ?? item.feedTitle ?? ''}`);
       } else {
         sources.add('clip');
       }
@@ -829,6 +833,7 @@ export async function executeWorkerTool(
           isRead: item.isRead,
           publishedAt: item.publishedAt,
           tier: item.tier,
+          feedId: item.feedId,
           feedTitle: feedMap6.get(item.feedId),
         });
       }

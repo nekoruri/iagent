@@ -752,10 +752,12 @@ describe('normalizeUrl', () => {
     expect(a).toBe(b);
   });
 
-  it('大文字小文字を統一する', () => {
+  it('ホスト名のみ小文字化する（パスは保持）', () => {
     const a = normalizeUrl('https://Example.COM/Page');
+    expect(a).toBe('https://example.com/Page');
+    // ホストが同じならパスの大文字小文字で区別される
     const b = normalizeUrl('https://example.com/page');
-    expect(a).toBe(b);
+    expect(b).toBe('https://example.com/page');
   });
 
   it('不正 URL はそのまま小文字化してフォールバック', () => {
@@ -821,7 +823,7 @@ describe('countCommonTokens', () => {
 describe('groupByTopic', () => {
   it('URL 一致でグルーピングする', () => {
     const items: UnifiedItem[] = [
-      { id: '1', source: 'feed', title: 'Bun リリース', link: 'https://example.com/bun', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
+      { id: '1', source: 'feed', title: 'Bun リリース', link: 'https://example.com/bun', isRead: false, publishedAt: 1000, feedId: 'fa', feedTitle: 'フィードA' },
       { id: '2', source: 'clip', title: 'Bun の記事', link: 'https://example.com/bun', isRead: true, publishedAt: 2000 },
     ];
     const groups = groupByTopic(items);
@@ -832,8 +834,8 @@ describe('groupByTopic', () => {
 
   it('タイトル類似でグルーピングする', () => {
     const items: UnifiedItem[] = [
-      { id: '1', source: 'feed', title: 'Bun 1.2 パフォーマンス改善リリース', link: 'https://a.com/bun', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
-      { id: '2', source: 'feed', title: 'Bun 1.2 リリース パフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 2000, feedTitle: 'フィードB' },
+      { id: '1', source: 'feed', title: 'Bun 1.2 パフォーマンス改善リリース', link: 'https://a.com/bun', isRead: false, publishedAt: 1000, feedId: 'fa', feedTitle: 'フィードA' },
+      { id: '2', source: 'feed', title: 'Bun 1.2 リリース パフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 2000, feedId: 'fb', feedTitle: 'フィードB' },
     ];
     const groups = groupByTopic(items);
     expect(groups).toHaveLength(1);
@@ -842,10 +844,10 @@ describe('groupByTopic', () => {
 
   it('sourceCount 降順でソートする', () => {
     const items: UnifiedItem[] = [
-      { id: '1', source: 'feed', title: 'React 19 新機能紹介', link: 'https://a.com/react', isRead: false, publishedAt: 1000, feedTitle: 'フィードA' },
+      { id: '1', source: 'feed', title: 'React 19 新機能紹介', link: 'https://a.com/react', isRead: false, publishedAt: 1000, feedId: 'fa', feedTitle: 'フィードA' },
       { id: '2', source: 'clip', title: 'React 19 新機能まとめ', link: 'https://b.com/react', isRead: true, publishedAt: 2000 },
-      { id: '3', source: 'feed', title: 'Bun 1.2 パフォーマンスリリース', link: 'https://a.com/bun', isRead: false, publishedAt: 3000, feedTitle: 'フィードA' },
-      { id: '4', source: 'feed', title: 'Bun 1.2 リリースパフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 4000, feedTitle: 'フィードB' },
+      { id: '3', source: 'feed', title: 'Bun 1.2 パフォーマンスリリース', link: 'https://a.com/bun', isRead: false, publishedAt: 3000, feedId: 'fa', feedTitle: 'フィードA' },
+      { id: '4', source: 'feed', title: 'Bun 1.2 リリースパフォーマンス比較', link: 'https://b.com/bun', isRead: true, publishedAt: 4000, feedId: 'fb', feedTitle: 'フィードB' },
       { id: '5', source: 'clip', title: 'Bun 1.2 テストパフォーマンス', link: 'https://c.com/bun', isRead: true, publishedAt: 5000 },
     ];
     const groups = groupByTopic(items);
