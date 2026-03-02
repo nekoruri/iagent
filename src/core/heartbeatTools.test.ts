@@ -15,7 +15,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(13);
+    expect(WORKER_TOOLS).toHaveLength(15);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -30,6 +30,8 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('listClassifiedFeedItems');
     expect(names).toContain('searchMemoriesByQuery');
     expect(names).toContain('getHeartbeatFeedbackSummary');
+    expect(names).toContain('getInfoThresholdStatus');
+    expect(names).toContain('getWeeklyReflections');
   });
 
   it('全ツールが function タイプである', () => {
@@ -455,6 +457,125 @@ describe('executeWorkerTool', () => {
       const parsed = JSON.parse(result);
       expect(parsed.count).toBe(0);
       expect(parsed.memories).toEqual([]);
+    });
+  });
+
+  describe('getInfoThresholdStatus', () => {
+    it('データなしで全カウント 0、exceeded=false', async () => {
+      const result = await executeWorkerTool('getInfoThresholdStatus', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.unclassifiedFeedCount).toBe(0);
+      expect(parsed.unreadClassifiedCount).toBe(0);
+      expect(parsed.totalClipCount).toBe(0);
+      expect(parsed.exceeded).toBe(false);
+      expect(parsed.thresholds).toEqual({ unclassifiedFeed: 50, unreadClassified: 30, clips: 100 });
+    });
+
+    it('未分類フィード 51 件で exceeded=true', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, Array.from({ length: 51 }, (_, i) => ({
+        guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+      })));
+
+      const result = await executeWorkerTool('getInfoThresholdStatus', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.unclassifiedFeedCount).toBe(51);
+      expect(parsed.exceeded).toBe(true);
+      expect(parsed.details.unclassifiedFeedExceeded).toBe(true);
+    });
+
+    it('閾値ちょうど（50 件）で exceeded=false', async () => {
+      const feed = await saveFeed({ url: 'https://a.com/feed', title: 'A' });
+      await saveFeedItems(feed.id, Array.from({ length: 50 }, (_, i) => ({
+        guid: `g${i}`, title: `Item ${i}`, link: `https://a.com/${i}`, content: '本文', publishedAt: i * 1000,
+      })));
+
+      const result = await executeWorkerTool('getInfoThresholdStatus', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.unclassifiedFeedCount).toBe(50);
+      expect(parsed.exceeded).toBe(false);
+      expect(parsed.details.unclassifiedFeedExceeded).toBe(false);
+    });
+
+    it('クリップ 101 件で exceeded=true', async () => {
+      const db = await getDB();
+      for (let i = 0; i < 101; i++) {
+        await db.put('clips', {
+          id: `clip-${i}`,
+          url: `https://example.com/${i}`,
+          title: `Clip ${i}`,
+          content: `内容 ${i}`,
+          tags: [],
+          createdAt: Date.now() - i * 1000,
+        });
+      }
+
+      const result = await executeWorkerTool('getInfoThresholdStatus', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalClipCount).toBe(101);
+      expect(parsed.exceeded).toBe(true);
+      expect(parsed.details.clipsExceeded).toBe(true);
+    });
+  });
+
+  describe('getWeeklyReflections', () => {
+    it('直近 7 日の reflection のみ返す（fact カテゴリは除外）', async () => {
+      await saveMemory('今日のふりかえり', 'reflection', { importance: 3, tags: ['daily-summary'] });
+      await saveMemory('事実メモ', 'fact');
+
+      const result = await executeWorkerTool('getWeeklyReflections', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.count).toBe(1);
+      expect(parsed.reflections[0].content).toBe('今日のふりかえり');
+    });
+
+    it('デフォルト periodDays=7', async () => {
+      const result = await executeWorkerTool('getWeeklyReflections', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.periodDays).toBe(7);
+    });
+
+    it('periodDays がクランプされる（0→1、60→30）', async () => {
+      const r1 = await executeWorkerTool('getWeeklyReflections', { periodDays: 0 });
+      const p1 = JSON.parse(r1);
+      expect(p1.periodDays).toBe(1);
+
+      const r2 = await executeWorkerTool('getWeeklyReflections', { periodDays: 60 });
+      const p2 = JSON.parse(r2);
+      expect(p2.periodDays).toBe(30);
+    });
+
+    it('reflection なしで空配列', async () => {
+      const result = await executeWorkerTool('getWeeklyReflections', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.reflections).toEqual([]);
+      expect(parsed.count).toBe(0);
+    });
+
+    it('期間外の reflection は除外', async () => {
+      // 直近の reflection を作成
+      await saveMemory('今日のふりかえり', 'reflection');
+
+      // 期間外の reflection を IDB 直接投入
+      const db = await getDB();
+      const oldDate = Date.now() - 10 * 24 * 60 * 60 * 1000; // 10日前
+      await db.put('memories', {
+        id: 'old-reflection',
+        content: '古いふりかえり',
+        category: 'reflection',
+        importance: 3,
+        tags: [],
+        accessCount: 0,
+        lastAccessedAt: oldDate,
+        contentHash: 'dummy-hash',
+        createdAt: oldDate,
+        updatedAt: oldDate,
+      });
+
+      const result = await executeWorkerTool('getWeeklyReflections', { periodDays: 7 });
+      const parsed = JSON.parse(result);
+      expect(parsed.count).toBe(1);
+      expect(parsed.reflections[0].content).toBe('今日のふりかえり');
     });
   });
 
