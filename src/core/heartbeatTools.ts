@@ -1,11 +1,11 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Memory, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, HeartbeatResult, Memory, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
 import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories, listMemories } from '../store/memoryStore';
 import { listClips } from '../store/clipStore';
-import { getHeartbeatFeedbackSummary } from '../store/heartbeatStore';
+import { getHeartbeatFeedbackSummary, loadHeartbeatState } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
 import { parseDeadline, daysUntilDeadline } from './deadlineParser';
@@ -103,6 +103,221 @@ export function computeMonthlyGoalStats(goals: Memory[], now: Date): MonthlyGoal
     goalsWithDeadline: deadlineCount,
     newGoalsThisMonth: newCount,
     goals: goalStats,
+  };
+}
+
+// --- パターン認識 (F14) ---
+
+export interface HourlyActivity {
+  hour: number;        // 0-23
+  total: number;       // feedback 付き結果数
+  accepted: number;
+  acceptRate: number;  // 0.0-1.0
+}
+
+export interface DailyActivity {
+  dayOfWeek: number;     // 0=日...6=土
+  dayName: string;
+  totalResults: number;
+  accepted: number;
+  acceptRate: number;
+}
+
+export interface TaskTrend {
+  taskId: string;
+  recentAcceptRate: number;    // 直近半分の Accept 率
+  previousAcceptRate: number;  // 前半分の Accept 率
+  trend: 'improving' | 'declining' | 'stable';
+}
+
+export interface TagFrequency {
+  tag: string;
+  recentCount: number;   // 直近半分
+  previousCount: number; // 前半分
+  trend: 'rising' | 'falling' | 'stable';
+}
+
+export interface UserActivityPatterns {
+  totalResults: number;
+  totalWithFeedback: number;
+  hourlyActivity: HourlyActivity[];  // feedback あり時間帯のみ
+  dailyActivity: DailyActivity[];    // feedback あり曜日のみ
+  taskTrends: TaskTrend[];
+  topTags: TagFrequency[];           // 上位 10
+  bestHours: number[];               // Accept 率上位 3 時間帯
+  bestDays: number[];                // Accept 率上位 3 曜日
+}
+
+const DAY_NAMES = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+
+/** JST の時間（0-23）を取得 */
+function getJSTHour(timestamp: number): number {
+  const d = new Date(timestamp);
+  const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', hour: 'numeric', hour12: false }).format(d);
+  return parseInt(hourStr, 10) % 24; // "24" → 0
+}
+
+/** JST の曜日（0=日...6=土）を取得 */
+function getJSTDayOfWeek(timestamp: number): number {
+  const d = new Date(timestamp);
+  const weekdayPart = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', weekday: 'short' }).format(d);
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return weekdayMap[weekdayPart] ?? d.getDay();
+}
+
+/**
+ * Heartbeat 結果と記憶データからユーザーの行動パターンを分析する（純粋関数 — テスト用に公開）
+ * @param results HeartbeatResult 配列
+ * @param memories Memory 配列
+ * @param now 基準日時
+ */
+export function computeUserActivityPatterns(
+  results: HeartbeatResult[],
+  memories: Memory[],
+  _now: Date,
+): UserActivityPatterns {
+  // feedback 付き結果のみ
+  const withFeedback = results.filter((r) => r.feedback);
+  const totalResults = results.length;
+  const totalWithFeedback = withFeedback.length;
+
+  // --- 時間帯別 Accept 率 ---
+  const hourBuckets = new Map<number, { total: number; accepted: number }>();
+  for (const r of withFeedback) {
+    const hour = getJSTHour(r.timestamp);
+    const bucket = hourBuckets.get(hour) ?? { total: 0, accepted: 0 };
+    bucket.total++;
+    if (r.feedback!.type === 'accepted') bucket.accepted++;
+    hourBuckets.set(hour, bucket);
+  }
+
+  const hourlyActivity: HourlyActivity[] = [];
+  for (const [hour, bucket] of hourBuckets) {
+    hourlyActivity.push({
+      hour,
+      total: bucket.total,
+      accepted: bucket.accepted,
+      acceptRate: bucket.total > 0 ? bucket.accepted / bucket.total : 0,
+    });
+  }
+  hourlyActivity.sort((a, b) => a.hour - b.hour);
+
+  // bestHours: total >= 2 のバケットから Accept 率上位 3
+  const bestHours = [...hourlyActivity]
+    .filter((h) => h.total >= 2)
+    .sort((a, b) => b.acceptRate - a.acceptRate || b.total - a.total)
+    .slice(0, 3)
+    .map((h) => h.hour);
+
+  // --- 曜日別 ---
+  const dayBuckets = new Map<number, { total: number; accepted: number }>();
+  for (const r of withFeedback) {
+    const dow = getJSTDayOfWeek(r.timestamp);
+    const bucket = dayBuckets.get(dow) ?? { total: 0, accepted: 0 };
+    bucket.total++;
+    if (r.feedback!.type === 'accepted') bucket.accepted++;
+    dayBuckets.set(dow, bucket);
+  }
+
+  const dailyActivity: DailyActivity[] = [];
+  for (const [dow, bucket] of dayBuckets) {
+    dailyActivity.push({
+      dayOfWeek: dow,
+      dayName: DAY_NAMES[dow],
+      totalResults: bucket.total,
+      accepted: bucket.accepted,
+      acceptRate: bucket.total > 0 ? bucket.accepted / bucket.total : 0,
+    });
+  }
+  dailyActivity.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+
+  // bestDays: total >= 2 のバケットから Accept 率上位 3
+  const bestDays = [...dailyActivity]
+    .filter((d) => d.totalResults >= 2)
+    .sort((a, b) => b.acceptRate - a.acceptRate || b.totalResults - a.totalResults)
+    .slice(0, 3)
+    .map((d) => d.dayOfWeek);
+
+  // --- タスク別トレンド ---
+  const sortedResults = [...withFeedback].sort((a, b) => a.timestamp - b.timestamp);
+  const midIdx = Math.floor(sortedResults.length / 2);
+  const firstHalf = sortedResults.slice(0, midIdx);
+  const secondHalf = sortedResults.slice(midIdx);
+
+  // タスクごとに前半・後半の Accept 率を計算
+  const taskMap = new Map<string, { prevTotal: number; prevAccepted: number; recentTotal: number; recentAccepted: number }>();
+  for (const r of firstHalf) {
+    const entry = taskMap.get(r.taskId) ?? { prevTotal: 0, prevAccepted: 0, recentTotal: 0, recentAccepted: 0 };
+    entry.prevTotal++;
+    if (r.feedback!.type === 'accepted') entry.prevAccepted++;
+    taskMap.set(r.taskId, entry);
+  }
+  for (const r of secondHalf) {
+    const entry = taskMap.get(r.taskId) ?? { prevTotal: 0, prevAccepted: 0, recentTotal: 0, recentAccepted: 0 };
+    entry.recentTotal++;
+    if (r.feedback!.type === 'accepted') entry.recentAccepted++;
+    taskMap.set(r.taskId, entry);
+  }
+
+  const taskTrends: TaskTrend[] = [];
+  for (const [taskId, data] of taskMap) {
+    const previousAcceptRate = data.prevTotal > 0 ? data.prevAccepted / data.prevTotal : 0;
+    const recentAcceptRate = data.recentTotal > 0 ? data.recentAccepted / data.recentTotal : 0;
+    const diff = recentAcceptRate - previousAcceptRate;
+    let trend: TaskTrend['trend'] = 'stable';
+    if (diff >= 0.2) trend = 'improving';
+    else if (diff <= -0.2) trend = 'declining';
+    taskTrends.push({ taskId, recentAcceptRate, previousAcceptRate, trend });
+  }
+
+  // --- タグ頻出度 ---
+  const sortedMemories = [...memories].sort((a, b) => a.createdAt - b.createdAt);
+  const memMidIdx = Math.floor(sortedMemories.length / 2);
+  const memFirst = sortedMemories.slice(0, memMidIdx);
+  const memSecond = sortedMemories.slice(memMidIdx);
+
+  const tagCounts = new Map<string, { prev: number; recent: number }>();
+  for (const m of memFirst) {
+    for (const tag of m.tags) {
+      const entry = tagCounts.get(tag) ?? { prev: 0, recent: 0 };
+      entry.prev++;
+      tagCounts.set(tag, entry);
+    }
+  }
+  for (const m of memSecond) {
+    for (const tag of m.tags) {
+      const entry = tagCounts.get(tag) ?? { prev: 0, recent: 0 };
+      entry.recent++;
+      tagCounts.set(tag, entry);
+    }
+  }
+
+  const topTagTuples: { tagFrequency: TagFrequency; total: number }[] = [];
+  for (const [tag, counts] of tagCounts) {
+    const total = counts.prev + counts.recent;
+    const diff = counts.recent - counts.prev;
+    let trend: TagFrequency['trend'] = 'stable';
+    if (diff > 0) trend = 'rising';
+    else if (diff < 0) trend = 'falling';
+    topTagTuples.push({
+      tagFrequency: { tag, recentCount: counts.recent, previousCount: counts.prev, trend },
+      total,
+    });
+  }
+
+  // 出現合計降順でソートし上位 10
+  topTagTuples.sort((a, b) => b.total - a.total);
+  const topTags = topTagTuples.slice(0, 10).map((t) => t.tagFrequency);
+
+  return {
+    totalResults,
+    totalWithFeedback,
+    hourlyActivity,
+    dailyActivity,
+    taskTrends,
+    topTags,
+    bestHours,
+    bestDays,
   };
 }
 
@@ -512,6 +727,20 @@ export const WORKER_TOOLS = [
       parameters: {
         type: 'object',
         properties: {},
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getUserActivityPatterns',
+      description: 'Heartbeat 結果と記憶データからユーザーの行動パターンを分析します。'
+        + '時間帯別の通知受容率、曜日別アクティビティ、タスク別トレンド、関心トピック変化を集計します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodDays: { type: 'number', description: '分析対象期間（日数、デフォルト 14、1〜30）' },
+        },
       },
     },
   },
@@ -974,6 +1203,16 @@ export async function executeWorkerTool(
       const goals = await listMemories('goal');
       const stats = computeMonthlyGoalStats(goals, new Date());
       return JSON.stringify(stats);
+    }
+    case 'getUserActivityPatterns': {
+      const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 14));
+      const cutoff = Date.now() - periodDays * DAY_MS;
+      const state = await loadHeartbeatState();
+      const filteredResults = state.recentResults.filter((r) => r.timestamp >= cutoff);
+      const allMemories = await listMemories();
+      const filteredMemories = allMemories.filter((m) => m.createdAt >= cutoff);
+      const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
+      return JSON.stringify({ ...patterns, periodDays });
     }
     default:
       return JSON.stringify({ error: `不明なツール: ${name}` });

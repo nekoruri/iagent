@@ -6,10 +6,10 @@ vi.mock('../store/db');
 import {
   WORKER_TOOLS, executeWorkerTool,
   normalizeUrl, extractKeyTokens, countCommonTokens, groupByTopic,
-  computeMonthlyGoalStats,
+  computeMonthlyGoalStats, computeUserActivityPatterns,
 } from './heartbeatTools';
 import type { UnifiedItem } from './heartbeatTools';
-import type { Memory } from '../types';
+import type { HeartbeatResult, Memory } from '../types';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
 import { saveFeed, saveFeedItems } from '../store/feedStore';
@@ -21,7 +21,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(17);
+    expect(WORKER_TOOLS).toHaveLength(18);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -40,6 +40,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getWeeklyReflections');
     expect(names).toContain('getCrossSourceTopics');
     expect(names).toContain('getMonthlyGoalStats');
+    expect(names).toContain('getUserActivityPatterns');
   });
 
   it('全ツールが function タイプである', () => {
@@ -752,6 +753,49 @@ describe('executeWorkerTool', () => {
     });
   });
 
+  describe('getUserActivityPatterns', () => {
+    it('デフォルト periodDays=14 で結果を返す', async () => {
+      const now = Date.now();
+      await addHeartbeatResult({ taskId: 'task-a', timestamp: now - 1000, hasChanges: true, summary: 'A' });
+      await setHeartbeatFeedback('task-a', now - 1000, 'accepted');
+
+      const result = await executeWorkerTool('getUserActivityPatterns', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.periodDays).toBe(14);
+      expect(parsed.totalResults).toBe(1);
+      expect(parsed.totalWithFeedback).toBe(1);
+      expect(parsed.hourlyActivity).toBeDefined();
+      expect(parsed.dailyActivity).toBeDefined();
+      expect(parsed.taskTrends).toBeDefined();
+      expect(parsed.topTags).toBeDefined();
+      expect(parsed.bestHours).toBeDefined();
+      expect(parsed.bestDays).toBeDefined();
+    });
+
+    it('periodDays がクランプされる（0→1、60→30）', async () => {
+      const r1 = await executeWorkerTool('getUserActivityPatterns', { periodDays: 0 });
+      const p1 = JSON.parse(r1);
+      expect(p1.periodDays).toBe(1);
+
+      const r2 = await executeWorkerTool('getUserActivityPatterns', { periodDays: 60 });
+      const p2 = JSON.parse(r2);
+      expect(p2.periodDays).toBe(30);
+    });
+
+    it('データなしで安全にデフォルト値を返す', async () => {
+      const result = await executeWorkerTool('getUserActivityPatterns', {});
+      const parsed = JSON.parse(result);
+      expect(parsed.totalResults).toBe(0);
+      expect(parsed.totalWithFeedback).toBe(0);
+      expect(parsed.hourlyActivity).toEqual([]);
+      expect(parsed.dailyActivity).toEqual([]);
+      expect(parsed.taskTrends).toEqual([]);
+      expect(parsed.topTags).toEqual([]);
+      expect(parsed.bestHours).toEqual([]);
+      expect(parsed.bestDays).toEqual([]);
+    });
+  });
+
   describe('不明なツール', () => {
     it('エラーメッセージを返す', async () => {
       const result = await executeWorkerTool('unknownTool', {});
@@ -999,5 +1043,194 @@ describe('groupByTopic', () => {
     ];
     const groups = groupByTopic(items);
     expect(groups[0].topicTitle).toBe('Much Longer Title Here');
+  });
+});
+
+// --- computeUserActivityPatterns テスト ---
+describe('computeUserActivityPatterns', () => {
+  const HOUR_MS = 60 * 60 * 1000;
+  const now = new Date('2026-03-01T12:00:00+09:00');
+  const nowMs = now.getTime();
+
+  function makeResult(overrides: Partial<HeartbeatResult> & { taskId: string; timestamp: number }): HeartbeatResult {
+    return {
+      hasChanges: true,
+      summary: 'テスト',
+      ...overrides,
+    };
+  }
+
+  function makeMemory(overrides: Partial<Memory> & { content: string; tags: string[] }): Memory {
+    return {
+      id: crypto.randomUUID(),
+      category: 'fact',
+      importance: 3,
+      accessCount: 0,
+      lastAccessedAt: nowMs,
+      contentHash: 'dummy',
+      createdAt: nowMs - 7 * 24 * HOUR_MS,
+      updatedAt: nowMs - 7 * 24 * HOUR_MS,
+      ...overrides,
+    };
+  }
+
+  it('空の結果で安全にデフォルト値を返す', () => {
+    const patterns = computeUserActivityPatterns([], [], now);
+    expect(patterns.totalResults).toBe(0);
+    expect(patterns.totalWithFeedback).toBe(0);
+    expect(patterns.hourlyActivity).toEqual([]);
+    expect(patterns.dailyActivity).toEqual([]);
+    expect(patterns.taskTrends).toEqual([]);
+    expect(patterns.topTags).toEqual([]);
+    expect(patterns.bestHours).toEqual([]);
+    expect(patterns.bestDays).toEqual([]);
+  });
+
+  it('時間帯別 Accept 率を正しく集計する', () => {
+    // JST 10:00 に accepted 2件、dismissed 1件
+    const baseTs = new Date('2026-03-01T10:00:00+09:00').getTime();
+    const results: HeartbeatResult[] = [
+      makeResult({ taskId: 'a', timestamp: baseTs, feedback: { type: 'accepted', timestamp: baseTs + 1000 } }),
+      makeResult({ taskId: 'b', timestamp: baseTs + 1000, feedback: { type: 'accepted', timestamp: baseTs + 2000 } }),
+      makeResult({ taskId: 'c', timestamp: baseTs + 2000, feedback: { type: 'dismissed', timestamp: baseTs + 3000 } }),
+    ];
+    const patterns = computeUserActivityPatterns(results, [], now);
+    const hour10 = patterns.hourlyActivity.find((h) => h.hour === 10);
+    expect(hour10).toBeDefined();
+    expect(hour10!.total).toBe(3);
+    expect(hour10!.accepted).toBe(2);
+    expect(hour10!.acceptRate).toBeCloseTo(2 / 3);
+  });
+
+  it('bestHours に Accept 率上位 3 時間帯を返す', () => {
+    // 各時間帯に 2 件以上のデータを配置
+    const results: HeartbeatResult[] = [];
+    // 9:00 — accept 率 100% (2/2)
+    for (let i = 0; i < 2; i++) {
+      const ts = new Date(`2026-03-01T09:0${i}:00+09:00`).getTime();
+      results.push(makeResult({ taskId: `a${i}`, timestamp: ts, feedback: { type: 'accepted', timestamp: ts + 1000 } }));
+    }
+    // 14:00 — accept 率 50% (1/2)
+    const ts14a = new Date('2026-03-01T14:00:00+09:00').getTime();
+    const ts14b = new Date('2026-03-01T14:01:00+09:00').getTime();
+    results.push(makeResult({ taskId: 'b0', timestamp: ts14a, feedback: { type: 'accepted', timestamp: ts14a + 1000 } }));
+    results.push(makeResult({ taskId: 'b1', timestamp: ts14b, feedback: { type: 'dismissed', timestamp: ts14b + 1000 } }));
+    // 20:00 — accept 率 0% (0/2)
+    for (let i = 0; i < 2; i++) {
+      const ts = new Date(`2026-03-01T20:0${i}:00+09:00`).getTime();
+      results.push(makeResult({ taskId: `c${i}`, timestamp: ts, feedback: { type: 'dismissed', timestamp: ts + 1000 } }));
+    }
+    // 11:00 — 1件のみ（total < 2 なので bestHours 対象外）
+    const ts11 = new Date('2026-03-01T11:00:00+09:00').getTime();
+    results.push(makeResult({ taskId: 'd0', timestamp: ts11, feedback: { type: 'accepted', timestamp: ts11 + 1000 } }));
+
+    const patterns = computeUserActivityPatterns(results, [], now);
+    expect(patterns.bestHours).toHaveLength(3);
+    expect(patterns.bestHours[0]).toBe(9);  // 100%
+    expect(patterns.bestHours[1]).toBe(14); // 50%
+    expect(patterns.bestHours[2]).toBe(20); // 0%
+  });
+
+  it('曜日別アクティビティを集計する', () => {
+    // 2026-03-01 は日曜日 (JST)
+    const sundayTs = new Date('2026-03-01T10:00:00+09:00').getTime();
+    const results: HeartbeatResult[] = [
+      makeResult({ taskId: 'a', timestamp: sundayTs, feedback: { type: 'accepted', timestamp: sundayTs + 1000 } }),
+      makeResult({ taskId: 'b', timestamp: sundayTs + 1000, feedback: { type: 'dismissed', timestamp: sundayTs + 2000 } }),
+    ];
+    const patterns = computeUserActivityPatterns(results, [], now);
+    const sunday = patterns.dailyActivity.find((d) => d.dayOfWeek === 0);
+    expect(sunday).toBeDefined();
+    expect(sunday!.dayName).toBe('日曜日');
+    expect(sunday!.totalResults).toBe(2);
+    expect(sunday!.accepted).toBe(1);
+    expect(sunday!.acceptRate).toBeCloseTo(0.5);
+  });
+
+  it('bestDays に Accept 率上位曜日を返す', () => {
+    // 日曜 (0) = 100%, 月曜 (1) = 50%
+    const sunTs = new Date('2026-03-01T10:00:00+09:00').getTime(); // 日曜
+    const monTs = new Date('2026-03-02T10:00:00+09:00').getTime(); // 月曜
+    const results: HeartbeatResult[] = [
+      makeResult({ taskId: 'a', timestamp: sunTs, feedback: { type: 'accepted', timestamp: sunTs + 1000 } }),
+      makeResult({ taskId: 'b', timestamp: sunTs + 60000, feedback: { type: 'accepted', timestamp: sunTs + 61000 } }),
+      makeResult({ taskId: 'c', timestamp: monTs, feedback: { type: 'accepted', timestamp: monTs + 1000 } }),
+      makeResult({ taskId: 'd', timestamp: monTs + 60000, feedback: { type: 'dismissed', timestamp: monTs + 61000 } }),
+    ];
+    const patterns = computeUserActivityPatterns(results, [], now);
+    expect(patterns.bestDays.length).toBeGreaterThanOrEqual(2);
+    expect(patterns.bestDays[0]).toBe(0); // 日曜 100%
+    expect(patterns.bestDays[1]).toBe(1); // 月曜 50%
+  });
+
+  it('タスク別トレンドを検出する（improving/declining/stable）', () => {
+    // 前半: task-x 全 dismissed、task-y 全 accepted、task-z 半分
+    // 後半: task-x 全 accepted、task-y 全 dismissed、task-z 半分
+    const results: HeartbeatResult[] = [];
+    // 前半（古い）
+    for (let i = 0; i < 4; i++) {
+      const ts = nowMs - 10 * 24 * HOUR_MS + i * HOUR_MS;
+      results.push(makeResult({ taskId: 'task-x', timestamp: ts, feedback: { type: 'dismissed', timestamp: ts + 1000 } }));
+      results.push(makeResult({ taskId: 'task-y', timestamp: ts + 100, feedback: { type: 'accepted', timestamp: ts + 1100 } }));
+      results.push(makeResult({ taskId: 'task-z', timestamp: ts + 200, feedback: { type: i < 2 ? 'accepted' : 'dismissed', timestamp: ts + 1200 } }));
+    }
+    // 後半（新しい）
+    for (let i = 0; i < 4; i++) {
+      const ts = nowMs - 3 * 24 * HOUR_MS + i * HOUR_MS;
+      results.push(makeResult({ taskId: 'task-x', timestamp: ts, feedback: { type: 'accepted', timestamp: ts + 1000 } }));
+      results.push(makeResult({ taskId: 'task-y', timestamp: ts + 100, feedback: { type: 'dismissed', timestamp: ts + 1100 } }));
+      results.push(makeResult({ taskId: 'task-z', timestamp: ts + 200, feedback: { type: i < 2 ? 'accepted' : 'dismissed', timestamp: ts + 1200 } }));
+    }
+
+    const patterns = computeUserActivityPatterns(results, [], now);
+    const trendX = patterns.taskTrends.find((t) => t.taskId === 'task-x');
+    const trendY = patterns.taskTrends.find((t) => t.taskId === 'task-y');
+    const trendZ = patterns.taskTrends.find((t) => t.taskId === 'task-z');
+    expect(trendX!.trend).toBe('improving');    // 0% → 100%
+    expect(trendY!.trend).toBe('declining');     // 100% → 0%
+    expect(trendZ!.trend).toBe('stable');        // 50% → 50%
+  });
+
+  it('タグ頻出度の変化を検出する', () => {
+    const memories: Memory[] = [];
+    // 前半: tag-a が多い
+    for (let i = 0; i < 4; i++) {
+      memories.push(makeMemory({
+        content: `メモ前半${i}`,
+        tags: ['tag-a'],
+        createdAt: nowMs - 14 * 24 * HOUR_MS + i * HOUR_MS,
+      }));
+    }
+    // 後半: tag-b が多い
+    for (let i = 0; i < 4; i++) {
+      memories.push(makeMemory({
+        content: `メモ後半${i}`,
+        tags: ['tag-b'],
+        createdAt: nowMs - 3 * 24 * HOUR_MS + i * HOUR_MS,
+      }));
+    }
+
+    const patterns = computeUserActivityPatterns([], memories, now);
+    const tagA = patterns.topTags.find((t) => t.tag === 'tag-a');
+    const tagB = patterns.topTags.find((t) => t.tag === 'tag-b');
+    expect(tagA!.trend).toBe('falling');  // 前半に多い → 後半に少ない
+    expect(tagB!.trend).toBe('rising');   // 前半に少ない → 後半に多い
+  });
+
+  it('feedback なしの結果を Accept 率計算に含めない', () => {
+    const ts1 = nowMs - HOUR_MS;
+    const ts2 = nowMs - 2 * HOUR_MS;
+    const ts3 = nowMs - 3 * HOUR_MS;
+    const results: HeartbeatResult[] = [
+      makeResult({ taskId: 'a', timestamp: ts1, feedback: { type: 'accepted', timestamp: ts1 + 1000 } }),
+      makeResult({ taskId: 'b', timestamp: ts2 }), // feedback なし
+      makeResult({ taskId: 'c', timestamp: ts3 }), // feedback なし
+    ];
+    const patterns = computeUserActivityPatterns(results, [], now);
+    expect(patterns.totalResults).toBe(3);
+    expect(patterns.totalWithFeedback).toBe(1);
+    // hourlyActivity は feedback ありのみ
+    const totalInHourly = patterns.hourlyActivity.reduce((sum, h) => sum + h.total, 0);
+    expect(totalInHourly).toBe(1);
   });
 });
