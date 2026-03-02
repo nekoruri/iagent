@@ -93,6 +93,23 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     schedule: { type: 'fixed-time', hour: 22, minute: 0 },
   },
   {
+    id: 'suggestion-optimization',
+    name: '提案品質の最適化',
+    description: 'フィードバック統計と行動パターンを分析し、提案品質の最適化ルールを生成・保存します。'
+      + '手順: 1) getSuggestionOptimizations(periodDays=14) で最適化分析を取得 '
+      + '→ 2) totalWithFeedback < 5 なら hasChanges: false で終了 '
+      + '→ 3) 分析結果を以下の観点で解釈: '
+      + '(a) タスク別調整（maintain/improve/reduce-frequency/disable-candidate の理由と具体策）、'
+      + '(b) タイミング最適化（suggestedQuietHours/Days の活用提案）、'
+      + '(c) カテゴリ重み調整（rising/falling タグの傾向）、'
+      + '(d) 総合スコアに基づく改善方針 '
+      + '→ 4) saveReflection で最適化ルールを保存（tags: suggestion-optimization,auto-tune、importance: 4）。'
+      + 'ルールは「〜すべき」「〜を優先する」等の指示形式で記述し、次回以降の提案生成時に参照されるようにしてください。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 23, minute: 30 },
+  },
+  {
     id: 'briefing-morning',
     name: '朝のブリーフィング',
     description: '朝に本日の予定・ニュース・Web 変化・記憶をまとめたブリーフィングを生成します。'

@@ -6,8 +6,10 @@ vi.mock('../store/db');
 import {
   WORKER_TOOLS, executeWorkerTool,
   normalizeUrl, extractKeyTokens, countCommonTokens, groupByTopic,
-  computeMonthlyGoalStats, computeUserActivityPatterns,
+  computeMonthlyGoalStats, computeUserActivityPatterns, computeSuggestionOptimizations,
 } from './heartbeatTools';
+import type { FeedbackSummary, TaskFeedbackStats } from '../store/heartbeatStore';
+import type { UserActivityPatterns } from './heartbeatTools';
 import type { UnifiedItem } from './heartbeatTools';
 import type { HeartbeatResult, Memory } from '../types';
 import { getDB } from '../store/db';
@@ -21,7 +23,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(18);
+    expect(WORKER_TOOLS).toHaveLength(19);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -41,6 +43,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getCrossSourceTopics');
     expect(names).toContain('getMonthlyGoalStats');
     expect(names).toContain('getUserActivityPatterns');
+    expect(names).toContain('getSuggestionOptimizations');
   });
 
   it('全ツールが function タイプである', () => {
@@ -1232,5 +1235,223 @@ describe('computeUserActivityPatterns', () => {
     // hourlyActivity は feedback ありのみ
     const totalInHourly = patterns.hourlyActivity.reduce((sum, h) => sum + h.total, 0);
     expect(totalInHourly).toBe(1);
+  });
+});
+
+// --- computeSuggestionOptimizations テスト (F16) ---
+describe('computeSuggestionOptimizations', () => {
+  const now = new Date('2026-03-01T12:00:00+09:00');
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  function makeFeedback(overrides?: Partial<FeedbackSummary>): FeedbackSummary {
+    return {
+      periodMs: 14 * DAY_MS,
+      totalResults: 0,
+      totalWithFeedback: 0,
+      overallAcceptRate: 0,
+      taskStats: [],
+      ...overrides,
+    };
+  }
+
+  function makeTaskStat(overrides: Partial<TaskFeedbackStats> & { taskId: string }): TaskFeedbackStats {
+    return {
+      accepted: 0,
+      dismissed: 0,
+      snoozed: 0,
+      total: 0,
+      acceptRate: 0,
+      ...overrides,
+    };
+  }
+
+  function makePatterns(overrides?: Partial<UserActivityPatterns>): UserActivityPatterns {
+    return {
+      totalResults: 0,
+      totalWithFeedback: 0,
+      hourlyActivity: [],
+      dailyActivity: [],
+      taskTrends: [],
+      topTags: [],
+      bestHours: [],
+      bestDays: [],
+      ...overrides,
+    };
+  }
+
+  it('空データで安全にデフォルト値を返す', () => {
+    const result = computeSuggestionOptimizations(makeFeedback(), makePatterns(), now);
+    expect(result.overallAcceptRate).toBe(0);
+    expect(result.overallScore).toBe(0);
+    expect(result.taskOptimizations).toEqual([]);
+    expect(result.timingOptimization.suggestedQuietHours).toEqual([]);
+    expect(result.timingOptimization.suggestedQuietDays).toEqual([]);
+    expect(result.categoryOptimizations).toEqual([]);
+    expect(result.actionableSummary).toContain('総合スコア: 0/100');
+  });
+
+  it('Accept率 70% 以上 → maintain', () => {
+    const feedback = makeFeedback({
+      overallAcceptRate: 0.8,
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 8, total: 10, acceptRate: 0.8 })],
+    });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.taskOptimizations[0].adjustment).toBe('maintain');
+    expect(result.taskOptimizations[0].reason).toContain('良好');
+  });
+
+  it('Accept率 40-70% declining → improve', () => {
+    const feedback = makeFeedback({
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 5, total: 10, acceptRate: 0.5 })],
+    });
+    const patterns = makePatterns({
+      taskTrends: [{ taskId: 'task-a', recentAcceptRate: 0.45, previousAcceptRate: 0.7, trend: 'declining' }],
+    });
+    const result = computeSuggestionOptimizations(feedback, patterns, now);
+    expect(result.taskOptimizations[0].adjustment).toBe('improve');
+    expect(result.taskOptimizations[0].trend).toBe('declining');
+  });
+
+  it('Accept率 40-70% improving → maintain', () => {
+    const feedback = makeFeedback({
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 5, total: 10, acceptRate: 0.5 })],
+    });
+    const patterns = makePatterns({
+      taskTrends: [{ taskId: 'task-a', recentAcceptRate: 0.6, previousAcceptRate: 0.3, trend: 'improving' }],
+    });
+    const result = computeSuggestionOptimizations(feedback, patterns, now);
+    expect(result.taskOptimizations[0].adjustment).toBe('maintain');
+    expect(result.taskOptimizations[0].trend).toBe('improving');
+  });
+
+  it('Accept率 20-40% → reduce-frequency', () => {
+    const feedback = makeFeedback({
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 3, total: 10, acceptRate: 0.3 })],
+    });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.taskOptimizations[0].adjustment).toBe('reduce-frequency');
+  });
+
+  it('Accept率 < 20% total >= 5 → disable-candidate', () => {
+    const feedback = makeFeedback({
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 0, total: 6, acceptRate: 0 })],
+    });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.taskOptimizations[0].adjustment).toBe('disable-candidate');
+    expect(result.taskOptimizations[0].reason).toContain('無効化を検討');
+  });
+
+  it('Accept率 < 20% total < 5 → improve', () => {
+    const feedback = makeFeedback({
+      taskStats: [makeTaskStat({ taskId: 'task-a', accepted: 0, total: 3, acceptRate: 0 })],
+    });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.taskOptimizations[0].adjustment).toBe('improve');
+    expect(result.taskOptimizations[0].reason).toContain('サンプル不足');
+  });
+
+  it('低 Accept 率時間帯 → suggestedQuietHours', () => {
+    const patterns = makePatterns({
+      hourlyActivity: [
+        { hour: 2, total: 5, accepted: 0, acceptRate: 0 },    // 0% + total >= 3
+        { hour: 9, total: 5, accepted: 5, acceptRate: 1.0 },  // 100%
+        { hour: 14, total: 2, accepted: 0, acceptRate: 0 },   // 0% だが total < 3
+      ],
+      bestHours: [9],
+      bestDays: [],
+    });
+    const result = computeSuggestionOptimizations(makeFeedback(), patterns, now);
+    expect(result.timingOptimization.suggestedQuietHours).toContain(2);
+    expect(result.timingOptimization.suggestedQuietHours).not.toContain(9);
+    expect(result.timingOptimization.suggestedQuietHours).not.toContain(14); // total < 3
+  });
+
+  it('低 Accept 率曜日 → suggestedQuietDays', () => {
+    const patterns = makePatterns({
+      dailyActivity: [
+        { dayOfWeek: 0, dayName: '日曜日', totalResults: 4, accepted: 0, acceptRate: 0 },
+        { dayOfWeek: 1, dayName: '月曜日', totalResults: 5, accepted: 4, acceptRate: 0.8 },
+      ],
+      bestDays: [1],
+    });
+    const result = computeSuggestionOptimizations(makeFeedback(), patterns, now);
+    expect(result.timingOptimization.suggestedQuietDays).toContain(0);
+    expect(result.timingOptimization.suggestedQuietDays).not.toContain(1);
+  });
+
+  it('rising/falling タグ → 正/負の weightAdjustment（上限 +-20）', () => {
+    const patterns = makePatterns({
+      topTags: [
+        { tag: 'security', recentCount: 8, previousCount: 2, trend: 'rising' },
+        { tag: 'infra', recentCount: 1, previousCount: 6, trend: 'falling' },
+        { tag: 'react', recentCount: 3, previousCount: 3, trend: 'stable' },
+      ],
+    });
+    const result = computeSuggestionOptimizations(makeFeedback(), patterns, now);
+    const security = result.categoryOptimizations.find((c) => c.tag === 'security');
+    const infra = result.categoryOptimizations.find((c) => c.tag === 'infra');
+    const react = result.categoryOptimizations.find((c) => c.tag === 'react');
+
+    expect(security!.weightAdjustment).toBeGreaterThan(0);
+    expect(security!.weightAdjustment).toBeLessThanOrEqual(20);
+    expect(infra!.weightAdjustment).toBeLessThan(0);
+    expect(infra!.weightAdjustment).toBeGreaterThanOrEqual(-20);
+    expect(react!.weightAdjustment).toBe(0);
+  });
+
+  it('weightAdjustment が +-20 で上限クランプされる', () => {
+    const patterns = makePatterns({
+      topTags: [
+        { tag: 'hot-topic', recentCount: 20, previousCount: 0, trend: 'rising' }, // diff=20, 20*5=100 → clamped 20
+      ],
+    });
+    const result = computeSuggestionOptimizations(makeFeedback(), patterns, now);
+    expect(result.categoryOptimizations[0].weightAdjustment).toBe(20);
+  });
+
+  it('Accept率 70% 以上 → score 100', () => {
+    const feedback = makeFeedback({ overallAcceptRate: 0.7 });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.overallScore).toBe(100);
+  });
+
+  it('Accept率 0% → score 0', () => {
+    const feedback = makeFeedback({ overallAcceptRate: 0 });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.overallScore).toBe(0);
+  });
+
+  it('Accept率 35% → score 50', () => {
+    const feedback = makeFeedback({ overallAcceptRate: 0.35 });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.overallScore).toBe(50);
+  });
+
+  it('Accept率 100% → score 上限 100 にクランプ', () => {
+    const feedback = makeFeedback({ overallAcceptRate: 1.0 });
+    const result = computeSuggestionOptimizations(feedback, makePatterns(), now);
+    expect(result.overallScore).toBe(100);
+  });
+});
+
+// --- getSuggestionOptimizations Worker ツールテスト (F16) ---
+describe('executeWorkerTool: getSuggestionOptimizations', () => {
+  it('デフォルト期間 14 日で空データを安全に処理する', async () => {
+    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', {}));
+    expect(result.periodDays).toBe(14);
+    expect(result.overallScore).toBe(0);
+    expect(result.taskOptimizations).toEqual([]);
+    expect(result.totalResults).toBe(0);
+    expect(result.totalWithFeedback).toBe(0);
+  });
+
+  it('periodDays をクランプする（上限 30）', async () => {
+    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', { periodDays: 100 }));
+    expect(result.periodDays).toBe(30);
+  });
+
+  it('periodDays をクランプする（下限 1）', async () => {
+    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', { periodDays: -5 }));
+    expect(result.periodDays).toBe(1);
   });
 });

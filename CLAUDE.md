@@ -31,6 +31,38 @@
 
 ---
 
+## 手動テスト手順
+
+機能追加・変更後は以下の手順で手動テストを実施すること。
+
+### 1. 静的チェック
+```bash
+npx tsc --noEmit          # TypeScript 型チェック
+npx vitest run            # 全ユニットテスト
+```
+
+### 2. UI 確認（Playwright MCP または手動ブラウザ）
+```bash
+npx vite                  # 開発サーバー起動
+```
+- アプリが正常に起動し、初期画面が表示されること
+- 設定画面（⚙）を開き、変更箇所に関連する UI が正しく表示されること
+  - Heartbeat ビルトインタスク: 名前・説明文・チェックボックス初期状態
+  - 新規設定項目: デフォルト値・バリデーション
+- ブラウザのコンソールにエラーが出ていないこと
+
+### 3. 初回セットアップウィザードのスキップ（Playwright MCP 利用時）
+API キー未設定だとウィザードが表示されるため、以下で回避する:
+```js
+localStorage.setItem('iagent-config', JSON.stringify({
+  openaiApiKey: 'sk-test-dummy',
+  heartbeat: { enabled: false, intervalMinutes: 30, quietHoursStart: 0, quietHoursEnd: 6, quietDays: [], maxNotificationsPerDay: 0, tasks: [], desktopNotification: false, focusMode: false }
+}));
+```
+設定後にページを再読み込みすること。
+
+---
+
 ## ドキュメント参照先
 
 | ドキュメント | 内容 |
