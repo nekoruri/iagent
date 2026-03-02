@@ -246,8 +246,14 @@ export async function executeWorkerTool(
       });
     }
     case 'getCurrentTime': {
+      const now = new Date();
+      const dayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+      // Asia/Tokyo の曜日を正確に取得
+      const tokyoDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
       return JSON.stringify({
-        currentTime: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+        currentTime: now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+        dayOfWeek: tokyoDate.getDay(),
+        dayOfWeekName: dayNames[tokyoDate.getDay()],
       });
     }
     case 'listFeeds': {
@@ -549,13 +555,18 @@ export async function executeWorkerTool(
     }
     case 'getInfoThresholdStatus': {
       const thresholds = { unclassifiedFeed: 50, unreadClassified: 30, clips: 100 };
-      const [unclassifiedResult, classifiedItems, clips] = await Promise.all([
-        listUnclassifiedItems(0, 1),
-        listClassifiedItems(),
+      // feed-items は 1 回のフルスキャンで両方のカウントを算出（二重走査回避）
+      const db3 = await getDB();
+      const [allFeedItems, clips] = await Promise.all([
+        db3.getAll('feed-items') as Promise<FeedItem[]>,
         listClips(),
       ]);
-      const unclassifiedFeedCount = unclassifiedResult.total;
-      const unreadClassifiedCount = classifiedItems.length;
+      let unclassifiedFeedCount = 0;
+      let unreadClassifiedCount = 0;
+      for (const item of allFeedItems) {
+        if (!item.isRead && !item.tier) unclassifiedFeedCount++;
+        else if (!item.isRead && item.tier && item.tier !== 'skip') unreadClassifiedCount++;
+      }
       const totalClipCount = clips.length;
       const details = {
         unclassifiedFeedExceeded: unclassifiedFeedCount > thresholds.unclassifiedFeed,
@@ -577,12 +588,13 @@ export async function executeWorkerTool(
       const cutoff = Date.now() - periodDays * DAY_MS;
       const allReflections = await listMemories('reflection');
       const filtered = allReflections
-        .filter((m) => m.updatedAt >= cutoff)
+        .filter((m) => m.createdAt >= cutoff)
         .map((m) => ({
           id: m.id,
           content: m.content,
           importance: m.importance,
           tags: m.tags,
+          createdAt: m.createdAt,
           updatedAt: m.updatedAt,
         }));
       return JSON.stringify({
