@@ -1,5 +1,5 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, Memory, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
@@ -8,8 +8,103 @@ import { listClips } from '../store/clipStore';
 import { getHeartbeatFeedbackSummary } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
+import { parseDeadline, daysUntilDeadline } from './deadlineParser';
 
 const MAX_ITEMS_PER_FEED = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// --- 月次 goal 統計 (F15) ---
+
+export type GoalStatus = 'active' | 'stale' | 'new' | 'overdue';
+
+export interface GoalStat {
+  id: string;
+  content: string;
+  importance: number;
+  status: GoalStatus;
+  daysSinceCreation: number;
+  daysSinceUpdate: number;
+  deadline?: { original: string; daysUntil: number };
+}
+
+export interface MonthlyGoalStats {
+  totalGoals: number;
+  activeGoals: number;
+  staleGoals: number;
+  overdueGoals: number;
+  goalsWithDeadline: number;
+  newGoalsThisMonth: number;
+  goals: GoalStat[];
+}
+
+/**
+ * goal メモリの月次統計を計算する（純粋関数 — テスト用に公開）
+ * @param goals goal カテゴリのメモリ配列
+ * @param now 基準日時
+ */
+export function computeMonthlyGoalStats(goals: Memory[], now: Date): MonthlyGoalStats {
+  const nowMs = now.getTime();
+  const STALE_DAYS = 7;
+  const NEW_DAYS = 30;
+
+  let activeCount = 0;
+  let staleCount = 0;
+  let overdueCount = 0;
+  let deadlineCount = 0;
+  let newCount = 0;
+
+  const goalStats: GoalStat[] = goals.map((m) => {
+    const daysSinceCreation = Math.floor((nowMs - m.createdAt) / DAY_MS);
+    const daysSinceUpdate = Math.floor((nowMs - m.updatedAt) / DAY_MS);
+
+    // 期日の計算
+    const dl = parseDeadline(m.content, now);
+    let deadlineInfo: GoalStat['deadline'];
+    let isOverdue = false;
+    if (dl) {
+      deadlineCount++;
+      const days = daysUntilDeadline(dl.date, now);
+      deadlineInfo = { original: dl.original, daysUntil: days };
+      if (days < 0) isOverdue = true;
+    }
+
+    // ステータス判定
+    let status: GoalStatus;
+    if (isOverdue) {
+      status = 'overdue';
+      overdueCount++;
+    } else if (daysSinceCreation < NEW_DAYS) {
+      status = 'new';
+      newCount++;
+    } else if (daysSinceUpdate >= STALE_DAYS) {
+      status = 'stale';
+      staleCount++;
+    } else {
+      status = 'active';
+      activeCount++;
+    }
+
+    return {
+      id: m.id,
+      content: m.content,
+      importance: m.importance,
+      status,
+      daysSinceCreation,
+      daysSinceUpdate,
+      deadline: deadlineInfo,
+    };
+  });
+
+  return {
+    totalGoals: goals.length,
+    activeGoals: activeCount,
+    staleGoals: staleCount,
+    overdueGoals: overdueCount,
+    goalsWithDeadline: deadlineCount,
+    newGoalsThisMonth: newCount,
+    goals: goalStats,
+  };
+}
 
 // --- ソース横断トピック統合ヘルパー ---
 
@@ -406,6 +501,17 @@ export const WORKER_TOOLS = [
           periodDays: { type: 'number', description: '対象期間（日数、デフォルト 7、1〜30）' },
           query: { type: 'string', description: 'キーワードフィルタ（title/content/tags で絞り込み）' },
         },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getMonthlyGoalStats',
+      description: 'goal カテゴリの全メモリを集計し、月次レビュー用の統計（活動状態・期日状態・新規/停滞/期限超過の分類）を返します。',
+      parameters: {
+        type: 'object',
+        properties: {},
       },
     },
   },
@@ -863,6 +969,11 @@ export async function executeWorkerTool(
         totalTopics: topics.length,
         periodDays,
       });
+    }
+    case 'getMonthlyGoalStats': {
+      const goals = await listMemories('goal');
+      const stats = computeMonthlyGoalStats(goals, new Date());
+      return JSON.stringify(stats);
     }
     default:
       return JSON.stringify({ error: `不明なツール: ${name}` });
