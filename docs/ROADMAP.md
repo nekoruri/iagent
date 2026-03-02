@@ -213,6 +213,7 @@
 - [x] フィードバック集計 + Reflection 連携 F2 — FeedbackSummary 型 + getHeartbeatFeedbackSummary 集計関数 + Worker ツール、reflection タスクにフィードバック分析手順追加（学習ループ完成）
 - [x] 閾値トリガー F13 — info-cleanup-check ビルトインタスク（20:00 固定スケジュール）+ getInfoThresholdStatus Worker ツール（未分類フィード/未読分類済み/クリップの閾値超過判定）
 - [x] 週次サマリー F10 — weekly-summary ビルトインタスク（21:00 固定スケジュール、LLM 月曜判定）+ getWeeklyReflections Worker ツール（期間内 reflection 取得）+ フィードバック統計連携
+- [x] ソース横断トピック統合 F17 — getCrossSourceTopics Worker ツール（RSS + クリップ横断検索 + URL/タイトル類似度による Union-Find グルーピング + sourceCount≥2 フィルタ）、briefing-morning description にトピック統合手順追加
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [ ] Action Planning（チェック → 判断 → アクション）
@@ -278,3 +279,4 @@
 - [x] FeedPanel 追加 — RSS 記事ブラウズ用ドロップダウン（useFeedPanel フック + FeedPanel コンポーネント + tier タブフィルタ + 既読化 + 未読バッジ）、Heartbeat feed-check 完了時の自動更新。テスト 844→860 件。（2026-03-02）
 - [x] プロアクティブエンジン F8+F6+F2 — 会話内コンテキストサジェスト（memory/clip/feed 横断検索 + instructions 注入）、カレンダーリマインド拡張（searchMemoriesByQuery Worker ツール + calendar-check description 強化）、フィードバック集計 + Reflection 連携（FeedbackSummary 集計 + getHeartbeatFeedbackSummary Worker ツール + reflection description にフィードバック分析手順追加）。テスト 860→876 件。（2026-03-02）
 - [x] 閾値トリガー F13 + 週次サマリー F10 — info-cleanup-check ビルトインタスク（20:00、getInfoThresholdStatus Worker ツール: 未分類フィード/未読分類済み/クリップの閾値超過判定）、weekly-summary ビルトインタスク（21:00、LLM 月曜判定 + getWeeklyReflections Worker ツール + フィードバック統計連携）。テスト 876→887 件。（2026-03-02）
+- [x] ソース横断トピック統合 F17 — getCrossSourceTopics Worker ツール（RSS+クリップ横断検索、normalizeUrl/extractKeyTokens/countCommonTokens/groupByTopic ヘルパー、Union-Find 二段階マージ: URL完全一致+タイトルキーワード重複≥40%）、briefing-morning description にトピック統合手順追加。（2026-03-02）

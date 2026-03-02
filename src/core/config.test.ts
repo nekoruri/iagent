@@ -59,6 +59,12 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     expect(briefing!.schedule).toEqual({ type: 'fixed-time', hour: 7, minute: 0 });
     expect(briefing!.description).toContain('ブリーフィング');
   });
+
+  it('briefing-morning の description に getCrossSourceTopics が含まれる', () => {
+    const briefing = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'briefing-morning');
+    expect(briefing).toBeDefined();
+    expect(briefing!.description).toContain('getCrossSourceTopics');
+  });
 });
 
 describe('getDefaultHeartbeatConfig', () => {

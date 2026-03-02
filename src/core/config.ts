@@ -73,6 +73,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
       + 'ユーザーの目標（goal）と現在の状況（context）を踏まえて、今日注意すべき点やアクションを提案してください。'
       + 'ツールを使って情報を収集し、優先度をつけて簡潔なサマリーを作成してください。'
       + 'listClassifiedFeedItems を使って分類済みの必読記事・おすすめ記事をブリーフィングに含めてください。'
+      + 'getCrossSourceTopics を使ってソース横断トピックを検出し、2ソース以上で言及されているトピックは「N ソースで言及」と表示してください。統合済みトピックは個別記事より優先して表示してください。'
       + '必ず hasChanges: true を返し、summary にブリーフィングテキストを含めてください。',
     enabled: false,
     type: 'builtin',
