@@ -174,7 +174,7 @@ function getJSTDayOfWeek(timestamp: number): number {
 export function computeUserActivityPatterns(
   results: HeartbeatResult[],
   memories: Memory[],
-  now: Date,
+  _now: Date,
 ): UserActivityPatterns {
   // feedback 付き結果のみ
   const withFeedback = results.filter((r) => r.feedback);
