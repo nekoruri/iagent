@@ -83,12 +83,17 @@ vi.mock('./hooks/useMemoryPanel', () => ({
   useMemoryPanel: () => ({
     isOpen: false,
     memories: [],
+    archivedMemories: [],
     selectedCategory: 'all',
+    viewTab: 'active',
     isLoading: false,
     toggle: vi.fn(),
     close: vi.fn(),
     changeCategory: vi.fn(),
+    changeViewTab: vi.fn(),
     handleDelete: vi.fn(),
+    handleRestore: vi.fn(),
+    handleDeleteArchived: vi.fn(),
   }),
 }));
 vi.mock('./hooks/useViewportHeight', () => ({

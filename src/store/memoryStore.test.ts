@@ -18,6 +18,8 @@ import {
   cleanupLowScoredMemories,
   archiveLowestScored,
   listArchivedMemories,
+  restoreArchivedMemory,
+  deleteArchivedMemory,
   HALF_LIFE_MS,
 } from './memoryStore';
 import type { Memory } from '../types';
@@ -611,5 +613,158 @@ describe('listArchivedMemories', () => {
       const otherArchived = await listArchivedMemories('other');
       expect(factArchived.length + otherArchived.length).toBeLessThanOrEqual(archived.length);
     }
+  });
+});
+
+describe('restoreArchivedMemory', () => {
+  it('アーカイブから記憶を復元できる', async () => {
+    for (let i = 0; i < 5; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+    await cleanupLowScoredMemories(2);
+
+    const archived = await listArchivedMemories();
+    expect(archived.length).toBeGreaterThanOrEqual(1);
+
+    const target = archived[0];
+    const result = await restoreArchivedMemory(target.id);
+    expect(result).toBe(true);
+
+    // memories に復元されている
+    const memories = await listMemories();
+    expect(memories.find((m) => m.id === target.id)).toBeDefined();
+
+    // アーカイブからは削除されている
+    const remainingArchived = await listArchivedMemories();
+    expect(remainingArchived.find((m) => m.id === target.id)).toBeUndefined();
+  });
+
+  it('復元時に updatedAt が更新される', async () => {
+    for (let i = 0; i < 3; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+    await cleanupLowScoredMemories(1);
+
+    const archived = await listArchivedMemories();
+    const target = archived[0];
+    const beforeRestore = Date.now();
+
+    await restoreArchivedMemory(target.id);
+
+    const memories = await listMemories();
+    const restored = memories.find((m) => m.id === target.id);
+    expect(restored).toBeDefined();
+    expect(restored!.updatedAt).toBeGreaterThanOrEqual(beforeRestore);
+  });
+
+  it('存在しない ID では false を返す', async () => {
+    const result = await restoreArchivedMemory('non-existent-id');
+    expect(result).toBe(false);
+  });
+
+  it('MAX_MEMORIES に達している場合、復元前に低スコア記憶をアーカイブする', async () => {
+    // 200件保存して上限に到達させる
+    for (let i = 0; i < 200; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+    const before = await listMemories();
+    expect(before).toHaveLength(200);
+
+    // 手動でアーカイブに1件追加（復元対象）
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const archiveTarget = {
+      id: 'restore-target',
+      content: '復元対象の記憶',
+      category: 'fact',
+      importance: 5,
+      tags: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 1000,
+      accessCount: 0,
+      lastAccessedAt: Date.now(),
+      contentHash: 'dummy-hash',
+      archivedAt: Date.now(),
+      archiveReason: 'low-score',
+    };
+    await mockDb.put('memories_archive', archiveTarget);
+
+    // 復元実行
+    const result = await restoreArchivedMemory('restore-target');
+    expect(result).toBe(true);
+
+    // memories は 200 件を超えない（復元前にアーカイブが走る）
+    const after = await listMemories();
+    expect(after).toHaveLength(200);
+    expect(after.find((m) => m.id === 'restore-target')).toBeDefined();
+  });
+
+  it('同一 contentHash のアクティブ記憶がある場合はマージして重複を防ぐ', async () => {
+    // アクティブに記憶を作成
+    const active = await saveMemory('同じ内容', 'other', { importance: 2 });
+
+    // 手動でアーカイブに同一ハッシュのレコードを追加
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const dupArchive = {
+      id: 'dup-archive',
+      content: '同じ内容',
+      category: 'other',
+      importance: 5,
+      tags: ['extra'],
+      createdAt: Date.now(),
+      updatedAt: Date.now() - 1000,
+      accessCount: 0,
+      lastAccessedAt: Date.now(),
+      contentHash: active.contentHash,
+      archivedAt: Date.now(),
+      archiveReason: 'low-score',
+    };
+    await mockDb.put('memories_archive', dupArchive);
+
+    // 復元実行 — 重複マージが走るはず
+    const result = await restoreArchivedMemory('dup-archive');
+    expect(result).toBe(true);
+
+    // アクティブストアに同一ハッシュが 1 件のみ
+    const memories = await listMemories();
+    const withSameHash = memories.filter((m) => m.contentHash === active.contentHash);
+    expect(withSameHash).toHaveLength(1);
+
+    // マージ結果: importance は最大値、tags がマージされている
+    const merged = withSameHash[0];
+    expect(merged.importance).toBe(5);
+    expect(merged.tags).toContain('extra');
+
+    // アーカイブからは削除されている
+    const archivedAfter = await listArchivedMemories();
+    expect(archivedAfter.find((m) => m.id === 'dup-archive')).toBeUndefined();
+  });
+});
+
+describe('deleteArchivedMemory', () => {
+  it('アーカイブから完全削除できる', async () => {
+    for (let i = 0; i < 5; i++) {
+      await saveMemory(`メモリ ${i}`, 'other');
+    }
+    await cleanupLowScoredMemories(2);
+
+    const archived = await listArchivedMemories();
+    expect(archived.length).toBeGreaterThanOrEqual(1);
+
+    const target = archived[0];
+    const result = await deleteArchivedMemory(target.id);
+    expect(result).toBe(true);
+
+    // アーカイブからも memories からも消えている
+    const remainingArchived = await listArchivedMemories();
+    expect(remainingArchived.find((m) => m.id === target.id)).toBeUndefined();
+    const memories = await listMemories();
+    expect(memories.find((m) => m.id === target.id)).toBeUndefined();
+  });
+
+  it('存在しない ID では false を返す', async () => {
+    const result = await deleteArchivedMemory('non-existent-id');
+    expect(result).toBe(false);
   });
 });
