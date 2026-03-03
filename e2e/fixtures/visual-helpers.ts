@@ -44,7 +44,9 @@ export async function freezeTime(page: Page, timestamp = DEFAULT_FROZEN_TS): Pro
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MockDate: any = function (...args: unknown[]) {
       if (!new.target) {
-        // Date() を関数として呼び出した場合は文字列を返す（本来の挙動）
+        // Date() を関数として呼び出した場合、引数の有無にかかわらず
+        // 現在時刻の文字列を返すのが ECMAScript 仕様（ECMA-262 §21.4.2.1）。
+        // モック環境では固定時刻の文字列を返す。
         return new OrigDate(ts).toString();
       }
       if (args.length === 0) return new OrigDate(ts);
