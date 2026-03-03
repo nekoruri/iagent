@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test';
 import { injectConfig } from './test-helpers';
 
+/** freezeTime のデフォルト固定時刻。シード関数のデフォルト値にも使用する。 */
+export const DEFAULT_FROZEN_TS = 1709449200000;
+
 /**
  * CSS アニメーション・トランジションを全無効化する。
  * Playwright の animations: 'disabled' と二重保証。
@@ -35,7 +38,7 @@ export async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<voi
  * Date.now() を固定値にモックする。
  * page.goto() の前に呼ぶこと（addInitScript）。
  */
-export async function freezeTime(page: Page, timestamp = 1709449200000): Promise<void> {
+export async function freezeTime(page: Page, timestamp = DEFAULT_FROZEN_TS): Promise<void> {
   await page.addInitScript((ts) => {
     const OrigDate = globalThis.Date;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,7 +131,7 @@ export async function seedMemories(
     updatedAt?: number;
   }>,
 ): Promise<void> {
-  await page.addInitScript((data) => {
+  await page.addInitScript(({ memories: data, fallbackTs }) => {
     const request = indexedDB.open('iagent-db', 1);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -149,15 +152,15 @@ export async function seedMemories(
           category: mem.category ?? 'general',
           importance: mem.importance ?? 5,
           tags: mem.tags ?? [],
-          createdAt: mem.createdAt ?? 0,
-          updatedAt: mem.updatedAt ?? 0,
+          createdAt: mem.createdAt ?? fallbackTs,
+          updatedAt: mem.updatedAt ?? fallbackTs,
           accessCount: 0,
         });
       }
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
     };
-  }, memories);
+  }, { memories, fallbackTs: DEFAULT_FROZEN_TS });
 }
 
 /**
@@ -183,7 +186,7 @@ export async function seedFeedItems(
     lastFetchedAt?: number;
   }> = [],
 ): Promise<void> {
-  await page.addInitScript(({ items: feedItems, feeds: feedList }) => {
+  await page.addInitScript(({ items: feedItems, feeds: feedList, fallbackTs }) => {
     const request = indexedDB.open('iagent-db', 1);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -212,7 +215,7 @@ export async function seedFeedItems(
           id: feed.id,
           title: feed.title,
           url: feed.url ?? `https://example.com/${feed.id}/rss`,
-          lastFetchedAt: feed.lastFetchedAt ?? 0,
+          lastFetchedAt: feed.lastFetchedAt ?? fallbackTs,
         });
       }
       for (const item of feedItems) {
@@ -222,12 +225,12 @@ export async function seedFeedItems(
           title: item.title,
           url: item.url ?? `https://example.com/article/${item.id}`,
           summary: item.summary ?? '',
-          publishedAt: item.publishedAt ?? 0,
+          publishedAt: item.publishedAt ?? fallbackTs,
           guid: item.guid ?? item.id,
         });
       }
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
     };
-  }, { items, feeds });
+  }, { items, feeds, fallbackTs: DEFAULT_FROZEN_TS });
 }

@@ -15,8 +15,7 @@ const heartbeatConfig = {
 /**
  * ページロード前に IndexedDB へ Heartbeat 結果をシードする。
  */
-// freezeTime のデフォルト値と一致させる
-const FROZEN_TS = 1709449200000;
+import { DEFAULT_FROZEN_TS } from '../fixtures/visual-helpers';
 
 function seedHeartbeatResults(page: import('@playwright/test').Page, results: unknown[]) {
   return page.addInitScript((data) => {
@@ -32,6 +31,9 @@ function seedHeartbeatResults(page: import('@playwright/test').Page, results: un
     }
 
     const request = indexedDB.open('iagent-db');
+    request.onerror = () => {
+      console.error('IndexedDB: iagent-db を開けませんでした', request.error);
+    };
     request.onsuccess = () => {
       const db = request.result;
       // heartbeat ストアが存在する場合はそのまま書き込み
@@ -49,8 +51,14 @@ function seedHeartbeatResults(page: import('@playwright/test').Page, results: un
         }
       };
       req2.onsuccess = () => writeState(req2.result);
+      req2.onerror = () => {
+        console.error('IndexedDB: heartbeat ストア作成用のバージョンアップに失敗しました', req2.error);
+      };
+      req2.onblocked = () => {
+        console.warn('IndexedDB: heartbeat ストア作成用のバージョンアップがブロックされました');
+      };
     };
-  }, { results, ts: FROZEN_TS });
+  }, { results, ts: DEFAULT_FROZEN_TS });
 }
 
 test.describe('Heartbeat パネル VRT', () => {
@@ -69,7 +77,7 @@ test.describe('Heartbeat パネル VRT', () => {
   });
 
   test('結果一覧（ピン留め + フィードバックボタン）', async ({ page }) => {
-    const ts = 1709449200000; // freezeTime のデフォルト値と一致
+    const ts = DEFAULT_FROZEN_TS;
     await seedHeartbeatResults(page, [
       { taskId: 'test-task', timestamp: ts - 60000, hasChanges: true, summary: 'テスト結果1: 天気が変わりました', pinned: true },
       { taskId: 'test-task', timestamp: ts - 30000, hasChanges: false, summary: '変化なし' },
@@ -91,7 +99,7 @@ test.describe('Heartbeat パネル VRT', () => {
 
   test('未読バッジ表示', async ({ page }) => {
     await seedHeartbeatResults(page, [
-      { taskId: 'test-task', timestamp: 1709449200000, hasChanges: true, summary: '新着結果' },
+      { taskId: 'test-task', timestamp: DEFAULT_FROZEN_TS, hasChanges: true, summary: '新着結果' },
     ]);
     await setupForVRT(page, { configOverrides: heartbeatConfig });
 
