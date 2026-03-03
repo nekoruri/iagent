@@ -205,11 +205,11 @@ export function parseHeartbeatResponse(content: string | null | undefined): Hear
         const obj = r as Record<string, unknown>;
         return typeof obj.taskId === 'string';
       })
-      .map((r: { taskId: string; hasChanges?: boolean; summary?: string }) => ({
+      .map((r: { taskId: string; hasChanges?: unknown; summary?: unknown }) => ({
         taskId: r.taskId,
         timestamp: now,
-        hasChanges: Boolean(r.hasChanges),
-        summary: r.summary || '',
+        hasChanges: typeof r.hasChanges === 'boolean' ? r.hasChanges : false,
+        summary: typeof r.summary === 'string' ? r.summary : '',
       }));
   } catch (e) {
     console.warn('[Heartbeat] JSON パース失敗:', e);

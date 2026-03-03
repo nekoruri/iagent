@@ -249,6 +249,7 @@ describe('executeWorkerHeartbeatCheck', () => {
   });
 
   it('不正な JSON でもクラッシュせず空配列を返す', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const apiResponse = {
       choices: [{
         message: { role: 'assistant', content: '{ invalid json }' },
@@ -259,6 +260,7 @@ describe('executeWorkerHeartbeatCheck', () => {
 
     const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
     expect(results).toEqual([]);
+    warnSpy.mockRestore();
   });
 });
 

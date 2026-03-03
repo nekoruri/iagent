@@ -76,10 +76,12 @@ export const hbGetHeartbeatFeedbackSummaryTool = tool({
   name: 'getHeartbeatFeedbackSummary',
   description: '指定期間の Heartbeat 通知に対するユーザーフィードバックを集計します。',
   parameters: z.object({
-    periodHours: z.number().optional().describe('集計対象の期間（時間単位、デフォルト 24、1〜168）'),
+    periodHours: z.number().int().min(1).max(168).optional().describe('集計対象の期間（時間単位、デフォルト 24、1〜168）'),
   }),
   execute: async ({ periodHours }) => {
-    return await executeWorkerTool('getHeartbeatFeedbackSummary', periodHours ? { periodHours } : {});
+    const args: Record<string, unknown> = {};
+    if (periodHours !== undefined) args.periodHours = periodHours;
+    return await executeWorkerTool('getHeartbeatFeedbackSummary', args);
   },
 });
 
@@ -113,10 +115,12 @@ export const hbGetWeeklyReflectionsTool = tool({
   name: 'getWeeklyReflections',
   description: '指定期間内の reflection カテゴリの記憶を取得します。',
   parameters: z.object({
-    periodDays: z.number().optional().describe('取得期間（日数、デフォルト 7、1〜30）'),
+    periodDays: z.number().int().min(1).max(30).optional().describe('取得期間（日数、デフォルト 7、1〜30）'),
   }),
   execute: async ({ periodDays }) => {
-    return await executeWorkerTool('getWeeklyReflections', periodDays ? { periodDays } : {});
+    const args: Record<string, unknown> = {};
+    if (periodDays !== undefined) args.periodDays = periodDays;
+    return await executeWorkerTool('getWeeklyReflections', args);
   },
 });
 
@@ -125,7 +129,7 @@ export const hbGetCrossSourceTopicsTool = tool({
   name: 'getCrossSourceTopics',
   description: 'RSS フィード記事とクリップを横断検索し、複数ソースで言及されている同一トピックを検出します。',
   parameters: z.object({
-    periodDays: z.number().optional().describe('対象期間（日数、デフォルト 7、1〜30）'),
+    periodDays: z.number().int().min(1).max(30).optional().describe('対象期間（日数、デフォルト 7、1〜30）'),
     query: z.string().optional().describe('キーワードフィルタ'),
   }),
   execute: async ({ periodDays, query }) => {
@@ -151,10 +155,12 @@ export const hbGetUserActivityPatternsTool = tool({
   name: 'getUserActivityPatterns',
   description: 'Heartbeat 結果と記憶データからユーザーの行動パターンを分析します。',
   parameters: z.object({
-    periodDays: z.number().optional().describe('分析対象期間（日数、デフォルト 14、1〜30）'),
+    periodDays: z.number().int().min(1).max(30).optional().describe('分析対象期間（日数、デフォルト 14、1〜30）'),
   }),
   execute: async ({ periodDays }) => {
-    return await executeWorkerTool('getUserActivityPatterns', periodDays ? { periodDays } : {});
+    const args: Record<string, unknown> = {};
+    if (periodDays !== undefined) args.periodDays = periodDays;
+    return await executeWorkerTool('getUserActivityPatterns', args);
   },
 });
 

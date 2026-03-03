@@ -167,10 +167,24 @@ export function useAgentChat(conversationId: string | null) {
         await (result as { completed: Promise<void> }).completed;
       } else {
         // abort 済みの場合はタイムアウト付きで待機（最大2秒）
-        await Promise.race([
-          (result as { completed: Promise<void> }).completed,
-          new Promise<void>((resolve) => setTimeout(resolve, 2000)),
-        ]);
+        const completed = (result as { completed: Promise<void> }).completed;
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const settle = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          const timeoutId = setTimeout(settle, 2000);
+          completed
+            .finally(() => {
+              clearTimeout(timeoutId);
+              settle();
+            })
+            .catch(() => {
+              // エラーは外側の try/catch で処理済み
+            });
+        });
       }
 
       // 履歴更新

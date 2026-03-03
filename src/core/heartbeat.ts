@@ -301,9 +301,9 @@ export class HeartbeatEngine {
       await updateTaskLastRun(item.taskId, now);
       trace.rootSpan.addEvent('heartbeat.task.result', {
         [HEARTBEAT_ATTRS.TASK_ID]: item.taskId,
-        [HEARTBEAT_ATTRS.HAS_CHANGES]: Boolean(item.hasChanges),
+        [HEARTBEAT_ATTRS.HAS_CHANGES]: hbResult.hasChanges,
       });
-      if (item.hasChanges) {
+      if (hbResult.hasChanges) {
         heartbeatResults.push(hbResult);
       }
     }
