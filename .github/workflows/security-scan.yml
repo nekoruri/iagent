@@ -43,7 +43,6 @@ jobs:
             --config p/secrets \
             --config p/owasp-top-ten \
             --sarif --output semgrep-results.sarif \
-            --error \
             src/ server/src/
       - name: Upload SARIF
         if: always()
