@@ -11,7 +11,8 @@ export type WorkerCommand =
 export type WorkerEvent =
   | { type: 'heartbeat-result'; results: HeartbeatResult[] }
   | { type: 'error'; message: string }
-  | { type: 'status'; status: 'running' | 'stopped' | 'executing' };
+  | { type: 'status'; status: 'running' | 'stopped' | 'executing' }
+  | { type: 'config-changed' };
 
 /** Worker に渡す設定 */
 export interface HeartbeatWorkerConfig {

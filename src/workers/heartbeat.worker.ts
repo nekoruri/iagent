@@ -40,10 +40,13 @@ async function tick(): Promise<void> {
   postEvent({ type: 'status', status: 'executing' });
 
   try {
-    const heartbeatResults = await executeHeartbeatAndStore(config.openaiApiKey, 'worker');
+    const { results: heartbeatResults, configChanged } = await executeHeartbeatAndStore(config.openaiApiKey, 'worker');
 
     if (heartbeatResults.length > 0) {
       postEvent({ type: 'heartbeat-result', results: heartbeatResults });
+    }
+    if (configChanged) {
+      postEvent({ type: 'config-changed' });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

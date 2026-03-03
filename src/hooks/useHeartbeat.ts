@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { HeartbeatEngine, type HeartbeatNotification } from '../core/heartbeat';
 import { HeartbeatWorkerBridge } from '../core/heartbeatWorkerBridge';
 import { getConfig, saveConfig } from '../core/config';
+import { loadConfigFromIDB } from '../store/configStore';
 import { mcpManager } from '../core/mcpManager';
 import { sendHeartbeatNotifications } from '../core/notifier';
 import { getPushSubscription, registerPeriodicSync } from '../core/pushSubscription';
@@ -65,6 +66,19 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       }
     });
 
+    // Worker からの設定変更通知で IDB → localStorage 同期
+    const unsubConfigChange = bridge.subscribeConfigChange(async () => {
+      try {
+        const freshConfig = await loadConfigFromIDB();
+        if (freshConfig) {
+          saveConfig(freshConfig);
+          console.debug('[useHeartbeat] Worker 経由の設定変更を localStorage に同期しました');
+        }
+      } catch (e) {
+        console.warn('[useHeartbeat] 設定同期失敗:', e);
+      }
+    });
+
     const config = getConfig().heartbeat;
     if (config?.enabled) {
       engine.start();
@@ -78,6 +92,7 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       unsubNotify();
       unsubBridge();
       unsubBridgeNotify();
+      unsubConfigChange();
       engine.stop();
       bridge.dispose();
       engineRef.current = null;

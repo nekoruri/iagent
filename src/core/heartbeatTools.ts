@@ -1,5 +1,5 @@
 import { getDB } from '../store/db';
-import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, HeartbeatResult, Memory, Monitor } from '../types';
+import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, HeartbeatConfig, HeartbeatResult, Memory, Monitor } from '../types';
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
@@ -9,9 +9,144 @@ import { getHeartbeatFeedbackSummary, loadHeartbeatState, type FeedbackSummary }
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
 import { DOMParser as LinkedomDOMParser } from 'linkedom';
 import { parseDeadline, daysUntilDeadline } from './deadlineParser';
+import { saveConfigToIDB } from '../store/configStore';
+import { saveActionLog } from '../store/heartbeatStore';
 
 const MAX_ITEMS_PER_FEED = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// --- Action Planning (F16 → 自動実行) ---
+
+export interface ActionRequest {
+  type: 'toggle-task' | 'update-quiet-hours' | 'update-quiet-days' | 'update-task-interval';
+  taskId?: string;
+  enabled?: boolean;
+  quietHoursStart?: number;
+  quietHoursEnd?: number;
+  quietDays?: number[];
+  intervalMinutes?: number;
+  reason: string;
+}
+
+export interface ActionResult {
+  type: string;
+  applied: boolean;
+  reason: string;
+  detail: string;
+  timestamp: number;
+}
+
+/**
+ * Heartbeat 設定にアクションを適用する。
+ * 設定オブジェクトを直接変更（ミュータブル）し、Date.now() に依存して結果を返す。
+ */
+export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionResult {
+  const now = Date.now();
+  const base = { type: action.type, reason: action.reason, timestamp: now };
+
+  switch (action.type) {
+    case 'toggle-task': {
+      if (!action.taskId) {
+        return { ...base, applied: false, detail: 'taskId が未指定です' };
+      }
+      const task = hb.tasks.find((t) => t.id === action.taskId);
+      if (!task) {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" が見つかりません` };
+      }
+      if (typeof action.enabled !== 'boolean') {
+        return { ...base, applied: false, detail: 'enabled (boolean) が未指定です' };
+      }
+      if (task.enabled === action.enabled) {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" は既に enabled=${action.enabled} です` };
+      }
+      task.enabled = action.enabled;
+      return { ...base, applied: true, detail: `タスク "${action.taskId}" を ${action.enabled ? '有効' : '無効'}化しました` };
+    }
+
+    case 'update-quiet-hours': {
+      const start = action.quietHoursStart;
+      const end = action.quietHoursEnd;
+      if (typeof start !== 'number' || typeof end !== 'number') {
+        return { ...base, applied: false, detail: 'quietHoursStart/End (number) が未指定です' };
+      }
+      if (start < 0 || start > 23 || end < 0 || end > 23) {
+        return { ...base, applied: false, detail: `時間範囲が不正です (start=${start}, end=${end})。0-23 の範囲で指定してください` };
+      }
+      if (!Number.isInteger(start) || !Number.isInteger(end)) {
+        return { ...base, applied: false, detail: '時間は整数で指定してください' };
+      }
+      if (hb.quietHoursStart === start && hb.quietHoursEnd === end) {
+        return { ...base, applied: false, detail: `静寂時間は既に ${start}:00〜${end}:00 です` };
+      }
+      hb.quietHoursStart = start;
+      hb.quietHoursEnd = end;
+      return { ...base, applied: true, detail: `静寂時間を ${start}:00〜${end}:00 に変更しました` };
+    }
+
+    case 'update-quiet-days': {
+      const days = action.quietDays;
+      if (!Array.isArray(days)) {
+        return { ...base, applied: false, detail: 'quietDays (number[]) が未指定です' };
+      }
+      if (days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) {
+        return { ...base, applied: false, detail: `無効な曜日が含まれています: ${JSON.stringify(days)}。0(日)〜6(土) の範囲で指定してください` };
+      }
+      const unique = [...new Set(days)].sort();
+      const currentSorted = [...(hb.quietDays ?? [])].sort();
+      if (unique.length === currentSorted.length && unique.every((d, i) => d === currentSorted[i])) {
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        return { ...base, applied: false, detail: `静寂曜日は既に [${unique.map((d) => dayNames[d]).join('・')}] です` };
+      }
+      hb.quietDays = unique;
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const dayLabels = unique.map((d) => dayNames[d]).join('・');
+      return { ...base, applied: true, detail: `静寂曜日を [${dayLabels}] に変更しました` };
+    }
+
+    case 'update-task-interval': {
+      if (!action.taskId) {
+        return { ...base, applied: false, detail: 'taskId が未指定です' };
+      }
+      const task = hb.tasks.find((t) => t.id === action.taskId);
+      if (!task) {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" が見つかりません` };
+      }
+      if (task.schedule?.type === 'fixed-time') {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" は固定時刻スケジュールのため間隔変更できません` };
+      }
+      const interval = action.intervalMinutes;
+      if (typeof interval !== 'number' || !Number.isInteger(interval)) {
+        return { ...base, applied: false, detail: 'intervalMinutes (整数) が未指定です' };
+      }
+      if (interval < 5 || interval > 1440) {
+        return { ...base, applied: false, detail: `間隔 ${interval} 分は範囲外です (5〜1440分)` };
+      }
+      // 現在値と同じなら no-op
+      if (task.schedule?.type === 'interval' && task.schedule.intervalMinutes === interval) {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" の間隔は既に ${interval} 分です` };
+      }
+      // global → interval に変換、既に interval ならそのまま更新
+      if (!task.schedule || task.schedule.type === 'global') {
+        task.schedule = { type: 'interval', intervalMinutes: interval };
+      } else {
+        task.schedule.intervalMinutes = interval;
+      }
+      return { ...base, applied: true, detail: `タスク "${action.taskId}" の間隔を ${interval} 分に変更しました` };
+    }
+
+    default:
+      return { ...base, applied: false, detail: `不明なアクション型: ${action.type}` };
+  }
+}
+
+// --- configChanged フラグ（モジュールスコープ） ---
+let _configChangedFlag = false;
+
+export function getAndResetConfigChangedFlag(): boolean {
+  const v = _configChangedFlag;
+  _configChangedFlag = false;
+  return v;
+}
 
 // --- 月次 goal 統計 (F15) ---
 
@@ -925,6 +1060,40 @@ export const WORKER_TOOLS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'applyHeartbeatConfigAction',
+      description: '分析結果に基づいて Heartbeat 設定を自動変更します。'
+        + 'actions 配列で複数のアクションを一括適用できます。'
+        + '対応アクション型: toggle-task（タスク有効/無効切替）、update-quiet-hours（静寂時間変更）、update-quiet-days（静寂曜日変更）、update-task-interval（タスク間隔変更、5〜1440分、fixed-time 不可）。'
+        + '各アクションには reason（変更理由）を必ず含めてください。',
+      parameters: {
+        type: 'object',
+        properties: {
+          actions: {
+            type: 'array',
+            description: '適用するアクションの配列',
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['toggle-task', 'update-quiet-hours', 'update-quiet-days', 'update-task-interval'], description: 'アクション型' },
+                taskId: { type: 'string', description: '対象タスクID（toggle-task/update-task-interval で必須）' },
+                enabled: { type: 'boolean', description: 'タスクの有効/無効（toggle-task で必須）' },
+                quietHoursStart: { type: 'number', description: '静寂時間開始（0-23、update-quiet-hours で必須）' },
+                quietHoursEnd: { type: 'number', description: '静寂時間終了（0-23、update-quiet-hours で必須）' },
+                quietDays: { type: 'array', items: { type: 'number' }, description: '静寂曜日（0=日〜6=土、update-quiet-days で必須）' },
+                intervalMinutes: { type: 'number', description: 'タスク間隔（分、5〜1440、update-task-interval で必須）' },
+                reason: { type: 'string', description: '変更理由' },
+              },
+              required: ['type', 'reason'],
+            },
+          },
+        },
+        required: ['actions'],
+      },
+    },
+  },
 ];
 
 /** Worker 内でツールを実行する */
@@ -1414,6 +1583,62 @@ export async function executeWorkerTool(
         periodDays,
         totalResults: feedbackSummary.totalResults,
         totalWithFeedback: feedbackSummary.totalWithFeedback,
+      });
+    }
+    case 'applyHeartbeatConfigAction': {
+      const actions = args.actions as ActionRequest[] | undefined;
+      if (!Array.isArray(actions) || actions.length === 0) {
+        return JSON.stringify({ error: 'actions 配列は必須です' });
+      }
+      // 現在設定を取得
+      const config = await loadConfigFromIDB();
+      if (!config?.heartbeat) {
+        return JSON.stringify({ error: 'Heartbeat 設定が見つかりません' });
+      }
+      const hb = config.heartbeat;
+      const results: ActionResult[] = [];
+      for (const rawAction of actions) {
+        // LLM function calling 由来の入力は型保証されないためバリデーション
+        if (rawAction === null || typeof rawAction !== 'object') {
+          results.push({ type: 'invalid', applied: false, reason: '', detail: 'action はオブジェクトである必要があります', timestamp: Date.now() });
+          continue;
+        }
+        const a = rawAction as unknown as Record<string, unknown>;
+        const hasValidType = typeof a.type === 'string' && (a.type as string).trim().length > 0;
+        const hasValidReason = typeof a.reason === 'string' && (a.reason as string).trim().length > 0;
+        if (!hasValidType || !hasValidReason) {
+          const errors: string[] = [];
+          if (!hasValidType) errors.push('type は空でない文字列が必要');
+          if (!hasValidReason) errors.push('reason は空でない文字列が必要');
+          results.push({
+            type: hasValidType ? a.type as string : 'invalid',
+            applied: false,
+            reason: hasValidReason ? a.reason as string : '無効なアクション',
+            detail: `バリデーションエラー: ${errors.join(' / ')}`,
+            timestamp: Date.now(),
+          });
+          continue;
+        }
+        results.push(applyAction(hb, rawAction as ActionRequest));
+      }
+      const appliedCount = results.filter((r) => r.applied).length;
+      if (appliedCount > 0) {
+        // IDB に保存
+        await saveConfigToIDB(config);
+        // アクションログ保存
+        await saveActionLog(
+          results
+            .filter((r) => r.applied)
+            .map((r) => ({ type: r.type, reason: r.reason, detail: r.detail, timestamp: r.timestamp })),
+        );
+        // configChanged フラグをセット
+        _configChangedFlag = true;
+      }
+      return JSON.stringify({
+        message: `${appliedCount}/${actions.length} 件のアクションを適用しました`,
+        appliedCount,
+        totalActions: actions.length,
+        results,
       });
     }
     default:

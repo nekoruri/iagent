@@ -5,7 +5,14 @@ import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getDefaultPersonaConfig } from './config';
+import { getAndResetConfigChangedFlag } from './heartbeatTools';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent } from '../types';
+
+/** executeHeartbeatAndStore の戻り値 */
+export interface HeartbeatAndStoreResult {
+  results: HeartbeatResult[];
+  configChanged: boolean;
+}
 
 /** IndexedDB から最新設定を読み込み、API キーと Heartbeat 設定を返す */
 export async function loadFreshConfig(
@@ -76,17 +83,19 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
  * Worker / Service Worker 共通のパイプライン。
  * @param apiKey フォールバック用 API キー（通常は空文字で IDB から取得）
  * @param source 実行元の識別子
- * @returns 変化ありの結果のみ返す
+ * @returns 変化ありの結果 + configChanged フラグ
  */
-export async function executeHeartbeatAndStore(apiKey: string, source?: HeartbeatSource): Promise<HeartbeatResult[]> {
+export async function executeHeartbeatAndStore(apiKey: string, source?: HeartbeatSource): Promise<HeartbeatAndStoreResult> {
+  const EMPTY: HeartbeatAndStoreResult = { results: [], configChanged: false };
+
   // IndexedDB から最新設定を読み込む
   const freshConfig = await loadConfigFromIDB();
   const hbConfig = freshConfig?.heartbeat;
-  if (!hbConfig || !hbConfig.enabled) return [];
-  if (isQuietHours(hbConfig)) return [];
+  if (!hbConfig || !hbConfig.enabled) return EMPTY;
+  if (isQuietHours(hbConfig)) return EMPTY;
   if (hbConfig.focusMode) {
     console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
-    return [];
+    return EMPTY;
   }
 
   // 日次通知上限チェック
@@ -95,16 +104,16 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     const todayCount = getTodayNotificationCount(state.recentResults);
     if (todayCount >= hbConfig.maxNotificationsPerDay) {
       console.debug(`[Heartbeat:${source ?? 'unknown'}] 日次通知上限到達 — スキップ`);
-      return [];
+      return EMPTY;
     }
   }
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
-  if (!resolvedApiKey) return [];
+  if (!resolvedApiKey) return EMPTY;
 
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(hbConfig);
-  if (tasks.length === 0) return [];
+  if (tasks.length === 0) return EMPTY;
 
   // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
   const db = await getDB();
@@ -144,7 +153,10 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     }
   }
 
-  console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}`);
+  // configChanged フラグを確認（applyHeartbeatConfigAction が設定変更した場合）
+  const configChanged = getAndResetConfigChangedFlag();
 
-  return heartbeatResults;
+  console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
+
+  return { results: heartbeatResults, configChanged };
 }

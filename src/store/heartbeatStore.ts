@@ -175,6 +175,39 @@ export async function getHeartbeatFeedbackSummary(periodMs: number = 24 * 60 * 6
   };
 }
 
+// --- Action Log ---
+
+const ACTION_LOG_KEY = 'action-log';
+const MAX_ACTION_LOG = 100;
+
+export interface ActionLogEntry {
+  type: string;
+  reason: string;
+  detail: string;
+  timestamp: number;
+}
+
+/** アクションログを保存する（上限100件、古いものから切り捨て） */
+export async function saveActionLog(entries: ActionLogEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  const db = await getDB();
+  const row = await db.get(STORE_NAME, ACTION_LOG_KEY);
+  const existing: ActionLogEntry[] = row?.entries ?? [];
+  const merged = [...existing, ...entries];
+  // 上限超過分を古い順に切り捨て
+  const trimmed = merged.length > MAX_ACTION_LOG
+    ? merged.slice(merged.length - MAX_ACTION_LOG)
+    : merged;
+  await db.put(STORE_NAME, { key: ACTION_LOG_KEY, entries: trimmed });
+}
+
+/** アクションログを読み込む */
+export async function loadActionLog(): Promise<ActionLogEntry[]> {
+  const db = await getDB();
+  const row = await db.get(STORE_NAME, ACTION_LOG_KEY);
+  return row?.entries ?? [];
+}
+
 /** dismissed 非表示、snoozed は期限前のみ非表示 */
 export function filterVisibleResults(results: HeartbeatResult[], now = Date.now()): HeartbeatResult[] {
   return results.filter((r) => {

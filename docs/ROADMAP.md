@@ -6,24 +6,25 @@
 
 ---
 
-## 現状（2026-02-28 時点）
+## 現状（2026-03-03 時点）
 
 - チャット UI（ストリーミング対応）
 - ビルトインツール 7 種（カレンダー、Web 検索、デバイス情報、メモリ、クリッピング、RSS フィード、Web ページ監視）
 - MCP サーバー連携（ブラウザベース StreamableHTTP）+ Heartbeat 対応（read-only ツール許可）
-- Heartbeat バックグラウンドチェック（4 ビルトインタスク: カレンダー、天気、フィード、Web 監視）
+- Heartbeat バックグラウンドチェック（11 ビルトインタスク + カスタムタスク + Action Planning 自動設定変更）
 - デスクトップ通知（Notification API）
 - PWA（カスタム Service Worker + injectManifest、インストール可能）
-- エージェント長期メモリ（構造化記憶 — importance/tags/カテゴリ拡張 + 関連性ベース取得）
+- エージェント長期メモリ（構造化記憶 — importance/tags/カテゴリ拡張 + 関連性ベース取得 + 認知的記憶アーキテクチャ）
 - エージェントペルソナ設定（名前・性格・口調・追加指示のカスタマイズ + 動的 instruction 構築）
 - マルチステップタスク実行 + TaskProgress 進捗UI
 - カスタムワークフロー（タスクごとの個別スケジュール設定）
 - オブザーバビリティ基盤（OTel 互換トレーサー + OTLP/HTTP エクスポーター）
 - 会話履歴の複数管理（サイドバー + 作成・切替・削除）
 - Heartbeat 3層構成（メインスレッド + Dedicated Worker + Service Worker/Push）
+- フィードバック学習ループ（Accept/Dismiss/Snooze → 集計 → パターン認識 → 最適化ルール → 自動設定変更）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 828 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）
+- テスト 1015 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -221,7 +222,7 @@
 - [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）+ getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）+ computeSuggestionOptimizations 純粋関数（テスト容易性確保）+ instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示付きで挿入）+ 結果ピン留め
 - [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
-- [ ] Action Planning（チェック → 判断 → アクション）
+- [x] Action Planning（チェック → 判断 → アクション）
 
 ### 横断的課題
 - [x] CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
@@ -290,3 +291,4 @@
 - [x] 月次レビュータスク F15 — monthly-review ビルトインタスク（08:00 固定スケジュール、LLM 月初判定）、getMonthlyGoalStats Worker ツール（goal メモリの活動状態・期日状態を集計: active/new/stale/overdue 分類 + deadline 残り日数）、computeMonthlyGoalStats 純粋関数（テスト容易性確保）、結果ピン留め。（2026-03-02）
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）、getUserActivityPatterns Worker ツール（Heartbeat 結果 + Memory から時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）、computeUserActivityPatterns 純粋関数（テスト容易性確保）、reflection 保存で briefing/他タスクが自動参照。（2026-03-03）
 - [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）、getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）、computeSuggestionOptimizations 純粋関数（テスト容易性確保）、instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示で挿入）、結果ピン留め。（2026-03-03）
+- [x] Action Planning（F16 分析結果の自動実行）— applyHeartbeatConfigAction Worker ツール（toggle-task/update-quiet-hours/update-quiet-days/update-task-interval の4アクション型）、applyAction 純粋関数（バリデーション制約付き）、ActionLogEntry 型 + saveActionLog/loadActionLog（上限100件）、configChanged フラグ伝搬（executeHeartbeatAndStore → Worker → Bridge → useHeartbeat の IDB→localStorage 同期）、suggestion-optimization description にステップ5（自動設定変更）追加。テスト 1015 件。（2026-03-03）

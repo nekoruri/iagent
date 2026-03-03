@@ -70,7 +70,7 @@ describe('heartbeat.worker', () => {
     mockIsQuietHours.mockReturnValue(false);
     mockLoadFreshConfig.mockResolvedValue({ apiKey: 'sk-test', heartbeat: testConfig.heartbeat });
     mockGetTasksDueFromIDB.mockResolvedValue([]);
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
     mockBatchUpdateTaskLastRun.mockResolvedValue(undefined);
 
     // Worker モジュールを import（self.onmessage が設定される）
@@ -92,9 +92,9 @@ describe('heartbeat.worker', () => {
 
     it('タイマーを開始する（60秒間隔）', async () => {
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
         { taskId: 'task-1', timestamp: Date.now(), hasChanges: false, summary: 'テスト' },
-      ]);
+      ], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       mockPostMessage.mockClear();
@@ -136,9 +136,9 @@ describe('heartbeat.worker', () => {
   describe('run-now コマンド', () => {
     it('tick を即座に実行する', async () => {
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
         { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: '結果' },
-      ]);
+      ], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       mockPostMessage.mockClear();
@@ -218,9 +218,9 @@ describe('heartbeat.worker', () => {
     it('タスクがある場合は executeHeartbeatAndStore を呼ぶ', async () => {
       const task = testConfig.heartbeat.tasks[0];
       mockGetTasksDueFromIDB.mockResolvedValue([task]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
         { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: 'ニュース更新' },
-      ]);
+      ], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       sendCommand({ type: 'run-now' });
@@ -232,7 +232,7 @@ describe('heartbeat.worker', () => {
 
     it('結果がない場合は heartbeat-result を送信しない', async () => {
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       sendCommand({ type: 'run-now' });
@@ -243,7 +243,7 @@ describe('heartbeat.worker', () => {
 
     it('実行中に executing ステータスを送信する', async () => {
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       mockPostMessage.mockClear();
@@ -264,7 +264,7 @@ describe('heartbeat.worker', () => {
       };
       mockLoadFreshConfig.mockResolvedValue(freshConfig);
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       sendCommand({ type: 'run-now' });
@@ -329,7 +329,7 @@ describe('heartbeat.worker', () => {
   describe('タイマー管理', () => {
     it('start を2回呼ぶと古いタイマーを破棄して新しいタイマーを作る', async () => {
       mockGetTasksDueFromIDB.mockResolvedValue([testConfig.heartbeat.tasks[0]]);
-      mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+      mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
       sendCommand({ type: 'start', config: testConfig });
       sendCommand({ type: 'start', config: testConfig });

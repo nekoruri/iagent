@@ -38,7 +38,7 @@ self.addEventListener('push', (event) => {
   } catch {
     // JSON パース失敗は無視
   }
-  event.waitUntil(handlePush(data, notifier));
+  event.waitUntil(handlePush(data, notifier, self.clients));
 });
 
 // --- Layer 3: Periodic Background Sync ハンドラ（フォールバック） ---
@@ -46,7 +46,7 @@ self.addEventListener('periodicsync', (event) => {
   // PeriodicSyncEvent の tag をチェック
   const syncEvent = event as ExtendableEvent & { tag: string };
   if (syncEvent.tag === 'heartbeat-periodic') {
-    event.waitUntil(handlePeriodicSync(notifier));
+    event.waitUntil(handlePeriodicSync(notifier, self.clients));
   }
 });
 
