@@ -24,7 +24,7 @@
 - フィードバック学習ループ（Accept/Dismiss/Snooze → 集計 → パターン認識 → 最適化ルール → 自動設定変更）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 1015 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）
+- テスト 1015 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -91,7 +91,7 @@
 - [x] ツール実行 UI の E2E テスト（2テスト: calendar ツール呼び出し、web_search ツール呼び出し）
 - [x] Heartbeat パネル操作 E2E テスト（5テスト: ベル開閉、空メッセージ、結果一覧、未読バッジ、既読マーク）
 - [x] Push E2E テストの CI 統合（`e2e-push` ジョブを PR 時に並列実行）
-- [ ] Visual Regression テスト（Playwright スクリーンショット比較）
+- [x] Visual Regression テスト（Playwright toHaveScreenshot() — 7 spec / 54 スクリーンショット、desktop + mobile、dark/light 両テーマ）
 
 ### セキュリティ基盤
 - [x] MCP URL バリデーション（HTTPS 強制 + localhost 例外）— 共有ユーティリティ化 + コア層/UI 層の 2 層バリデーション
