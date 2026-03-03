@@ -31,7 +31,7 @@ export default function App() {
   useViewportHeight();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
+  const [wizardDismissed, setWizardDismissed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const {
@@ -102,11 +102,7 @@ export default function App() {
     setFocusMode(getConfig().heartbeat?.focusMode ?? false);
   }, [rawToggleFocusMode]);
 
-  useEffect(() => {
-    if (loaded && !isConfigured()) {
-      setShowWizard(true);
-    }
-  }, [loaded]);
+  const showWizard = loaded && !isConfigured() && !wizardDismissed;
 
   // 起動時にMCPサーバーに接続
   useEffect(() => {
@@ -139,15 +135,28 @@ export default function App() {
   const handleSend = useCallback(async (text: string) => {
     if (!activeConversationId) return;
 
-    // 最初のメッセージならタイトルを自動設定
-    if (messages.length === 0) {
-      await rename(activeConversationId, text.slice(0, 30));
-    }
+    try {
+      // 最初のメッセージならタイトルを自動設定
+      if (messages.length === 0) {
+        await rename(activeConversationId, text.slice(0, 30));
+      }
 
-    await sendMessage(text);
-    // メッセージ数 +2（ユーザー + アシスタント）で touch
-    await touch(activeConversationId, messages.length + 2);
-  }, [activeConversationId, messages.length, sendMessage, rename, touch]);
+      await sendMessage(text);
+      // メッセージ数 +2（ユーザー + アシスタント）で touch
+      await touch(activeConversationId, messages.length + 2);
+    } catch (error) {
+      console.error('[iAgent] メッセージ送信エラー:', error);
+      const errorMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `エラー: ${error instanceof Error ? error.message : '送信に失敗しました'}`,
+        timestamp: Date.now(),
+        conversationId: activeConversationId,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      await saveMessage(errorMsg);
+    }
+  }, [activeConversationId, messages.length, sendMessage, rename, touch, setMessages]);
 
   const handleSidebarSelect = useCallback((id: string) => {
     if (isStreaming) return;
@@ -167,7 +176,7 @@ export default function App() {
   }, [isStreaming, remove]);
 
   const handleWizardComplete = async () => {
-    setShowWizard(false);
+    setWizardDismissed(true);
     syncHeartbeatConfig();
     setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
     setFocusMode(getConfig().heartbeat?.focusMode ?? false);
@@ -307,7 +316,7 @@ export default function App() {
         </main>
         <Suspense fallback={null}>
           {showWizard && <SetupWizard onComplete={handleWizardComplete} />}
-          <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />
+          {settingsOpen && <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />}
         </Suspense>
       </div>
     </div>

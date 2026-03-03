@@ -8,10 +8,13 @@ vi.mock('../store/configStore', () => ({
   saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
 }));
 
+import type { MCPServer } from '@openai/agents';
 import { createAgent, createHeartbeatAgent } from './agent';
 import { saveMemory } from '../store/memoryStore';
 import { saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConfig } from './config';
 import type { AppConfig } from '../types';
+
+type ToolFilterFn = (server: { serverName: string }, tool: { name: string }) => Promise<boolean>;
 
 // Agent クラスをモックして instructions とツールを検証可能にする
 vi.mock('@openai/agents', () => {
@@ -212,9 +215,9 @@ describe('createHeartbeatAgent', () => {
   it('allowedMcpToolNames を渡すとサーバーに callable toolFilter が設定される', async () => {
     const mockServer = { name: 'srv-a', toolFilter: undefined };
     const agent = await createHeartbeatAgent(
-      [mockServer as any],
+      [mockServer as unknown as MCPServer],
       ['srv-a/list_items', 'srv-b/get_data'],
-    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+    ) as unknown as { mcpServers: Array<{ toolFilter: ToolFilterFn }> };
 
     expect(agent.mcpServers).toHaveLength(1);
     expect(typeof agent.mcpServers[0].toolFilter).toBe('function');
@@ -223,9 +226,9 @@ describe('createHeartbeatAgent', () => {
   it('callable toolFilter が qualified 名でフィルタする', async () => {
     const mockServer = { name: 'srv-a', toolFilter: undefined };
     const agent = await createHeartbeatAgent(
-      [mockServer as any],
+      [mockServer as unknown as MCPServer],
       ['srv-a/list_items'],
-    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+    ) as unknown as { mcpServers: Array<{ toolFilter: ToolFilterFn }> };
 
     const filter = agent.mcpServers[0].toolFilter;
     // srv-a の list_items → 許可
@@ -239,9 +242,9 @@ describe('createHeartbeatAgent', () => {
   it('レガシー形式（/ なし）は任意サーバーにマッチする', async () => {
     const mockServer = { name: 'any-server', toolFilter: undefined };
     const agent = await createHeartbeatAgent(
-      [mockServer as any],
+      [mockServer as unknown as MCPServer],
       ['list_items'],
-    ) as unknown as { mcpServers: Array<{ toolFilter: Function }> };
+    ) as unknown as { mcpServers: Array<{ toolFilter: ToolFilterFn }> };
 
     const filter = agent.mcpServers[0].toolFilter;
     // 任意サーバーの list_items → 許可
@@ -295,7 +298,7 @@ describe('createHeartbeatAgent', () => {
   it('qualified ツール名が instructions の MCP 制限ノートに含まれる', async () => {
     const mockServer = { name: 'srv-a', toolFilter: undefined };
     const agent = await createHeartbeatAgent(
-      [mockServer as any],
+      [mockServer as unknown as MCPServer],
       ['srv-a/list_items', 'srv-b/get_data'],
     ) as unknown as { instructions: string };
 

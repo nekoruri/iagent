@@ -4,7 +4,7 @@ import { __resetStores } from './__mocks__/db';
 vi.mock('./db');
 
 import { loadMessages, saveMessage, clearMessages, migrateOrphanMessages } from './conversationStore';
-import { getConversation, listConversations } from './conversationMetaStore';
+import { getConversation } from './conversationMetaStore';
 import type { ChatMessage } from '../types';
 
 beforeEach(() => {

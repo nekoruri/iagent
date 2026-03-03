@@ -39,7 +39,7 @@ jobs:
             );
 
             // Copilot のレビューを検出
-            const copilotLogins = ['copilot', 'github-copilot[bot]'];
+            const copilotLogins = ['copilot', 'github-copilot[bot]', 'copilot-pull-request-reviewer'];
             const copilotReviews = reviews.filter(r =>
               copilotLogins.includes(r.user?.login)
             );

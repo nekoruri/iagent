@@ -58,6 +58,7 @@ const mockDB = {
     return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
   },
   /** transaction モック — objectStore ベースの操作をサポート */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   transaction(storeNames: string | string[], _mode?: string) {
     const names = Array.isArray(storeNames) ? storeNames : [storeNames];
     function makeStoreAccessor(name: string) {
