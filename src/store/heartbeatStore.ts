@@ -61,8 +61,13 @@ export async function addHeartbeatResult(result: HeartbeatResult): Promise<void>
   const state = await loadHeartbeatState();
   state.recentResults.unshift(result);
   if (state.recentResults.length > MAX_RECENT_RESULTS) {
-    const pinned = state.recentResults.filter(r => r.pinned);
+    let pinned = state.recentResults.filter(r => r.pinned);
     const unpinned = state.recentResults.filter(r => !r.pinned);
+    // pinned が上限を超えている場合は古い pinned も切り捨て
+    if (pinned.length > MAX_RECENT_RESULTS) {
+      pinned.sort((a, b) => b.timestamp - a.timestamp);
+      pinned = pinned.slice(0, MAX_RECENT_RESULTS);
+    }
     const unpinnedLimit = MAX_RECENT_RESULTS - pinned.length;
     state.recentResults = [...pinned, ...unpinned.slice(0, Math.max(0, unpinnedLimit))];
     state.recentResults.sort((a, b) => b.timestamp - a.timestamp);

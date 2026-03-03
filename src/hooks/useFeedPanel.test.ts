@@ -82,7 +82,7 @@ describe('useFeedPanel', () => {
   });
 
   it('handleMarkRead で記事を既読にできる', async () => {
-    const { itemIds } = await seedFeedWithItems();
+    await seedFeedWithItems();
 
     const { result } = renderHook(() => useFeedPanel());
 

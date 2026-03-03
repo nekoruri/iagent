@@ -149,7 +149,7 @@ describe('addHeartbeatResult (pinned 保護)', () => {
     }
   });
 
-  it('pinned が上限を超えてもすべて保持される', async () => {
+  it('pinned が上限を超えると古い pinned が切り捨てられる', async () => {
     // pinned 結果を 55 件追加
     for (let i = 0; i < 55; i++) {
       await addHeartbeatResult({
@@ -162,10 +162,12 @@ describe('addHeartbeatResult (pinned 保護)', () => {
     }
 
     const state = await loadHeartbeatState();
-    // すべての pinned が保持される（上限超えても pinned は削除されない）
-    expect(state.recentResults.length).toBeGreaterThanOrEqual(55);
+    // pinned も上限（50件）で切り捨てられる
+    expect(state.recentResults.length).toBeLessThanOrEqual(50);
     const pinnedResults = state.recentResults.filter(r => r.pinned);
-    expect(pinnedResults).toHaveLength(55);
+    expect(pinnedResults).toHaveLength(50);
+    // 新しい方が残っている
+    expect(pinnedResults[0].timestamp).toBe(54 * 1000);
   });
 });
 

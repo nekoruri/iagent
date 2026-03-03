@@ -555,7 +555,7 @@ describe('archiveLowestScored 安全弁', () => {
     const { getDB: db } = await import('./__mocks__/db');
     const mockDb = await db();
     const all = (await mockDb.getAll('memories')).map(normalizeMemory);
-    await archiveLowestScored(mockDb as any, all);
+    await archiveLowestScored(mockDb as unknown as Awaited<ReturnType<typeof db>>, all);
 
     const after = await listMemories();
     expect(after).toHaveLength(2);
@@ -574,7 +574,7 @@ describe('archiveLowestScored 安全弁', () => {
     const { getDB: db } = await import('./__mocks__/db');
     const mockDb = await db();
     const all = (await mockDb.getAll('memories')).map(normalizeMemory);
-    await archiveLowestScored(mockDb as any, all);
+    await archiveLowestScored(mockDb as unknown as Awaited<ReturnType<typeof db>>, all);
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('保護カテゴリのみで MAX_MEMORIES 到達'),
@@ -607,7 +607,6 @@ describe('listArchivedMemories', () => {
     const archived = await listArchivedMemories();
     // アーカイブが存在する場合のみカテゴリフィルタを検証
     if (archived.length > 0) {
-      const categories = archived.map((a) => a.category);
       const factArchived = await listArchivedMemories('fact');
       const otherArchived = await listArchivedMemories('other');
       expect(factArchived.length + otherArchived.length).toBeLessThanOrEqual(archived.length);

@@ -24,7 +24,7 @@ export function useAgentChat(conversationId: string | null) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTools, setActiveTools] = useState<ToolCallInfo[]>([]);
   const historyRef = useRef<AgentInputItem[]>([]);
-  const abortRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const currentConvIdRef = useRef<string | null>(null);
 
   // conversationId 変更時にメッセージをリロード
@@ -77,7 +77,8 @@ export function useAgentChat(conversationId: string | null) {
 
     setIsStreaming(true);
     setActiveTools([]);
-    abortRef.current = false;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const trace = tracer.startTrace('agent.chat');
     trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
@@ -90,6 +91,7 @@ export function useAgentChat(conversationId: string | null) {
 
       const result = await run(agent, historyRef.current, {
         stream: true,
+        signal: abortController.signal,
       });
 
       let fullText = '';
@@ -97,7 +99,7 @@ export function useAgentChat(conversationId: string | null) {
       let currentToolSpan: ReturnType<typeof trace.startSpan> | null = null;
 
       for await (const event of result as AsyncIterable<RunStreamEvent>) {
-        if (abortRef.current) break;
+        if (abortController.signal.aborted) break;
 
         if (event.type === 'raw_model_stream_event') {
           const data = event.data;
@@ -163,35 +165,15 @@ export function useAgentChat(conversationId: string | null) {
       }
 
       // abort されていなければ completed を待つ
-      if (!abortRef.current) {
+      if (!abortController.signal.aborted) {
         await (result as { completed: Promise<void> }).completed;
-      } else {
-        // abort 済みの場合はタイムアウト付きで待機（最大2秒）
-        const completed = (result as { completed: Promise<void> }).completed;
-        await new Promise<void>((resolve) => {
-          let settled = false;
-          const settle = () => {
-            if (settled) return;
-            settled = true;
-            resolve();
-          };
-          const timeoutId = setTimeout(settle, 2000);
-          completed
-            .finally(() => {
-              clearTimeout(timeoutId);
-              settle();
-            })
-            .catch(() => {
-              // エラーは外側の try/catch で処理済み
-            });
-        });
       }
 
-      // 履歴更新
+      // 履歴更新（abort 時も取得可能な範囲で更新）
       historyRef.current = (result as { history: AgentInputItem[] }).history;
 
       // 最終出力でメッセージを更新（ストリームで取りきれなかった場合のフォールバック）
-      if (!abortRef.current) {
+      if (!abortController.signal.aborted) {
         const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
         if (typeof finalOutput === 'string' && finalOutput.length > fullText.length) {
           fullText = finalOutput;
@@ -211,6 +193,10 @@ export function useAgentChat(conversationId: string | null) {
       });
       await saveMessage(finalMsg);
     } catch (error) {
+      // AbortError は正常停止なのでエラー表示しない
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
       const errorText = error instanceof Error ? error.message : '不明なエラーが発生しました';
       const errorMsg: ChatMessage = {
         ...assistantMsg,
@@ -225,6 +211,7 @@ export function useAgentChat(conversationId: string | null) {
       await saveMessage(errorMsg);
       trace.rootSpan.endWithError(error);
     } finally {
+      abortControllerRef.current = null;
       await trace.finish().catch(() => {});
       setIsStreaming(false);
       setActiveTools([]);
@@ -232,7 +219,7 @@ export function useAgentChat(conversationId: string | null) {
   }, [isStreaming, conversationId]);
 
   const stopStreaming = useCallback(() => {
-    abortRef.current = true;
+    abortControllerRef.current?.abort();
   }, []);
 
   const clearChat = useCallback(() => {

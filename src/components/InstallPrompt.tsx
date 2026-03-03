@@ -1,12 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { shouldShowInstallPrompt, dismissInstallPrompt } from '../core/installDetect';
 
 export function InstallPrompt() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    setVisible(shouldShowInstallPrompt());
-  }, []);
+  const [visible, setVisible] = useState(shouldShowInstallPrompt);
 
   if (!visible) return null;
 

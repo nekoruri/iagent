@@ -52,6 +52,38 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
 export function SettingsModal({ open, onClose }: Props) {
   const [config, setConfig] = useState<AppConfig>(getConfig);
   const [, setTick] = useState(0);
+  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>(initOpenSections);
+  const [otelHeadersText, setOtelHeadersText] = useState('{}');
+  const [pushStatus, setPushStatus] = useState<'idle' | 'subscribing' | 'unsubscribing' | 'error'>('idle');
+  const [pushError, setPushError] = useState<string>('');
+  const [hasPushSubscription, setHasPushSubscription] = useState(false);
+  const [proxyMasterKey, setProxyMasterKey] = useState('');
+  const [proxyStatus, setProxyStatus] = useState<'idle' | 'registering' | 'error'>('idle');
+  const [proxyError, setProxyError] = useState<string>('');
+  const [proxyDomainsText, setProxyDomainsText] = useState('');
+  const [mcpToolsList, setMcpToolsList] = useState<Array<{ serverName: string; toolName: string }>>([]);
+  const [storageInfo, setStorageInfo] = useState<{
+    persistent: boolean;
+    usage: number;
+    quota: number;
+  } | null>(null);
+
+  // open が変化したときのステートリセット（レンダー中に同期実行 — React 推奨パターン）
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      const freshConfig = getConfig();
+      setConfig(freshConfig);
+      setOpenSections(initOpenSections());
+      setOtelHeadersText(JSON.stringify(freshConfig.otel?.headers ?? {}));
+      setProxyDomainsText(freshConfig.proxy?.allowedDomains?.join(', ') ?? '');
+      setProxyMasterKey('');
+      setProxyError('');
+      setProxyStatus('idle');
+      setPushError('');
+    }
+  }
 
   // MCPManager の状態変更をリッスン
   useEffect(() => {
@@ -59,54 +91,15 @@ export function SettingsModal({ open, onClose }: Props) {
     return mcpManager.subscribe(() => setTick((t) => t + 1));
   }, [open]);
 
-  // モーダルが開かれた時に最新の設定を読み込む
-  useEffect(() => {
-    if (open) {
-      setConfig(getConfig());
-      setOpenSections(initOpenSections());
-    }
-  }, [open]);
-
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
   const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
   const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
-  const [otelHeadersText, setOtelHeadersText] = useState(JSON.stringify(otel.headers));
-  const [pushStatus, setPushStatus] = useState<'idle' | 'subscribing' | 'unsubscribing' | 'error'>('idle');
-  const [pushError, setPushError] = useState<string>('');
-  const [hasPushSubscription, setHasPushSubscription] = useState(false);
-  const [proxyMasterKey, setProxyMasterKey] = useState('');
-  const [proxyStatus, setProxyStatus] = useState<'idle' | 'registering' | 'error'>('idle');
-  const [proxyError, setProxyError] = useState<string>('');
-  const [proxyDomainsText, setProxyDomainsText] = useState(proxy.allowedDomains.join(', '));
-  const [mcpToolsList, setMcpToolsList] = useState<Array<{ serverName: string; toolName: string }>>([]);
-  const [storageInfo, setStorageInfo] = useState<{
-    persistent: boolean;
-    usage: number;
-    quota: number;
-  } | null>(null);
-  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>(initOpenSections);
-
-  // モーダルが開かれたとき、ヘッダーテキストも同期
-  useEffect(() => {
-    if (open) setOtelHeadersText(JSON.stringify(config.otel?.headers ?? {}));
-  }, [open, config.otel?.headers]);
-
-  // モーダルが開かれたとき、プロキシ関連の状態をリセット
-  useEffect(() => {
-    if (open) {
-      setProxyDomainsText(config.proxy?.allowedDomains?.join(', ') ?? '');
-      setProxyMasterKey('');
-      setProxyError('');
-      setProxyStatus('idle');
-    }
-  }, [open, config.proxy?.allowedDomains]);
 
   // Push Subscription 状態を初期化
   useEffect(() => {
     if (!open) return;
-    setPushError('');
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
   }, [open]);
 

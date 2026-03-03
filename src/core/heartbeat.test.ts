@@ -4,7 +4,7 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { isQuietHours, getTasksDue, groupTasksByMcpTools, getTodayNotificationCount, HeartbeatEngine } from './heartbeat';
-import { updateLastChecked, updateTaskLastRun } from '../store/heartbeatStore';
+import { updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
 function makeConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
