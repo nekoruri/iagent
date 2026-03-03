@@ -1,6 +1,7 @@
 # アーキテクチャ
 
 iAgent のアーキテクチャ詳細。全体像は [README.md](../README.md) を参照。
+利用者向けの操作手順は [USER-GUIDE.md](USER-GUIDE.md)、Push/Proxy の運用手順は [OPERATIONS.md](OPERATIONS.md) を参照。
 
 ---
 
