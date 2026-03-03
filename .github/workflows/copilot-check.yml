@@ -32,10 +32,11 @@ jobs:
             });
             const headSha = pr.head.sha;
 
-            // レビュー一覧を取得
-            const { data: reviews } = await github.rest.pulls.listReviews({
-              owner, repo, pull_number: prNumber,
-            });
+            // レビュー一覧を全件取得（ページネーション対応）
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              { owner, repo, pull_number: prNumber, per_page: 100 },
+            );
 
             // Copilot のレビューを検出
             const copilotLogins = ['copilot', 'github-copilot[bot]'];
@@ -52,10 +53,11 @@ jobs:
             let description = 'Copilot レビュー待ち';
 
             if (latestCopilotReview) {
-              // インラインコメントを取得
-              const { data: comments } = await github.rest.pulls.listReviewComments({
-                owner, repo, pull_number: prNumber,
-              });
+              // インラインコメントを全件取得（ページネーション対応）
+              const comments = await github.paginate(
+                github.rest.pulls.listReviewComments,
+                { owner, repo, pull_number: prNumber, per_page: 100 },
+              );
               const copilotComments = comments.filter(c =>
                 copilotLogins.includes(c.user?.login)
                 && c.pull_request_review_id === latestCopilotReview.id
