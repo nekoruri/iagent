@@ -36,6 +36,29 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
+  e2e-vrt:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Japanese fonts
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:vrt
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: vrt-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
+
   e2e-push:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

@@ -8,6 +8,13 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? 'html' : 'list',
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.002,
+      animations: 'disabled',
+    },
+  },
+  snapshotPathTemplate: '{testDir}/visual/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
@@ -17,12 +24,25 @@ export default defineConfig({
     {
       name: 'desktop-chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: [/mobile/, /push-integration/],
+      testIgnore: [/mobile/, /push-integration/, /\.vrt\./],
     },
     {
       name: 'mobile-chromium',
       use: { ...devices['Pixel 7'] },
       testMatch: /mobile/,
+      testIgnore: [/\.vrt\./],
+    },
+    // VRT 専用プロジェクト
+    {
+      name: 'vrt-desktop',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /\.vrt\./,
+      testIgnore: [/mobile\.vrt\./],
+    },
+    {
+      name: 'vrt-mobile',
+      use: { ...devices['Pixel 7'] },
+      testMatch: /mobile\.vrt\./,
     },
   ],
   webServer: {
