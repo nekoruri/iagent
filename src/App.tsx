@@ -269,12 +269,17 @@ export default function App() {
             <MemoryPanel
               isOpen={memoryPanel.isOpen}
               memories={memoryPanel.memories}
+              archivedMemories={memoryPanel.archivedMemories}
               selectedCategory={memoryPanel.selectedCategory}
+              viewTab={memoryPanel.viewTab}
               isLoading={memoryPanel.isLoading}
               onToggle={memoryPanel.toggle}
               onClose={memoryPanel.close}
               onChangeCategory={memoryPanel.changeCategory}
+              onChangeViewTab={memoryPanel.changeViewTab}
               onDelete={memoryPanel.handleDelete}
+              onRestore={memoryPanel.handleRestore}
+              onDeleteArchived={memoryPanel.handleDeleteArchived}
             />
             <FeedPanel
               isOpen={feedPanel.isOpen}

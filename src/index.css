@@ -1592,6 +1592,73 @@ body {
   color: var(--text-muted);
 }
 
+.memory-view-tabs {
+  display: flex;
+  padding: 8px 12px 0;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-view-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 0 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.memory-view-tab:hover {
+  color: var(--text);
+}
+
+.memory-view-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.memory-archive-reason {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.memory-restore-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.memory-card:hover .memory-restore-btn,
+.memory-card:focus-within .memory-restore-btn {
+  opacity: 1;
+}
+
+.memory-restore-btn:hover {
+  color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .memory-restore-btn {
+    opacity: 1;
+  }
+}
+
 .memory-category-tabs {
   display: flex;
   flex-wrap: wrap;

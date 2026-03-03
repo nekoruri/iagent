@@ -200,7 +200,7 @@
 - [x] ふりかえりタスク — reflection ビルトインタスク（23:00 固定スケジュール）+ Worker ツール 3 種（getRecentMemoriesForReflection/saveReflection/cleanupMemories）
 - [x] reflection カテゴリ — MemoryCategory に追加 + instructionBuilder で「振り返りからの洞察」分離表示
 - [x] ふりかえり UI — reflection 記憶の閲覧・管理画面（MemoryPanel コンポーネント）
-- [ ] アーカイブ閲覧 UI — memories_archive の参照・復元機能
+- [x] アーカイブ閲覧 UI — memories_archive の参照・復元機能
 
 ### エージェント自律性強化
 - [x] 日次ブリーフィング — briefing-morning ビルトインタスク（07:00 固定スケジュール）+ Heartbeat プロンプトにブリーフィングルール追加

@@ -349,6 +349,66 @@ export async function getMemoriesForBriefing(limit: number = 15): Promise<Memory
   return result;
 }
 
+/** アーカイブ記憶を復元（memories_archive → memories） */
+export async function restoreArchivedMemory(id: string): Promise<boolean> {
+  const db = await getDB();
+
+  // 存在確認
+  const archived = await db.get(ARCHIVE_STORE_NAME, id);
+  if (!archived) return false;
+
+  // archivedAt / archiveReason を除去して Memory に戻す
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { archivedAt: _at, archiveReason: _reason, ...memory } = archived as ArchivedMemory;
+  const now = Date.now();
+  const restored: Memory = normalizeMemory({
+    ...memory,
+    updatedAt: now,
+  });
+
+  // 重複チェック: 同一 contentHash のアクティブ記憶がある場合はマージ
+  const all = await db.getAll(STORE_NAME);
+  const normalized = (all as Memory[]).map(normalizeMemory);
+  const duplicate = restored.contentHash
+    ? normalized.find((m) => m.contentHash === restored.contentHash)
+    : undefined;
+
+  if (duplicate) {
+    // 既存記憶を更新（importance は最大値、tags はマージ）してアーカイブだけ削除
+    const merged: Memory = {
+      ...duplicate,
+      updatedAt: now,
+      importance: Math.max(duplicate.importance, restored.importance),
+      tags: [...new Set([...duplicate.tags, ...restored.tags])],
+    };
+    const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
+    await tx.objectStore(STORE_NAME).put(merged);
+    tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
+    await tx.done;
+    return true;
+  }
+
+  // MAX_MEMORIES 上限チェック: 上限に達している場合は先にアーカイブ
+  if (normalized.length >= MAX_MEMORIES) {
+    await archiveLowestScored(db, normalized);
+  }
+
+  const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
+  await tx.objectStore(STORE_NAME).put(restored);
+  tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
+  await tx.done;
+  return true;
+}
+
+/** アーカイブ記憶を完全削除 */
+export async function deleteArchivedMemory(id: string): Promise<boolean> {
+  const db = await getDB();
+  const existing = await db.get(ARCHIVE_STORE_NAME, id);
+  if (!existing) return false;
+  await db.delete(ARCHIVE_STORE_NAME, id);
+  return true;
+}
+
 /** アーカイブ済み記憶の一覧を取得 */
 export async function listArchivedMemories(category?: MemoryCategory): Promise<ArchivedMemory[]> {
   const db = await getDB();

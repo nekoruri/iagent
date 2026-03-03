@@ -1,15 +1,21 @@
 import { useRef, useEffect } from 'react';
-import type { Memory, MemoryCategory } from '../types';
+import type { Memory, MemoryCategory, ArchivedMemory } from '../types';
+import type { MemoryViewTab } from '../hooks/useMemoryPanel';
 
 interface MemoryPanelProps {
   isOpen: boolean;
   memories: Memory[];
+  archivedMemories: ArchivedMemory[];
   selectedCategory: MemoryCategory | undefined;
+  viewTab: MemoryViewTab;
   isLoading: boolean;
   onToggle: () => void;
   onClose: () => void;
   onChangeCategory: (category: MemoryCategory | undefined) => void;
+  onChangeViewTab: (tab: MemoryViewTab) => void;
   onDelete: (id: string) => void;
+  onRestore: (id: string) => void;
+  onDeleteArchived: (id: string) => void;
 }
 
 const CATEGORY_LABELS: Record<MemoryCategory, string> = {
@@ -32,6 +38,12 @@ const CATEGORY_COLORS: Record<MemoryCategory, string> = {
   personality: '#fb923c',
   context: '#94a3b8',
   other: '#6b7280',
+};
+
+const ARCHIVE_REASON_LABELS: Record<string, string> = {
+  'low-score': '低スコア',
+  'manual': '手動',
+  'consolidation': '統合',
 };
 
 const FILTER_CATEGORIES: (MemoryCategory | undefined)[] = [
@@ -59,12 +71,17 @@ function formatDate(ts: number): string {
 export function MemoryPanel({
   isOpen,
   memories,
+  archivedMemories,
   selectedCategory,
+  viewTab,
   isLoading,
   onToggle,
   onClose,
   onChangeCategory,
+  onChangeViewTab,
   onDelete,
+  onRestore,
+  onDeleteArchived,
 }: MemoryPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +97,9 @@ export function MemoryPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, onClose]);
 
+  const isArchiveView = viewTab === 'archive';
+  const displayCount = isArchiveView ? archivedMemories.length : memories.length;
+
   return (
     <div className="memory-panel-container" ref={panelRef}>
       <button className="btn-icon memory-brain" onClick={onToggle} title="記憶管理">
@@ -91,7 +111,21 @@ export function MemoryPanel({
         <div className="memory-dropdown">
           <div className="memory-dropdown-header">
             記憶管理
-            <span className="memory-dropdown-count">{memories.length}件</span>
+            <span className="memory-dropdown-count">{displayCount}件</span>
+          </div>
+          <div className="memory-view-tabs">
+            <button
+              className={`memory-view-tab${viewTab === 'active' ? ' memory-view-tab-active' : ''}`}
+              onClick={() => onChangeViewTab('active')}
+            >
+              記憶
+            </button>
+            <button
+              className={`memory-view-tab${viewTab === 'archive' ? ' memory-view-tab-active' : ''}`}
+              onClick={() => onChangeViewTab('archive')}
+            >
+              アーカイブ
+            </button>
           </div>
           <div className="memory-category-tabs">
             {FILTER_CATEGORIES.map((cat) => (
@@ -107,42 +141,90 @@ export function MemoryPanel({
           <div className="memory-dropdown-list">
             {isLoading ? (
               <div className="memory-dropdown-empty">読み込み中...</div>
-            ) : memories.length === 0 ? (
-              <div className="memory-dropdown-empty">記憶がありません</div>
+            ) : isArchiveView ? (
+              archivedMemories.length === 0 ? (
+                <div className="memory-dropdown-empty">アーカイブはありません</div>
+              ) : (
+                archivedMemories.map((m) => (
+                  <div key={m.id} className="memory-card">
+                    <div className="memory-card-header">
+                      <span
+                        className="memory-category-badge"
+                        style={{ background: CATEGORY_COLORS[m.category] + '22', color: CATEGORY_COLORS[m.category] }}
+                      >
+                        {CATEGORY_LABELS[m.category]}
+                      </span>
+                      <span className="memory-archive-reason">
+                        {ARCHIVE_REASON_LABELS[m.archiveReason] ?? m.archiveReason}
+                      </span>
+                      <button
+                        className="memory-restore-btn"
+                        onClick={() => onRestore(m.id)}
+                        aria-label={`記憶を復元: ${m.content.slice(0, 20)}`}
+                        title="復元"
+                      >
+                        ↩
+                      </button>
+                      <button
+                        className="memory-delete-btn"
+                        onClick={() => onDeleteArchived(m.id)}
+                        aria-label={`アーカイブを削除: ${m.content.slice(0, 20)}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="memory-card-content">{m.content}</div>
+                    <div className="memory-card-footer">
+                      {m.tags.length > 0 && (
+                        <div className="memory-tags">
+                          {m.tags.map((tag) => (
+                            <span key={tag} className="memory-tag">#{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      <span className="memory-card-date">{formatDate(m.archivedAt)}</span>
+                    </div>
+                  </div>
+                ))
+              )
             ) : (
-              memories.map((m) => (
-                <div key={m.id} className="memory-card">
-                  <div className="memory-card-header">
-                    <span
-                      className="memory-category-badge"
-                      style={{ background: CATEGORY_COLORS[m.category] + '22', color: CATEGORY_COLORS[m.category] }}
-                    >
-                      {CATEGORY_LABELS[m.category]}
-                    </span>
-                    <span className="memory-importance">
-                      {'★'.repeat(m.importance)}{'☆'.repeat(5 - m.importance)}
-                    </span>
-                    <button
-                      className="memory-delete-btn"
-                      onClick={() => onDelete(m.id)}
-                      aria-label={`メモリを削除: ${m.content.slice(0, 20)}`}
-                    >
-                      ×
-                    </button>
+              memories.length === 0 ? (
+                <div className="memory-dropdown-empty">記憶がありません</div>
+              ) : (
+                memories.map((m) => (
+                  <div key={m.id} className="memory-card">
+                    <div className="memory-card-header">
+                      <span
+                        className="memory-category-badge"
+                        style={{ background: CATEGORY_COLORS[m.category] + '22', color: CATEGORY_COLORS[m.category] }}
+                      >
+                        {CATEGORY_LABELS[m.category]}
+                      </span>
+                      <span className="memory-importance">
+                        {'★'.repeat(m.importance)}{'☆'.repeat(5 - m.importance)}
+                      </span>
+                      <button
+                        className="memory-delete-btn"
+                        onClick={() => onDelete(m.id)}
+                        aria-label={`メモリを削除: ${m.content.slice(0, 20)}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="memory-card-content">{m.content}</div>
+                    <div className="memory-card-footer">
+                      {m.tags.length > 0 && (
+                        <div className="memory-tags">
+                          {m.tags.map((tag) => (
+                            <span key={tag} className="memory-tag">#{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      <span className="memory-card-date">{formatDate(m.updatedAt)}</span>
+                    </div>
                   </div>
-                  <div className="memory-card-content">{m.content}</div>
-                  <div className="memory-card-footer">
-                    {m.tags.length > 0 && (
-                      <div className="memory-tags">
-                        {m.tags.map((tag) => (
-                          <span key={tag} className="memory-tag">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                    <span className="memory-card-date">{formatDate(m.updatedAt)}</span>
-                  </div>
-                </div>
-              ))
+                ))
+              )
             )}
           </div>
         </div>
