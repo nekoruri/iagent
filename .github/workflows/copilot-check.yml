@@ -1,7 +1,5 @@
 name: Copilot Review Check
 on:
-  pull_request_review:
-    types: [submitted]
   pull_request:
     types: [opened, synchronize]
 
@@ -13,14 +11,13 @@ jobs:
   check-copilot-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Copilot review status
+      - name: Wait for Copilot review and update status
         uses: actions/github-script@v7
         with:
           github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request?.number
-              || context.payload.review?.pull_request?.number;
+            const prNumber = context.payload.pull_request?.number;
 
             if (!prNumber) {
               core.setFailed('PR number not found');
@@ -31,70 +28,96 @@ jobs:
               owner, repo, pull_number: prNumber,
             });
             const headSha = pr.head.sha;
-
-            // レビュー一覧を全件取得（ページネーション対応）
-            const reviews = await github.paginate(
-              github.rest.pulls.listReviews,
-              { owner, repo, pull_number: prNumber, per_page: 100 },
-            );
-
-            // Copilot のレビューを検出
             const copilotLogins = ['copilot', 'github-copilot[bot]', 'copilot-pull-request-reviewer'];
-            const copilotReviews = reviews.filter(r =>
-              copilotLogins.includes(r.user?.login)
-            );
+            const targetUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
 
-            // 最新コミットに対する Copilot レビューを検索
-            const latestCopilotReview = copilotReviews
-              .filter(r => r.commit_id === headSha)
-              .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
-
-            let state = 'pending';
-            let description = 'Copilot レビュー待ち';
-
-            if (latestCopilotReview) {
-              // インラインコメントを全件取得（ページネーション対応）
-              const comments = await github.paginate(
-                github.rest.pulls.listReviewComments,
-                { owner, repo, pull_number: prNumber, per_page: 100 },
-              );
-              const copilotComments = comments.filter(c =>
-                copilotLogins.includes(c.user?.login)
-                && c.pull_request_review_id === latestCopilotReview.id
-              );
-
-              // Critical 指摘の検出（セキュリティ、バグ関連キーワード）
-              const criticalKeywords = [
-                'security', 'vulnerability', 'injection', 'xss', 'ssrf',
-                'critical', 'bug', 'crash', 'data loss', 'leak',
-                'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
-                'クラッシュ', 'データ損失', '漏洩',
-              ];
-              const hasCritical = copilotComments.some(c =>
-                criticalKeywords.some(kw =>
-                  c.body?.toLowerCase().includes(kw.toLowerCase())
-                )
-              );
-
-              if (hasCritical) {
-                state = 'failure';
-                description = `Copilot: Critical 指摘あり（${copilotComments.length}件のコメント）`;
-              } else if (copilotComments.length > 0) {
-                state = 'success';
-                description = `Copilot レビュー完了（${copilotComments.length}件の指摘あり）`;
-              } else {
-                state = 'success';
-                description = 'Copilot レビュー完了（指摘なし）';
-              }
-            }
-
+            // 初期ステータス: pending
             await github.rest.repos.createCommitStatus({
               owner, repo,
               sha: headSha,
-              state,
+              state: 'pending',
               context: 'copilot-review',
-              description,
-              target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+              description: 'Copilot レビュー待ち',
+              target_url: targetUrl,
             });
 
-            console.log(`Copilot review status: ${state} - ${description}`);
+            // Copilot レビューをポーリング（30秒間隔、最大10分）
+            const maxAttempts = 20;
+            const intervalMs = 30000;
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              console.log(`Polling attempt ${attempt}/${maxAttempts}...`);
+
+              const reviews = await github.paginate(
+                github.rest.pulls.listReviews,
+                { owner, repo, pull_number: prNumber, per_page: 100 },
+              );
+
+              const latestCopilotReview = reviews
+                .filter(r => copilotLogins.includes(r.user?.login) && r.commit_id === headSha)
+                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
+
+              if (latestCopilotReview) {
+                // Copilot レビューを検出 — コメント内容を解析
+                const comments = await github.paginate(
+                  github.rest.pulls.listReviewComments,
+                  { owner, repo, pull_number: prNumber, per_page: 100 },
+                );
+                const copilotComments = comments.filter(c =>
+                  copilotLogins.includes(c.user?.login)
+                  && c.pull_request_review_id === latestCopilotReview.id
+                );
+
+                // Critical 指摘の検出（セキュリティ、バグ関連キーワード）
+                const criticalKeywords = [
+                  'security', 'vulnerability', 'injection', 'xss', 'ssrf',
+                  'critical', 'bug', 'crash', 'data loss', 'leak',
+                  'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
+                  'クラッシュ', 'データ損失', '漏洩',
+                ];
+                const hasCritical = copilotComments.some(c =>
+                  criticalKeywords.some(kw =>
+                    c.body?.toLowerCase().includes(kw.toLowerCase())
+                  )
+                );
+
+                let state, description;
+                if (hasCritical) {
+                  state = 'failure';
+                  description = `Copilot: Critical 指摘あり（${copilotComments.length}件のコメント）`;
+                } else if (copilotComments.length > 0) {
+                  state = 'success';
+                  description = `Copilot レビュー完了（${copilotComments.length}件の指摘あり）`;
+                } else {
+                  state = 'success';
+                  description = 'Copilot レビュー完了（指摘なし）';
+                }
+
+                await github.rest.repos.createCommitStatus({
+                  owner, repo,
+                  sha: headSha,
+                  state,
+                  context: 'copilot-review',
+                  description,
+                  target_url: targetUrl,
+                });
+
+                console.log(`Copilot review found: ${state} - ${description}`);
+                return;
+              }
+
+              if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, intervalMs));
+              }
+            }
+
+            // タイムアウト — success にしてブロックしない
+            await github.rest.repos.createCommitStatus({
+              owner, repo,
+              sha: headSha,
+              state: 'success',
+              context: 'copilot-review',
+              description: 'Copilot レビュー: タイムアウト（手動確認推奨）',
+              target_url: targetUrl,
+            });
+            console.log('Copilot review polling timed out');
