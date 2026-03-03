@@ -185,21 +185,34 @@ export async function executeWorkerHeartbeatCheck(
 }
 
 /** レスポンスから HeartbeatResult[] をパースする */
-function parseHeartbeatResponse(content: string | null | undefined): HeartbeatResult[] {
+export function parseHeartbeatResponse(content: string | null | undefined): HeartbeatResult[] {
   if (!content) return [];
 
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  const jsonMatch = content.match(/\{[\s\S]*?\}(?=[^}]*$|\s*$)/);
   if (!jsonMatch) return [];
 
-  const parsed = JSON.parse(jsonMatch[0]) as {
-    results: Array<{ taskId: string; hasChanges: boolean; summary: string }>;
-  };
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed || !Array.isArray(parsed.results)) {
+      console.warn('[Heartbeat] パース結果の results が配列ではありません');
+      return [];
+    }
 
-  const now = Date.now();
-  return parsed.results.map((r) => ({
-    taskId: r.taskId,
-    timestamp: now,
-    hasChanges: r.hasChanges,
-    summary: r.summary || '',
-  }));
+    const now = Date.now();
+    return parsed.results
+      .filter((r: unknown) => {
+        if (!r || typeof r !== 'object') return false;
+        const obj = r as Record<string, unknown>;
+        return typeof obj.taskId === 'string';
+      })
+      .map((r: { taskId: string; hasChanges?: boolean; summary?: string }) => ({
+        taskId: r.taskId,
+        timestamp: now,
+        hasChanges: Boolean(r.hasChanges),
+        summary: r.summary || '',
+      }));
+  } catch (e) {
+    console.warn('[Heartbeat] JSON パース失敗:', e);
+    return [];
+  }
 }

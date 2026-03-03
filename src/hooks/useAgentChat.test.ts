@@ -275,6 +275,12 @@ describe('useAgentChat', () => {
       expect(assistantMsg.content).toBe('エラー: API 接続エラー');
       expect(result.current.isStreaming).toBe(false);
 
+      // エラーメッセージも DB に永続化される（user + error の計 2 回）
+      expect(mockSaveMessage).toHaveBeenCalledTimes(2);
+      const savedErrorMsg = mockSaveMessage.mock.calls[1][0];
+      expect(savedErrorMsg.content).toBe('エラー: API 接続エラー');
+      expect(savedErrorMsg.role).toBe('assistant');
+
       // テレメトリにエラーが記録される
       expect(mockSpan.endWithError).toHaveBeenCalled();
     });
@@ -350,6 +356,49 @@ describe('useAgentChat', () => {
       expect(result.current.isStreaming).toBe(false);
       // チャンクは少なくとも1つは受信されている
       expect(yieldCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it('completed が解決しなくてもタイムアウトで isStreaming が false になる', async () => {
+      // abort 直後に break するストリーム（有限回のみ yield）
+      let yieldCount = 0;
+      let abortSignal = false;
+      const stream = {
+        [Symbol.asyncIterator]: async function* () {
+          while (!abortSignal && yieldCount < 100) {
+            yieldCount++;
+            yield textDelta(`chunk-${yieldCount}`);
+            await new Promise((r) => setTimeout(r, 0));
+          }
+        },
+        // 永遠に解決しない completed（abort しても resolve されないケースを再現）
+        completed: new Promise<void>(() => {}),
+        history: [],
+        finalOutput: '',
+      };
+      mockRun.mockResolvedValue(stream);
+
+      const { result } = await setupHook('conv-1');
+
+      let sendPromise: Promise<void>;
+      act(() => {
+        sendPromise = result.current.sendMessage('テスト');
+      });
+
+      await vi.waitFor(() => expect(result.current.isStreaming).toBe(true));
+
+      // abort → ストリームを止める
+      act(() => {
+        result.current.stopStreaming();
+        abortSignal = true;
+      });
+
+      await act(async () => {
+        await sendPromise!;
+      });
+
+      expect(result.current.isStreaming).toBe(false);
+      // 中断後もメッセージが保存されている
+      expect(mockSaveMessage).toHaveBeenCalled();
     });
   });
 

@@ -1,6 +1,6 @@
 import { isQuietHours, getTodayNotificationCount } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
-import { addHeartbeatResult, updateTaskLastRun, getAllTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
+import { addHeartbeatResult, updateTaskLastRun, batchUpdateTaskLastRun, getAllTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
@@ -113,6 +113,9 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(hbConfig);
   if (tasks.length === 0) return EMPTY;
+
+  // 先制的に taskLastRun を更新（パース失敗時の再実行ループ防止）
+  await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now());
 
   // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
   const db = await getDB();

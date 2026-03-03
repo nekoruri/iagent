@@ -48,6 +48,23 @@ vi.mock('../tools/memoryTool', () => ({
   memoryTool: { name: 'memory', __isTool: true },
 }));
 
+vi.mock('../tools/heartbeatAgentTools', () => ({
+  hbListCalendarEventsTool: { name: 'hbListCalendarEvents', __isTool: true },
+  hbGetCurrentTimeTool: { name: 'hbGetCurrentTime', __isTool: true },
+  hbCheckMonitorsTool: { name: 'hbCheckMonitors', __isTool: true },
+  hbGetRecentMemoriesForReflectionTool: { name: 'hbGetRecentMemoriesForReflection', __isTool: true },
+  hbSaveReflectionTool: { name: 'hbSaveReflection', __isTool: true },
+  hbCleanupMemoriesTool: { name: 'hbCleanupMemories', __isTool: true },
+  hbGetHeartbeatFeedbackSummaryTool: { name: 'hbGetHeartbeatFeedbackSummary', __isTool: true },
+  hbSearchMemoriesByQueryTool: { name: 'hbSearchMemoriesByQuery', __isTool: true },
+  hbGetInfoThresholdStatusTool: { name: 'hbGetInfoThresholdStatus', __isTool: true },
+  hbGetWeeklyReflectionsTool: { name: 'hbGetWeeklyReflections', __isTool: true },
+  hbGetCrossSourceTopicsTool: { name: 'hbGetCrossSourceTopics', __isTool: true },
+  hbGetMonthlyGoalStatsTool: { name: 'hbGetMonthlyGoalStats', __isTool: true },
+  hbGetUserActivityPatternsTool: { name: 'hbGetUserActivityPatterns', __isTool: true },
+  hbApplyHeartbeatConfigActionTool: { name: 'hbApplyHeartbeatConfigAction', __isTool: true },
+}));
+
 vi.mock('../store/clipStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../store/clipStore')>();
   return { ...actual };
@@ -268,6 +285,11 @@ describe('createHeartbeatAgent', () => {
   it('tasks 未指定（後方互換）でも正常に動作する', async () => {
     const agent = await createHeartbeatAgent() as unknown as { instructions: string };
     expect(agent.instructions).toContain('JSON形式');
+  });
+
+  it('Heartbeat Agent が 21 個のツールを持つ（Worker と同等）', async () => {
+    const agent = await createHeartbeatAgent() as unknown as { tools: unknown[] };
+    expect(agent.tools).toHaveLength(21);
   });
 
   it('qualified ツール名が instructions の MCP 制限ノートに含まれる', async () => {

@@ -198,6 +198,9 @@ export class HeartbeatEngine {
         return;
       }
 
+      // 先制的に taskLastRun を更新（パース失敗時の再実行ループ防止）
+      await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now());
+
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
       setDefaultOpenAIClient(client);
 
@@ -258,34 +261,49 @@ export class HeartbeatEngine {
     }
 
     // JSON部分を抽出
-    const jsonMatch = finalOutput.match(/\{[\s\S]*\}/);
+    const jsonMatch = finalOutput.match(/\{[\s\S]*?\}(?=[^}]*$|\s*$)/);
     if (!jsonMatch) {
       trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_json_match' });
       return [];
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
-      results: Array<{ taskId: string; hasChanges: boolean; summary: string }>;
-    };
+    let parsed: { results?: unknown };
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.warn('[Heartbeat] JSON パース失敗:', e);
+      trace.rootSpan.addEvent('heartbeat.skip', { reason: 'json_parse_error' });
+      return [];
+    }
+
+    if (!parsed || !Array.isArray(parsed.results)) {
+      console.warn('[Heartbeat] パース結果の results が配列ではありません');
+      trace.rootSpan.addEvent('heartbeat.skip', { reason: 'invalid_results' });
+      return [];
+    }
 
     const now = Date.now();
     const heartbeatResults: HeartbeatResult[] = [];
 
     for (const r of parsed.results) {
+      if (!r || typeof r !== 'object' || typeof (r as Record<string, unknown>).taskId !== 'string') {
+        continue;
+      }
+      const item = r as { taskId: string; hasChanges?: boolean; summary?: string };
       const hbResult: HeartbeatResult = {
-        taskId: r.taskId,
+        taskId: item.taskId,
         timestamp: now,
-        hasChanges: r.hasChanges,
-        summary: r.summary || '',
-        pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection',
+        hasChanges: Boolean(item.hasChanges),
+        summary: item.summary || '',
+        pinned: item.taskId.startsWith('briefing-') || item.taskId === 'reflection',
       };
       await addHeartbeatResult(hbResult);
-      await updateTaskLastRun(r.taskId, now);
+      await updateTaskLastRun(item.taskId, now);
       trace.rootSpan.addEvent('heartbeat.task.result', {
-        [HEARTBEAT_ATTRS.TASK_ID]: r.taskId,
-        [HEARTBEAT_ATTRS.HAS_CHANGES]: r.hasChanges,
+        [HEARTBEAT_ATTRS.TASK_ID]: item.taskId,
+        [HEARTBEAT_ATTRS.HAS_CHANGES]: Boolean(item.hasChanges),
       });
-      if (r.hasChanges) {
+      if (item.hasChanges) {
         heartbeatResults.push(hbResult);
       }
     }

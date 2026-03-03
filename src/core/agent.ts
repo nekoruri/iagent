@@ -14,6 +14,22 @@ import {
   hbListClassifiedFeedItemsTool,
   hbListFeedsTool,
 } from '../tools/heartbeatFeedTools';
+import {
+  hbListCalendarEventsTool,
+  hbGetCurrentTimeTool,
+  hbCheckMonitorsTool,
+  hbGetRecentMemoriesForReflectionTool,
+  hbSaveReflectionTool,
+  hbCleanupMemoriesTool,
+  hbGetHeartbeatFeedbackSummaryTool,
+  hbSearchMemoriesByQueryTool,
+  hbGetInfoThresholdStatusTool,
+  hbGetWeeklyReflectionsTool,
+  hbGetCrossSourceTopicsTool,
+  hbGetMonthlyGoalStatsTool,
+  hbGetUserActivityPatternsTool,
+  hbApplyHeartbeatConfigActionTool,
+} from '../tools/heartbeatAgentTools';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getRelevantClips } from '../store/clipStore';
 import { getRelevantFeedItems } from '../store/feedStore';
@@ -130,6 +146,20 @@ export async function createHeartbeatAgent(
       hbSaveFeedClassificationTool,
       hbListClassifiedFeedItemsTool,
       hbListFeedsTool,
+      hbListCalendarEventsTool,
+      hbGetCurrentTimeTool,
+      hbCheckMonitorsTool,
+      hbGetRecentMemoriesForReflectionTool,
+      hbSaveReflectionTool,
+      hbCleanupMemoriesTool,
+      hbGetHeartbeatFeedbackSummaryTool,
+      hbSearchMemoriesByQueryTool,
+      hbGetInfoThresholdStatusTool,
+      hbGetWeeklyReflectionsTool,
+      hbGetCrossSourceTopicsTool,
+      hbGetMonthlyGoalStatsTool,
+      hbGetUserActivityPatternsTool,
+      hbApplyHeartbeatConfigActionTool,
     ],
     mcpServers: filteredMcpServers && filteredMcpServers.length > 0 ? filteredMcpServers : undefined,
   });

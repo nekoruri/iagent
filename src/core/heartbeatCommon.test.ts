@@ -4,7 +4,7 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { loadFreshConfig, getTasksDueFromIDB, executeHeartbeatAndStore } from './heartbeatCommon';
-import { updateTaskLastRun } from '../store/heartbeatStore';
+import { updateTaskLastRun, getAllTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
 function makeConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
@@ -200,5 +200,38 @@ describe('executeHeartbeatAndStore', () => {
     const { results, configChanged } = await executeHeartbeatAndStore('sk-test');
     expect(results).toEqual([]);
     expect(configChanged).toBe(false);
+  });
+
+  it('LLM 呼び出し前に taskLastRun を先制更新する', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'pre-update-test',
+      name: 'テスト',
+      description: 'テスト',
+      enabled: true,
+      type: 'custom',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({ tasks: [task] }),
+    });
+
+    // executeWorkerHeartbeatCheck をモックして LLM 呼び出しを回避
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck').mockResolvedValue({
+      results: [],
+      configChanged: false,
+    });
+
+    await executeHeartbeatAndStore('sk-test');
+
+    // batchUpdateTaskLastRun により taskLastRun が更新済み
+    const lastRunMap = await getAllTaskLastRun();
+    expect(lastRunMap['pre-update-test']).toBeGreaterThan(0);
+
+    spy.mockRestore();
   });
 });
