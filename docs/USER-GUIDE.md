@@ -116,7 +116,7 @@ Heartbeat は定期チェック機能です。設定項目:
   - スケジュール: `global` / `interval` / `fixed-time`
   - Heartbeat 実行時に許可する MCP read-only ツール選択
 
-### Heartbeat の実行レイヤー
+#### Heartbeat の実行レイヤー
 
 - Layer 1: タブ表示中（メインスレッド）
 - Layer 2: タブ非表示（Dedicated Worker）
