@@ -306,6 +306,7 @@ function getJSTDayOfWeek(timestamp: number): number {
 export function computeUserActivityPatterns(
   results: HeartbeatResult[],
   memories: Memory[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _now: Date,
 ): UserActivityPatterns {
   // feedback 付き結果のみ

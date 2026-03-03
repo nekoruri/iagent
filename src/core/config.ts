@@ -181,12 +181,34 @@ function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
   return [...savedTasks, ...missing];
 }
 
+function getDefaultAppConfig(): AppConfig {
+  return {
+    openaiApiKey: '',
+    braveApiKey: '',
+    openWeatherMapApiKey: '',
+    mcpServers: [],
+    heartbeat: getDefaultHeartbeatConfig(),
+    push: { enabled: false, serverUrl: '' },
+    proxy: getDefaultProxyConfig(),
+    otel: getDefaultOtelConfig(),
+    persona: getDefaultPersonaConfig(),
+    theme: 'system',
+  };
+}
+
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { openaiApiKey: '', braveApiKey: '', openWeatherMapApiKey: '', mcpServers: [], heartbeat: getDefaultHeartbeatConfig(), push: { enabled: false, serverUrl: '' }, proxy: getDefaultProxyConfig(), otel: getDefaultOtelConfig(), persona: getDefaultPersonaConfig(), theme: 'system' };
+    return getDefaultAppConfig();
   }
-  const parsed = JSON.parse(raw) as Partial<AppConfig>;
+  let parsed: Partial<AppConfig>;
+  try {
+    parsed = JSON.parse(raw) as Partial<AppConfig>;
+  } catch {
+    console.warn('[iAgent] 設定 JSON のパースに失敗しました。デフォルト設定を使用します。');
+    localStorage.removeItem(STORAGE_KEY);
+    return getDefaultAppConfig();
+  }
   const heartbeat = parsed.heartbeat
     ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
     : getDefaultHeartbeatConfig();
