@@ -60,7 +60,7 @@ describe('handlePush', () => {
 
   it('type なし（undefined）は heartbeat-wake として扱う', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
     const promise = handlePush({}, notifier);
     await vi.advanceTimersByTimeAsync(100);
@@ -71,7 +71,7 @@ describe('handlePush', () => {
 
   it('data が null でも正常に処理する', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
     const promise = handlePush(null, notifier);
     await vi.advanceTimersByTimeAsync(100);
@@ -82,7 +82,7 @@ describe('handlePush', () => {
 
   it('heartbeat-wake の場合は executeHeartbeatAndStore を呼ぶ', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
     const promise = handlePush({ type: 'heartbeat-wake' }, notifier);
     await vi.advanceTimersByTimeAsync(100);
@@ -93,10 +93,10 @@ describe('handlePush', () => {
 
   it('結果ありの場合はサマリー付き通知を表示する', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
       { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: 'ニュース更新あり' },
       { taskId: 'task-2', timestamp: Date.now(), hasChanges: true, summary: 'カレンダー通知' },
-    ]);
+    ], configChanged: false });
 
     await handlePush({ type: 'heartbeat-wake' }, notifier);
 
@@ -113,7 +113,7 @@ describe('handlePush', () => {
     const mockNotification = { close: vi.fn() };
     const notifier = createMockNotifier();
     notifier.getNotifications.mockResolvedValue([mockNotification]);
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
     const promise = handlePush({ type: 'heartbeat-wake' }, notifier);
     // setTimeout(100ms) を進める
@@ -156,9 +156,9 @@ describe('handlePush', () => {
 describe('handlePeriodicSync', () => {
   it('結果ありの場合は通知を表示する', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
       { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: '定期チェック結果' },
-    ]);
+    ], configChanged: false });
 
     await handlePeriodicSync(notifier);
 
@@ -174,7 +174,7 @@ describe('handlePeriodicSync', () => {
 
   it('結果なしの場合は通知を表示しない', async () => {
     const notifier = createMockNotifier();
-    mockExecuteHeartbeatAndStore.mockResolvedValue([]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
 
     await handlePeriodicSync(notifier);
 

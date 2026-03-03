@@ -21,6 +21,7 @@ const mockBridge = {
   start: vi.fn(),
   stop: vi.fn(),
   subscribe: vi.fn(() => vi.fn()),
+  subscribeConfigChange: vi.fn(() => vi.fn()),
   dispose: vi.fn(),
   updateConfig: vi.fn(),
 };
@@ -49,6 +50,11 @@ vi.mock('../core/mcpManager', () => ({
   mcpManager: {
     getActiveServers: vi.fn(() => []),
   },
+}));
+
+// configStore モック
+vi.mock('../store/configStore', () => ({
+  loadConfigFromIDB: vi.fn().mockResolvedValue(null),
 }));
 
 // notifier モック

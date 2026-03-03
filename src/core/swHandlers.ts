@@ -37,7 +37,7 @@ export async function handlePush(
 
   try {
     // API キーは executeHeartbeatAndStore 内部で IndexedDB から取得
-    const results = await executeHeartbeatAndStore('', 'push');
+    const { results } = await executeHeartbeatAndStore('', 'push');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -78,7 +78,7 @@ export async function handlePush(
 export async function handlePeriodicSync(notifier: SwNotifier): Promise<void> {
   try {
     // API キーは IndexedDB から取得
-    const results = await executeHeartbeatAndStore('', 'periodic-sync');
+    const { results } = await executeHeartbeatAndStore('', 'periodic-sync');
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');

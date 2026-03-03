@@ -44,7 +44,7 @@
 - 結果の専用パネル（ベルアイコン + 未読バッジ + フィードバック UI）
 - 深夜スキップ・曜日別スキップ・日次通知上限・フォーカスモード
 - デスクトップ通知（Notification API）
-- フィードバック学習ループ（Accept/Dismiss/Snooze → 分析 → 最適化ルール → instructions 注入）
+- フィードバック学習ループ（Accept/Dismiss/Snooze → 分析 → 最適化ルール → instructions 注入 → 自動設定変更）
 
 ### テレメトリ
 - OTel 互換の軽量トレーサー（チャット・Heartbeat を計装）
@@ -111,7 +111,7 @@ src/
 │   ├── useHeartbeat.ts           Heartbeat ライフサイクル
 │   └── useHeartbeatPanel.ts      Heartbeat パネル状態
 ├── store/             # IndexedDB / localStorage ストア
-│   ├── db.ts                     DB 初期化（iagent-db, v7）
+│   ├── db.ts                     DB 初期化（iagent-db, v10）
 │   ├── calendarStore.ts          カレンダーイベント
 │   ├── configStore.ts            設定（IndexedDB）
 │   ├── conversationMetaStore.ts  会話メタデータ
@@ -142,7 +142,7 @@ src/
 ## テスト
 
 - **フレームワーク**: Vitest（jsdom 環境）
-- **カバレッジ対象**: `src/core/**`, `src/store/**`
+- **カバレッジ対象**: `src/core/**`, `src/store/**`, `src/tools/**`, `src/hooks/**`
 - **IndexedDB モック**: `src/store/__mocks__/db.ts`（メモリベースの fake-indexeddb）
 - **テストファイル**: `*.test.ts`（対象モジュールと同階層に配置）
 

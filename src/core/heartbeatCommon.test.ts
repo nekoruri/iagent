@@ -142,13 +142,14 @@ describe('pinned 判定', () => {
 });
 
 describe('executeHeartbeatAndStore', () => {
-  it('設定がなければ空配列を返す', async () => {
-    // IndexedDB に設定なし → 空配列
-    const results = await executeHeartbeatAndStore('sk-test');
+  it('設定がなければ空結果を返す', async () => {
+    // IndexedDB に設定なし → 空結果
+    const { results, configChanged } = await executeHeartbeatAndStore('sk-test');
     expect(results).toEqual([]);
+    expect(configChanged).toBe(false);
   });
 
-  it('enabled=false なら空配列を返す', async () => {
+  it('enabled=false なら空結果を返す', async () => {
     const { saveConfigToIDB } = await import('../store/configStore');
     await saveConfigToIDB({
       openaiApiKey: 'sk-test',
@@ -158,11 +159,12 @@ describe('executeHeartbeatAndStore', () => {
       heartbeat: makeConfig({ enabled: false }),
     });
 
-    const results = await executeHeartbeatAndStore('sk-test');
+    const { results, configChanged } = await executeHeartbeatAndStore('sk-test');
     expect(results).toEqual([]);
+    expect(configChanged).toBe(false);
   });
 
-  it('API キーが空なら空配列を返す', async () => {
+  it('API キーが空なら空結果を返す', async () => {
     const { saveConfigToIDB } = await import('../store/configStore');
     await saveConfigToIDB({
       openaiApiKey: '',
@@ -180,11 +182,12 @@ describe('executeHeartbeatAndStore', () => {
       }),
     });
 
-    const results = await executeHeartbeatAndStore('');
+    const { results, configChanged } = await executeHeartbeatAndStore('');
     expect(results).toEqual([]);
+    expect(configChanged).toBe(false);
   });
 
-  it('タスクがなければ空配列を返す', async () => {
+  it('タスクがなければ空結果を返す', async () => {
     const { saveConfigToIDB } = await import('../store/configStore');
     await saveConfigToIDB({
       openaiApiKey: 'sk-test',
@@ -194,7 +197,8 @@ describe('executeHeartbeatAndStore', () => {
       heartbeat: makeConfig({ tasks: [] }),
     });
 
-    const results = await executeHeartbeatAndStore('sk-test');
+    const { results, configChanged } = await executeHeartbeatAndStore('sk-test');
     expect(results).toEqual([]);
+    expect(configChanged).toBe(false);
   });
 });

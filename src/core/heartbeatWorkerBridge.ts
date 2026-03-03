@@ -2,10 +2,12 @@ import type { WorkerCommand, WorkerEvent, HeartbeatWorkerConfig } from '../worke
 import type { HeartbeatNotification } from './heartbeat';
 
 type Listener = (notification: HeartbeatNotification) => void;
+type ConfigChangeListener = () => void;
 
 export class HeartbeatWorkerBridge {
   private worker: Worker | null = null;
   private listeners: Listener[] = [];
+  private configChangeListeners: ConfigChangeListener[] = [];
 
   /** Worker を初期化する */
   init(): void {
@@ -50,6 +52,14 @@ export class HeartbeatWorkerBridge {
     };
   }
 
+  /** config-changed リスナーを登録する */
+  subscribeConfigChange(listener: ConfigChangeListener): () => void {
+    this.configChangeListeners.push(listener);
+    return () => {
+      this.configChangeListeners = this.configChangeListeners.filter((l) => l !== listener);
+    };
+  }
+
   /** Worker を終了して破棄する */
   dispose(): void {
     if (this.worker) {
@@ -57,6 +67,7 @@ export class HeartbeatWorkerBridge {
       this.worker = null;
     }
     this.listeners = [];
+    this.configChangeListeners = [];
   }
 
   private send(command: WorkerCommand): void {
@@ -75,12 +86,22 @@ export class HeartbeatWorkerBridge {
         // ステータス変更ログ（デバッグ用）
         console.debug('[HeartbeatWorkerBridge] ステータス:', event.status);
         break;
+      case 'config-changed':
+        console.debug('[HeartbeatWorkerBridge] 設定変更を検知');
+        this.notifyConfigChange();
+        break;
     }
   }
 
   private notify(notification: HeartbeatNotification): void {
     for (const listener of this.listeners) {
       listener(notification);
+    }
+  }
+
+  private notifyConfigChange(): void {
+    for (const listener of this.configChangeListeners) {
+      listener();
     }
   }
 }

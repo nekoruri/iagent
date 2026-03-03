@@ -7,11 +7,13 @@ import {
   WORKER_TOOLS, executeWorkerTool,
   normalizeUrl, extractKeyTokens, countCommonTokens, groupByTopic,
   computeMonthlyGoalStats, computeUserActivityPatterns, computeSuggestionOptimizations,
+  applyAction,
 } from './heartbeatTools';
+import type { ActionRequest } from './heartbeatTools';
 import type { FeedbackSummary, TaskFeedbackStats } from '../store/heartbeatStore';
 import type { UserActivityPatterns } from './heartbeatTools';
 import type { UnifiedItem } from './heartbeatTools';
-import type { HeartbeatResult, Memory } from '../types';
+import type { HeartbeatConfig, HeartbeatResult, Memory } from '../types';
 import { getDB } from '../store/db';
 import { saveMemory } from '../store/memoryStore';
 import { saveFeed, saveFeedItems } from '../store/feedStore';
@@ -23,7 +25,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(19);
+    expect(WORKER_TOOLS).toHaveLength(20);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -44,6 +46,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getMonthlyGoalStats');
     expect(names).toContain('getUserActivityPatterns');
     expect(names).toContain('getSuggestionOptimizations');
+    expect(names).toContain('applyHeartbeatConfigAction');
   });
 
   it('全ツールが function タイプである', () => {
@@ -1453,5 +1456,272 @@ describe('executeWorkerTool: getSuggestionOptimizations', () => {
   it('periodDays をクランプする（下限 1）', async () => {
     const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', { periodDays: -5 }));
     expect(result.periodDays).toBe(1);
+  });
+});
+
+// ============================================================
+// applyAction 純粋関数
+// ============================================================
+
+function makeHbConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
+  return {
+    enabled: true,
+    intervalMinutes: 30,
+    quietHoursStart: 0,
+    quietHoursEnd: 6,
+    quietDays: [],
+    maxNotificationsPerDay: 0,
+    tasks: [
+      { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
+      { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+      { id: 'reflection', name: 'ふりかえり', description: '', enabled: true, type: 'builtin', schedule: { type: 'fixed-time', hour: 23, minute: 0 } },
+      { id: 'weather-check', name: '天気', description: '', enabled: true, type: 'builtin', schedule: { type: 'interval', intervalMinutes: 60 } },
+    ],
+    desktopNotification: false,
+    focusMode: false,
+    ...overrides,
+  };
+}
+
+describe('applyAction', () => {
+  describe('toggle-task', () => {
+    it('有効→無効に切り替える', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', taskId: 'calendar-check', enabled: false, reason: 'Accept率低い' });
+      expect(result.applied).toBe(true);
+      expect(hb.tasks.find((t) => t.id === 'calendar-check')!.enabled).toBe(false);
+    });
+
+    it('無効→有効に切り替える', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', taskId: 'feed-check', enabled: true, reason: 'テスト' });
+      expect(result.applied).toBe(true);
+      expect(hb.tasks.find((t) => t.id === 'feed-check')!.enabled).toBe(true);
+    });
+
+    it('存在しないタスクはエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', taskId: 'nonexistent', enabled: false, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('見つかりません');
+    });
+
+    it('taskId 未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', enabled: false, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('taskId');
+    });
+
+    it('enabled 未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', taskId: 'calendar-check', reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('enabled');
+    });
+
+    it('既に同じ状態なら不適用', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'toggle-task', taskId: 'calendar-check', enabled: true, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('既に');
+    });
+  });
+
+  describe('update-quiet-hours', () => {
+    it('正常に静寂時間を変更する', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-hours', quietHoursStart: 22, quietHoursEnd: 7, reason: 'パターン分析' });
+      expect(result.applied).toBe(true);
+      expect(hb.quietHoursStart).toBe(22);
+      expect(hb.quietHoursEnd).toBe(7);
+    });
+
+    it('範囲外はエラー (start)', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-hours', quietHoursStart: 25, quietHoursEnd: 6, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('範囲外はエラー (end)', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-hours', quietHoursStart: 0, quietHoursEnd: -1, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-hours', reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('小数はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-hours', quietHoursStart: 1.5, quietHoursEnd: 6, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('整数');
+    });
+  });
+
+  describe('update-quiet-days', () => {
+    it('正常に静寂曜日を変更する', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-days', quietDays: [0, 6], reason: '週末は休み' });
+      expect(result.applied).toBe(true);
+      expect(hb.quietDays).toEqual([0, 6]);
+    });
+
+    it('重複は除去してソートされる', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-days', quietDays: [6, 0, 6], reason: 'テスト' });
+      expect(result.applied).toBe(true);
+      expect(hb.quietDays).toEqual([0, 6]);
+    });
+
+    it('無効な曜日はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-days', quietDays: [7], reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('空配列でクリアできる', () => {
+      const hb = makeHbConfig({ quietDays: [0, 6] });
+      const result = applyAction(hb, { type: 'update-quiet-days', quietDays: [], reason: 'テスト' });
+      expect(result.applied).toBe(true);
+      expect(hb.quietDays).toEqual([]);
+    });
+
+    it('未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-quiet-days', reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+  });
+
+  describe('update-task-interval', () => {
+    it('global タスクを interval に変換する', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'calendar-check', intervalMinutes: 45, reason: 'テスト' });
+      expect(result.applied).toBe(true);
+      const task = hb.tasks.find((t) => t.id === 'calendar-check')!;
+      expect(task.schedule).toEqual({ type: 'interval', intervalMinutes: 45 });
+    });
+
+    it('interval タスクの間隔を更新する', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'weather-check', intervalMinutes: 90, reason: 'テスト' });
+      expect(result.applied).toBe(true);
+      const task = hb.tasks.find((t) => t.id === 'weather-check')!;
+      expect(task.schedule!.intervalMinutes).toBe(90);
+    });
+
+    it('fixed-time タスクは変更不可', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'reflection', intervalMinutes: 60, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('固定時刻');
+    });
+
+    it('範囲外（下限）はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'calendar-check', intervalMinutes: 3, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('範囲外（上限）はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'calendar-check', intervalMinutes: 1500, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('taskId 未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', intervalMinutes: 60, reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+
+    it('intervalMinutes 未指定はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'update-task-interval', taskId: 'calendar-check', reason: 'テスト' });
+      expect(result.applied).toBe(false);
+    });
+  });
+
+  describe('不明なアクション型', () => {
+    it('不明な型はエラー', () => {
+      const hb = makeHbConfig();
+      const result = applyAction(hb, { type: 'unknown-action' as ActionRequest['type'], reason: 'テスト' });
+      expect(result.applied).toBe(false);
+      expect(result.detail).toContain('不明なアクション型');
+    });
+  });
+});
+
+// ============================================================
+// applyHeartbeatConfigAction Worker ツール
+// ============================================================
+describe('executeWorkerTool: applyHeartbeatConfigAction', () => {
+  it('actions が空配列ならエラー', async () => {
+    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', { actions: [] }));
+    expect(result.error).toBeDefined();
+  });
+
+  it('actions が未指定ならエラー', async () => {
+    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {}));
+    expect(result.error).toBeDefined();
+  });
+
+  it('設定がない場合はエラー', async () => {
+    // IDB に設定なし
+    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+      actions: [{ type: 'toggle-task', taskId: 'calendar-check', enabled: false, reason: 'テスト' }],
+    }));
+    expect(result.error).toContain('Heartbeat 設定が見つかりません');
+  });
+
+  it('設定ありでアクションを適用する', async () => {
+    // IDB に設定を保存
+    const { saveConfigToIDB } = await import('../store/configStore');
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeHbConfig(),
+    });
+
+    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+      actions: [
+        { type: 'toggle-task', taskId: 'calendar-check', enabled: false, reason: 'Accept率低い' },
+        { type: 'update-quiet-hours', quietHoursStart: 22, quietHoursEnd: 7, reason: 'パターン分析' },
+      ],
+    }));
+    expect(result.appliedCount).toBe(2);
+    expect(result.totalActions).toBe(2);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].applied).toBe(true);
+    expect(result.results[1].applied).toBe(true);
+  });
+
+  it('一部失敗しても他のアクションは適用される', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeHbConfig(),
+    });
+
+    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+      actions: [
+        { type: 'toggle-task', taskId: 'nonexistent', enabled: false, reason: 'テスト' },
+        { type: 'update-quiet-days', quietDays: [0, 6], reason: 'テスト' },
+      ],
+    }));
+    expect(result.appliedCount).toBe(1);
+    expect(result.totalActions).toBe(2);
+    expect(result.results[0].applied).toBe(false);
+    expect(result.results[1].applied).toBe(true);
   });
 });

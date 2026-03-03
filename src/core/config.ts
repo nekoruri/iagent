@@ -95,7 +95,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
   {
     id: 'suggestion-optimization',
     name: '提案品質の最適化',
-    description: 'フィードバック統計と行動パターンを分析し、提案品質の最適化ルールを生成・保存します。'
+    description: 'フィードバック統計と行動パターンを分析し、提案品質の最適化ルールを生成・保存し、設定変更を自動実行します。'
       + '手順: 1) getSuggestionOptimizations(periodDays=14) で最適化分析を取得 '
       + '→ 2) totalWithFeedback < 5 なら hasChanges: false で終了 '
       + '→ 3) 分析結果を以下の観点で解釈: '
@@ -104,7 +104,13 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
       + '(c) カテゴリ重み調整（rising/falling タグの傾向）、'
       + '(d) 総合スコアに基づく改善方針 '
       + '→ 4) saveReflection で最適化ルールを保存（tags: suggestion-optimization,auto-tune、importance: 4）。'
-      + 'ルールは「〜すべき」「〜を優先する」等の指示形式で記述し、次回以降の提案生成時に参照されるようにしてください。',
+      + 'ルールは「〜すべき」「〜を優先する」等の指示形式で記述し、次回以降の提案生成時に参照されるようにしてください。'
+      + '→ 5) applyHeartbeatConfigAction で分析結果に基づく設定変更を自動実行: '
+      + '(a) disable-candidate タスク → toggle-task で enabled: false に変更、'
+      + '(b) reduce-frequency タスク → update-task-interval で間隔を現在の1.5倍に増加（最大120分、fixed-time は除外）、'
+      + '(c) suggestedQuietHours → update-quiet-hours で quietHoursStart/End を更新、'
+      + '(d) suggestedQuietDays → update-quiet-days で quietDays を更新。'
+      + '各アクションの reason に分析根拠を記述してください。アクションが不要な場合はステップ5をスキップしても構いません。',
     enabled: false,
     type: 'builtin',
     schedule: { type: 'fixed-time', hour: 23, minute: 30 },
