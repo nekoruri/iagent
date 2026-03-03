@@ -1,0 +1,98 @@
+name: Copilot Review Check
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: read
+  statuses: write
+
+jobs:
+  check-copilot-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Copilot review status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request?.number
+              || context.payload.review?.pull_request?.number;
+
+            if (!prNumber) {
+              core.setFailed('PR number not found');
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner, repo, pull_number: prNumber,
+            });
+            const headSha = pr.head.sha;
+
+            // レビュー一覧を取得
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner, repo, pull_number: prNumber,
+            });
+
+            // Copilot のレビューを検出
+            const copilotLogins = ['copilot', 'github-copilot[bot]'];
+            const copilotReviews = reviews.filter(r =>
+              copilotLogins.includes(r.user?.login)
+            );
+
+            // 最新コミットに対する Copilot レビューを検索
+            const latestCopilotReview = copilotReviews
+              .filter(r => r.commit_id === headSha)
+              .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
+
+            let state = 'pending';
+            let description = 'Copilot レビュー待ち';
+
+            if (latestCopilotReview) {
+              // インラインコメントを取得
+              const { data: comments } = await github.rest.pulls.listReviewComments({
+                owner, repo, pull_number: prNumber,
+              });
+              const copilotComments = comments.filter(c =>
+                copilotLogins.includes(c.user?.login)
+                && c.pull_request_review_id === latestCopilotReview.id
+              );
+
+              // Critical 指摘の検出（セキュリティ、バグ関連キーワード）
+              const criticalKeywords = [
+                'security', 'vulnerability', 'injection', 'xss', 'ssrf',
+                'critical', 'bug', 'crash', 'data loss', 'leak',
+                'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
+                'クラッシュ', 'データ損失', '漏洩',
+              ];
+              const hasCritical = copilotComments.some(c =>
+                criticalKeywords.some(kw =>
+                  c.body?.toLowerCase().includes(kw.toLowerCase())
+                )
+              );
+
+              if (hasCritical) {
+                state = 'failure';
+                description = `Copilot: Critical 指摘あり（${copilotComments.length}件のコメント）`;
+              } else if (copilotComments.length > 0) {
+                state = 'success';
+                description = `Copilot レビュー完了（${copilotComments.length}件の指摘あり）`;
+              } else {
+                state = 'success';
+                description = 'Copilot レビュー完了（指摘なし）';
+              }
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner, repo,
+              sha: headSha,
+              state,
+              context: 'copilot-review',
+              description,
+              target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            });
+
+            console.log(`Copilot review status: ${state} - ${description}`);

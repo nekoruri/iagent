@@ -224,6 +224,16 @@
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [x] Action Planning（チェック → 判断 → アクション）
 
+### レビュー環境整備
+- [x] Copilot レビュー指示ファイル（`.github/copilot-instructions.md` + path-scoped `security.instructions.md`）
+- [x] セキュリティスキャン CI（CodeQL + Semgrep、SARIF 統合）
+- [x] Codex CLI レビュー自動化（`openai/codex-action@v1` + PR コメント投稿）
+- [x] Copilot レビュー完了チェック（カスタム status check、Critical 指摘のみブロック）
+- [x] Claude Code レビュースキル（`/review`, `/security-review`, `/test-review` + 4 並列サブエージェント）
+- [ ] GitHub Rulesets 設定（Copilot 自動レビュー + Review new pushes）— UI から手動設定
+- [ ] Required status checks 追加（copilot-review, codeql, semgrep）— UI から手動設定
+- [ ] `OPENAI_API_KEY` シークレット追加 — GitHub Settings から手動設定
+
 ### 横断的課題
 - [x] CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）
 
@@ -292,3 +302,4 @@
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）、getUserActivityPatterns Worker ツール（Heartbeat 結果 + Memory から時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）、computeUserActivityPatterns 純粋関数（テスト容易性確保）、reflection 保存で briefing/他タスクが自動参照。（2026-03-03）
 - [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）、getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）、computeSuggestionOptimizations 純粋関数（テスト容易性確保）、instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示で挿入）、結果ピン留め。（2026-03-03）
 - [x] Action Planning（F16 分析結果の自動実行）— applyHeartbeatConfigAction Worker ツール（toggle-task/update-quiet-hours/update-quiet-days/update-task-interval の4アクション型）、applyAction 純粋関数（バリデーション制約付き）、ActionLogEntry 型 + saveActionLog/loadActionLog（上限100件）、configChanged フラグ伝搬（executeHeartbeatAndStore → Worker → Bridge → useHeartbeat の IDB→localStorage 同期）、suggestion-optimization description にステップ5（自動設定変更）追加。テスト 1015 件。（2026-03-03）
+- [x] レビュー環境整備 — Copilot レビュー指示（`.github/copilot-instructions.md` + `security.instructions.md`）、セキュリティスキャン CI（CodeQL + Semgrep SARIF 統合）、Codex CLI レビュー自動化（`openai/codex-action@v1` + PR コメント重複防止）、Copilot レビュー status check（Critical 指摘のみブロック）、Claude Code スキル 3 種（`/review`（4並列サブエージェント: test-runner/security-reviewer/quality-reviewer/performance-reviewer）、`/security-review`（OWASP Top 10 + AI 固有リスク）、`/test-review`（カバレッジ分析 + テスト品質））。（2026-03-03）
