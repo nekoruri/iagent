@@ -8,7 +8,7 @@ export async function injectConfig(
   overrides: Record<string, unknown> = {},
 ): Promise<void> {
   const config = {
-    openaiApiKey: 'sk-test-1234567890',
+    openaiApiKey: 'test-api-key-dummy',
     braveApiKey: '',
     openWeatherMapApiKey: '',
     mcpServers: [],
@@ -71,7 +71,7 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
 /**
  * セットアップウィザードを完了する（初回起動時）。
  */
-export async function completeSetupWizard(page: Page, apiKey = 'sk-test-1234567890'): Promise<void> {
+export async function completeSetupWizard(page: Page, apiKey = 'test-api-key-dummy'): Promise<void> {
   await page.waitForSelector('.wizard-modal', { state: 'visible' });
   await page.click('text=はじめる');
   await page.fill('input[placeholder="sk-..."]', apiKey);

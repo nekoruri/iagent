@@ -19,7 +19,7 @@ test.describe('初回起動 → API キー設定 → チャット送信フロー
     await page.click('text=はじめる');
 
     // API Key 入力
-    await page.fill('input[placeholder="sk-..."]', 'sk-test-1234567890');
+    await page.fill('input[placeholder="sk-..."]', 'test-api-key-dummy');
     await page.click('text=次へ');
 
     // Persona → スキップ
