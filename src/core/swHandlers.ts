@@ -31,13 +31,19 @@ export interface SubscriptionLike {
 export async function handlePush(
   data: { type?: string } | null | undefined,
   notifier: SwNotifier,
+  clients?: SwClients,
 ): Promise<void> {
   // heartbeat-wake 以外の push は無視（将来の拡張用）
   if (data?.type && data.type !== 'heartbeat-wake') return;
 
   try {
     // API キーは executeHeartbeatAndStore 内部で IndexedDB から取得
-    const { results } = await executeHeartbeatAndStore('', 'push');
+    const { results, configChanged } = await executeHeartbeatAndStore('', 'push');
+
+    // Action Planning で設定変更があればクライアントに通知
+    if (configChanged && clients) {
+      await notifyConfigChanged(clients);
+    }
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -75,10 +81,15 @@ export async function handlePush(
 
 // --- Periodic Sync ハンドラ ---
 
-export async function handlePeriodicSync(notifier: SwNotifier): Promise<void> {
+export async function handlePeriodicSync(notifier: SwNotifier, clients?: SwClients): Promise<void> {
   try {
     // API キーは IndexedDB から取得
-    const { results } = await executeHeartbeatAndStore('', 'periodic-sync');
+    const { results, configChanged } = await executeHeartbeatAndStore('', 'periodic-sync');
+
+    // Action Planning で設定変更があればクライアントに通知
+    if (configChanged && clients) {
+      await notifyConfigChanged(clients);
+    }
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
@@ -92,6 +103,20 @@ export async function handlePeriodicSync(notifier: SwNotifier): Promise<void> {
     }
   } catch (error) {
     console.error('[SW] Periodic sync エラー:', error);
+  }
+}
+
+// --- configChanged 通知ヘルパー ---
+
+/** SW 内で設定変更が発生した場合、全クライアントに通知する */
+async function notifyConfigChanged(clients: SwClients): Promise<void> {
+  try {
+    const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of allClients) {
+      (client as unknown as { postMessage(msg: unknown): void }).postMessage({ type: 'config-changed' });
+    }
+  } catch {
+    // クライアント通知失敗は無視（次回タブ復帰時に IDB から読み込まれる）
   }
 }
 

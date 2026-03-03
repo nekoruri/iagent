@@ -37,8 +37,8 @@ export interface ActionResult {
 }
 
 /**
- * Heartbeat 設定にアクションを適用する（純粋関数 — テスト容易）
- * 設定オブジェクトを直接変更（ミュータブル）し、結果を返す。
+ * Heartbeat 設定にアクションを適用する。
+ * 設定オブジェクトを直接変更（ミュータブル）し、Date.now() に依存して結果を返す。
  */
 export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionResult {
   const now = Date.now();
@@ -75,6 +75,9 @@ export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionR
       if (!Number.isInteger(start) || !Number.isInteger(end)) {
         return { ...base, applied: false, detail: '時間は整数で指定してください' };
       }
+      if (hb.quietHoursStart === start && hb.quietHoursEnd === end) {
+        return { ...base, applied: false, detail: `静寂時間は既に ${start}:00〜${end}:00 です` };
+      }
       hb.quietHoursStart = start;
       hb.quietHoursEnd = end;
       return { ...base, applied: true, detail: `静寂時間を ${start}:00〜${end}:00 に変更しました` };
@@ -89,6 +92,11 @@ export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionR
         return { ...base, applied: false, detail: `無効な曜日が含まれています: ${JSON.stringify(days)}。0(日)〜6(土) の範囲で指定してください` };
       }
       const unique = [...new Set(days)].sort();
+      const currentSorted = [...(hb.quietDays ?? [])].sort();
+      if (unique.length === currentSorted.length && unique.every((d, i) => d === currentSorted[i])) {
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        return { ...base, applied: false, detail: `静寂曜日は既に [${unique.map((d) => dayNames[d]).join('・')}] です` };
+      }
       hb.quietDays = unique;
       const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
       const dayLabels = unique.map((d) => dayNames[d]).join('・');
@@ -112,6 +120,10 @@ export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionR
       }
       if (interval < 5 || interval > 1440) {
         return { ...base, applied: false, detail: `間隔 ${interval} 分は範囲外です (5〜1440分)` };
+      }
+      // 現在値と同じなら no-op
+      if (task.schedule?.type === 'interval' && task.schedule.intervalMinutes === interval) {
+        return { ...base, applied: false, detail: `タスク "${action.taskId}" の間隔は既に ${interval} 分です` };
       }
       // global → interval に変換、既に interval ならそのまま更新
       if (!task.schedule || task.schedule.type === 'global') {
@@ -1585,8 +1597,29 @@ export async function executeWorkerTool(
       }
       const hb = config.heartbeat;
       const results: ActionResult[] = [];
-      for (const action of actions) {
-        results.push(applyAction(hb, action));
+      for (const rawAction of actions) {
+        // LLM function calling 由来の入力は型保証されないためバリデーション
+        if (rawAction === null || typeof rawAction !== 'object') {
+          results.push({ type: 'invalid', applied: false, reason: '', detail: 'action はオブジェクトである必要があります', timestamp: Date.now() });
+          continue;
+        }
+        const a = rawAction as Record<string, unknown>;
+        const hasValidType = typeof a.type === 'string' && (a.type as string).trim().length > 0;
+        const hasValidReason = typeof a.reason === 'string' && (a.reason as string).trim().length > 0;
+        if (!hasValidType || !hasValidReason) {
+          const errors: string[] = [];
+          if (!hasValidType) errors.push('type は空でない文字列が必要');
+          if (!hasValidReason) errors.push('reason は空でない文字列が必要');
+          results.push({
+            type: hasValidType ? a.type as string : 'invalid',
+            applied: false,
+            reason: hasValidReason ? a.reason as string : '無効なアクション',
+            detail: `バリデーションエラー: ${errors.join(' / ')}`,
+            timestamp: Date.now(),
+          });
+          continue;
+        }
+        results.push(applyAction(hb, rawAction as ActionRequest));
       }
       const appliedCount = results.filter((r) => r.applied).length;
       if (appliedCount > 0) {

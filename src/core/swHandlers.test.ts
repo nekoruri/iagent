@@ -131,6 +131,34 @@ describe('handlePush', () => {
     expect(mockNotification.close).toHaveBeenCalled();
   });
 
+  it('configChanged 時にクライアントへ postMessage する', async () => {
+    const notifier = createMockNotifier();
+    const mockClient = { url: 'https://app.example.com/', postMessage: vi.fn() };
+    const clients = createMockClients();
+    clients.matchAll.mockResolvedValue([mockClient]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: true });
+
+    const promise = handlePush({ type: 'heartbeat-wake' }, notifier, clients);
+    await vi.advanceTimersByTimeAsync(100);
+    await promise;
+
+    expect(mockClient.postMessage).toHaveBeenCalledWith({ type: 'config-changed' });
+  });
+
+  it('configChanged が false の場合はクライアントに通知しない', async () => {
+    const notifier = createMockNotifier();
+    const mockClient = { url: 'https://app.example.com/', postMessage: vi.fn() };
+    const clients = createMockClients();
+    clients.matchAll.mockResolvedValue([mockClient]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: false });
+
+    const promise = handlePush({ type: 'heartbeat-wake' }, notifier, clients);
+    await vi.advanceTimersByTimeAsync(100);
+    await promise;
+
+    expect(mockClient.postMessage).not.toHaveBeenCalled();
+  });
+
   it('executeHeartbeatAndStore がエラーを投げた場合はエラー通知を表示する', async () => {
     const notifier = createMockNotifier();
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -179,6 +207,18 @@ describe('handlePeriodicSync', () => {
     await handlePeriodicSync(notifier);
 
     expect(notifier.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('configChanged 時にクライアントへ postMessage する', async () => {
+    const notifier = createMockNotifier();
+    const mockClient = { url: 'https://app.example.com/', postMessage: vi.fn() };
+    const clients = createMockClients();
+    clients.matchAll.mockResolvedValue([mockClient]);
+    mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [], configChanged: true });
+
+    await handlePeriodicSync(notifier, clients);
+
+    expect(mockClient.postMessage).toHaveBeenCalledWith({ type: 'config-changed' });
   });
 
   it('エラー時は console.error のみ（通知なし）', async () => {
