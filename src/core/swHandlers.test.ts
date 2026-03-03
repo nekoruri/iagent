@@ -392,7 +392,7 @@ describe('handlePushSubscriptionChange', () => {
 // ============================================================
 describe('handleNotificationClick', () => {
   it('同一オリジンの既存タブがあればフォーカスする', async () => {
-    const mockClient = { url: 'https://app.example.com/chat', focus: vi.fn().mockResolvedValue(undefined) };
+    const mockClient = { url: 'https://app.example.com/chat', focus: vi.fn().mockResolvedValue(undefined), postMessage: vi.fn() };
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([mockClient]);
 
@@ -412,7 +412,7 @@ describe('handleNotificationClick', () => {
   });
 
   it('別オリジンのタブしかない場合は新規タブを開く', async () => {
-    const mockClient = { url: 'https://other.example.com/', focus: vi.fn() };
+    const mockClient = { url: 'https://other.example.com/', focus: vi.fn(), postMessage: vi.fn() };
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([mockClient]);
 

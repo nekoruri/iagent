@@ -19,7 +19,7 @@ export interface SwNotifier {
 export interface SwClient {
   url: string;
   focus?: () => Promise<unknown>;
-  postMessage?(msg: unknown): void;
+  postMessage(msg: unknown): void;
 }
 
 export interface SwClients {
@@ -119,7 +119,7 @@ async function notifyConfigChanged(clients: SwClients): Promise<void> {
   try {
     const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of allClients) {
-      client.postMessage?.({ type: 'config-changed' });
+      client.postMessage({ type: 'config-changed' });
     }
   } catch {
     // クライアント通知失敗は無視（次回タブ復帰時に IDB から読み込まれる）

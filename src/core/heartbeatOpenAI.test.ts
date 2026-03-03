@@ -105,11 +105,12 @@ describe('executeWorkerHeartbeatCheck', () => {
       json: () => Promise.resolve(apiResponse),
     });
 
-    const results = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
+    const { results, configChanged } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
 
     expect(results).toHaveLength(1);
     expect(results[0].taskId).toBe('calendar-check');
     expect(results[0].hasChanges).toBe(false);
+    expect(configChanged).toBe(false);
   });
 
   it('tool_calls を処理してから最終結果を返す', async () => {
@@ -145,7 +146,7 @@ describe('executeWorkerHeartbeatCheck', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(firstResponse) })
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(secondResponse) });
 
-    const results = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
+    const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
 
     expect(results).toHaveLength(1);
     expect(results[0].hasChanges).toBe(true);
@@ -230,7 +231,7 @@ describe('executeWorkerHeartbeatCheck', () => {
     };
     mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(apiResponse) });
 
-    const results = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
+    const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
     expect(results).toEqual([]);
   });
 
@@ -243,7 +244,7 @@ describe('executeWorkerHeartbeatCheck', () => {
     };
     mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(apiResponse) });
 
-    const results = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
+    const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
     expect(results).toEqual([]);
   });
 });
