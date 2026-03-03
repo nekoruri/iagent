@@ -383,7 +383,7 @@ export async function restoreArchivedMemory(id: string): Promise<boolean> {
     };
     const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
     await tx.objectStore(STORE_NAME).put(merged);
-    tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
+    await tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
     await tx.done;
     return true;
   }
@@ -395,7 +395,7 @@ export async function restoreArchivedMemory(id: string): Promise<boolean> {
 
   const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
   await tx.objectStore(STORE_NAME).put(restored);
-  tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
+  await tx.objectStore(ARCHIVE_STORE_NAME).delete(id);
   await tx.done;
   return true;
 }
