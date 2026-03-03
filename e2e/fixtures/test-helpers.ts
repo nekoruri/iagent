@@ -154,6 +154,9 @@ export async function injectHeartbeatResults(
           };
           req2.onsuccess = () => writeState(req2.result);
           req2.onerror = () => reject(req2.error);
+          req2.onblocked = () => {
+            reject(new Error('IndexedDB upgrade for iagent-db is blocked (heartbeat store)'));
+          };
           return;
         }
         writeState(db);

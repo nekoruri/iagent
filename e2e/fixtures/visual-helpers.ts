@@ -154,27 +154,19 @@ export async function seedMemories(
     }
 
     const request = indexedDB.open('iagent-db');
-    request.onsuccess = () => {
+    // 初回作成 / バージョンアップ時に memories ストアとインデックスを作成する
+    request.onupgradeneeded = () => {
       const db = request.result;
-      if (db.objectStoreNames.contains('memories')) {
-        writeMemories(db);
-        return;
+      if (!db.objectStoreNames.contains('memories')) {
+        const store = db.createObjectStore('memories', { keyPath: 'id' });
+        store.createIndex('category', 'category', { unique: false });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
-      // ストアが無い場合はバージョンアップして作成
-      db.close();
-      const req2 = indexedDB.open('iagent-db', db.version + 1);
-      req2.onupgradeneeded = () => {
-        if (!req2.result.objectStoreNames.contains('memories')) {
-          const store = req2.result.createObjectStore('memories', { keyPath: 'id' });
-          store.createIndex('category', 'category', { unique: false });
-          store.createIndex('updatedAt', 'updatedAt', { unique: false });
-        }
-      };
-      req2.onsuccess = () => writeMemories(req2.result);
-      req2.onerror = () => console.error('seedMemories: upgrade open failed', req2.error);
-      req2.onblocked = () => console.warn('seedMemories: upgrade blocked – close other connections');
     };
-    request.onerror = () => console.error('seedMemories: initial open failed', request.error);
+    request.onsuccess = () => {
+      writeMemories(request.result);
+    };
+    request.onerror = () => console.error('seedMemories: open failed', request.error);
   }, { memories, fallbackTs: DEFAULT_FROZEN_TS });
 }
 
@@ -230,31 +222,22 @@ export async function seedFeedItems(
     }
 
     const request = indexedDB.open('iagent-db');
-    request.onsuccess = () => {
+    // 初回作成およびスキーマアップデート時にストアを作成する
+    request.onupgradeneeded = () => {
       const db = request.result;
-      if (db.objectStoreNames.contains('feeds') && db.objectStoreNames.contains('feed-items')) {
-        writeFeedData(db);
-        return;
+      if (!db.objectStoreNames.contains('feeds')) {
+        db.createObjectStore('feeds', { keyPath: 'id' });
       }
-      // ストアが無い場合はバージョンアップして作成
-      db.close();
-      const req2 = indexedDB.open('iagent-db', db.version + 1);
-      req2.onupgradeneeded = () => {
-        const upgradeDb = req2.result;
-        if (!upgradeDb.objectStoreNames.contains('feeds')) {
-          upgradeDb.createObjectStore('feeds', { keyPath: 'id' });
-        }
-        if (!upgradeDb.objectStoreNames.contains('feed-items')) {
-          const feedItemStore = upgradeDb.createObjectStore('feed-items', { keyPath: 'id' });
-          feedItemStore.createIndex('feedId', 'feedId', { unique: false });
-          feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
-          feedItemStore.createIndex('guid', 'guid', { unique: false });
-        }
-      };
-      req2.onsuccess = () => writeFeedData(req2.result);
-      req2.onerror = () => console.error('seedFeedItems: upgrade open failed', req2.error);
-      req2.onblocked = () => console.warn('seedFeedItems: upgrade blocked – close other connections');
+      if (!db.objectStoreNames.contains('feed-items')) {
+        const feedItemStore = db.createObjectStore('feed-items', { keyPath: 'id' });
+        feedItemStore.createIndex('feedId', 'feedId', { unique: false });
+        feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
+        feedItemStore.createIndex('guid', 'guid', { unique: false });
+      }
     };
-    request.onerror = () => console.error('seedFeedItems: initial open failed', request.error);
+    request.onsuccess = () => {
+      writeFeedData(request.result);
+    };
+    request.onerror = () => console.error('seedFeedItems: open failed', request.error);
   }, { items, feeds, fallbackTs: DEFAULT_FROZEN_TS });
 }
