@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { injectHeartbeatResults } from '../fixtures/test-helpers';
 import { setupForVRT, setTheme, disableAnimations, DEFAULT_FROZEN_TS } from '../fixtures/visual-helpers';
 
 const heartbeatConfig = {
@@ -11,52 +12,6 @@ const heartbeatConfig = {
     desktopNotification: false,
   },
 };
-
-/**
- * アプリ起動後に IndexedDB へ Heartbeat 結果をシードする。
- * addInitScript ではなく page.evaluate を使い、アプリが作成済みの
- * DB スキーマ（バージョン 10）に対して安全に書き込む。
- * 呼び出し後に page.reload() が必要。
- */
-async function seedHeartbeatResults(
-  page: import('@playwright/test').Page,
-  results: unknown[],
-  ts: number,
-): Promise<void> {
-  await page.evaluate(({ results: r, ts: t }) => {
-    return new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('iagent-db');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        // heartbeat ストアが無い場合はバージョンアップして作成
-        if (!db.objectStoreNames.contains('heartbeat')) {
-          db.close();
-          const version = db.version + 1;
-          const req2 = indexedDB.open('iagent-db', version);
-          req2.onupgradeneeded = () => {
-            if (!req2.result.objectStoreNames.contains('heartbeat')) {
-              req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
-            }
-          };
-          req2.onsuccess = () => {
-            const db2 = req2.result;
-            const tx = db2.transaction('heartbeat', 'readwrite');
-            tx.objectStore('heartbeat').put({ key: 'state', lastChecked: t, recentResults: r });
-            tx.oncomplete = () => { db2.close(); resolve(); };
-            tx.onerror = () => { db2.close(); reject(tx.error); };
-          };
-          req2.onerror = () => reject(req2.error);
-          return;
-        }
-        const tx = db.transaction('heartbeat', 'readwrite');
-        tx.objectStore('heartbeat').put({ key: 'state', lastChecked: t, recentResults: r });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-    });
-  }, { results, ts });
-}
 
 test.describe('Heartbeat パネル VRT', () => {
   test('空パネル', async ({ page }) => {
@@ -78,11 +33,11 @@ test.describe('Heartbeat パネル VRT', () => {
     await setupForVRT(page, { configOverrides: heartbeatConfig });
 
     // アプリ起動後にデータをシードしてリロード
-    await seedHeartbeatResults(page, [
+    await injectHeartbeatResults(page, [
       { taskId: 'test-task', timestamp: ts - 60000, hasChanges: true, summary: 'テスト結果1: 天気が変わりました', pinned: true },
       { taskId: 'test-task', timestamp: ts - 30000, hasChanges: false, summary: '変化なし' },
       { taskId: 'test-task', timestamp: ts - 10000, hasChanges: true, summary: 'テスト結果2: 新しいニュース' },
-    ], ts);
+    ], { lastChecked: ts });
     await page.reload();
     await page.waitForSelector('.app-container', { state: 'visible' });
 
@@ -102,9 +57,9 @@ test.describe('Heartbeat パネル VRT', () => {
     await setupForVRT(page, { configOverrides: heartbeatConfig });
 
     // アプリ起動後にデータをシードしてリロード
-    await seedHeartbeatResults(page, [
+    await injectHeartbeatResults(page, [
       { taskId: 'test-task', timestamp: DEFAULT_FROZEN_TS, hasChanges: true, summary: '新着結果' },
-    ], DEFAULT_FROZEN_TS);
+    ], { lastChecked: DEFAULT_FROZEN_TS });
     await page.reload();
     await page.waitForSelector('.app-container', { state: 'visible' });
 

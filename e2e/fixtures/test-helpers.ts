@@ -125,16 +125,19 @@ export async function injectHeartbeatResults(
     pinned?: boolean;
     feedback?: { type: string; snoozedUntil?: number };
   }>,
+  options: { lastChecked?: number } = {},
 ): Promise<void> {
-  await page.evaluate((data) => {
+  await page.evaluate(({ results: data, lastChecked }) => {
     return new Promise<void>((resolve, reject) => {
+      function writeState(db: IDBDatabase) {
+        const tx = db.transaction('heartbeat', 'readwrite');
+        tx.objectStore('heartbeat').put({
+          key: 'state', lastChecked, recentResults: data,
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      }
       const request = indexedDB.open('iagent-db');
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('heartbeat')) {
-          db.createObjectStore('heartbeat', { keyPath: 'key' });
-        }
-      };
       request.onsuccess = () => {
         const db = request.result;
         // heartbeat ストアがない場合は DB バージョンアップが必要
@@ -147,24 +150,13 @@ export async function injectHeartbeatResults(
               req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
             }
           };
-          req2.onsuccess = () => {
-            const db2 = req2.result;
-            const tx = db2.transaction('heartbeat', 'readwrite');
-            const store = tx.objectStore('heartbeat');
-            store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
-            tx.oncomplete = () => { db2.close(); resolve(); };
-            tx.onerror = () => { db2.close(); reject(tx.error); };
-          };
+          req2.onsuccess = () => writeState(req2.result);
           req2.onerror = () => reject(req2.error);
           return;
         }
-        const tx = db.transaction('heartbeat', 'readwrite');
-        const store = tx.objectStore('heartbeat');
-        store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
+        writeState(db);
       };
       request.onerror = () => reject(request.error);
     });
-  }, results);
+  }, { results, lastChecked: options.lastChecked ?? Date.now() });
 }
