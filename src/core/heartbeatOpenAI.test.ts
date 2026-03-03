@@ -8,7 +8,7 @@ vi.mock('../store/configStore', () => ({
   saveConfigToIDB: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { callChatCompletions, executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
+import { callChatCompletions, executeWorkerHeartbeatCheck, parseHeartbeatResponse } from './heartbeatOpenAI';
 import type { HeartbeatTask, Memory, PersonaConfig } from '../types';
 
 const mockFetch = vi.fn();
@@ -246,5 +246,72 @@ describe('executeWorkerHeartbeatCheck', () => {
 
     const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
     expect(results).toEqual([]);
+  });
+
+  it('不正な JSON でもクラッシュせず空配列を返す', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const apiResponse = {
+      choices: [{
+        message: { role: 'assistant', content: '{ invalid json }' },
+        finish_reason: 'stop',
+      }],
+    };
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(apiResponse) });
+
+    const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
+    expect(results).toEqual([]);
+    warnSpy.mockRestore();
+  });
+});
+
+describe('parseHeartbeatResponse', () => {
+  it('正常な JSON をパースする', () => {
+    const content = JSON.stringify({
+      results: [{ taskId: 'test', hasChanges: true, summary: 'OK' }],
+    });
+    const results = parseHeartbeatResponse(content);
+    expect(results).toHaveLength(1);
+    expect(results[0].taskId).toBe('test');
+    expect(results[0].hasChanges).toBe(true);
+    expect(results[0].summary).toBe('OK');
+  });
+
+  it('null content で空配列を返す', () => {
+    expect(parseHeartbeatResponse(null)).toEqual([]);
+  });
+
+  it('不正な JSON で空配列を返す', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(parseHeartbeatResponse('{ broken json }')).toEqual([]);
+    warnSpy.mockRestore();
+  });
+
+  it('results が配列でない場合に空配列を返す', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(parseHeartbeatResponse('{ "results": "not-array" }')).toEqual([]);
+    warnSpy.mockRestore();
+  });
+
+  it('taskId が欠落した要素をフィルタする', () => {
+    const content = JSON.stringify({
+      results: [
+        { taskId: 'valid', hasChanges: false, summary: '' },
+        { hasChanges: true, summary: 'no taskId' },
+        null,
+      ],
+    });
+    const results = parseHeartbeatResponse(content);
+    expect(results).toHaveLength(1);
+    expect(results[0].taskId).toBe('valid');
+  });
+
+  it('hasChanges 未定義の場合に false を返す', () => {
+    const content = JSON.stringify({
+      results: [{ taskId: 'test' }],
+    });
+    const results = parseHeartbeatResponse(content);
+    expect(results).toHaveLength(1);
+    expect(results[0].hasChanges).toBe(false);
+    expect(results[0].summary).toBe('');
   });
 });

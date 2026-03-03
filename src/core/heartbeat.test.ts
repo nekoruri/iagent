@@ -545,6 +545,25 @@ describe('HeartbeatEngine - executeCheck', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it('LLM 呼び出し前に taskLastRun を先制更新する（パース失敗時の再実行ループ防止）', async () => {
+    setupMocks();
+    // LLM が不正な JSON を返すケース（パース失敗）
+    mockRun.mockResolvedValue({ finalOutput: '結果をJSON形式でまとめます' });
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
+    const engine = new FreshEngine(() => []);
+    engine.start();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // batchUpdateTaskLastRun が run 前に呼ばれている
+    expect(mockBatchUpdateTaskLastRunFn).toHaveBeenCalledWith(['test-task'], expect.any(Number));
+
+    engine.stop();
+    consoleWarnSpy.mockRestore();
+  });
+
   it('結果を heartbeatStore に保存する', async () => {
     setupMocks();
     mockRun.mockResolvedValue({

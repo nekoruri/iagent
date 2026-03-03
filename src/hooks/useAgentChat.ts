@@ -162,15 +162,40 @@ export function useAgentChat(conversationId: string | null) {
         }
       }
 
-      await (result as { completed: Promise<void> }).completed;
+      // abort されていなければ completed を待つ
+      if (!abortRef.current) {
+        await (result as { completed: Promise<void> }).completed;
+      } else {
+        // abort 済みの場合はタイムアウト付きで待機（最大2秒）
+        const completed = (result as { completed: Promise<void> }).completed;
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const settle = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          const timeoutId = setTimeout(settle, 2000);
+          completed
+            .finally(() => {
+              clearTimeout(timeoutId);
+              settle();
+            })
+            .catch(() => {
+              // エラーは外側の try/catch で処理済み
+            });
+        });
+      }
 
       // 履歴更新
       historyRef.current = (result as { history: AgentInputItem[] }).history;
 
       // 最終出力でメッセージを更新（ストリームで取りきれなかった場合のフォールバック）
-      const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
-      if (typeof finalOutput === 'string' && finalOutput.length > fullText.length) {
-        fullText = finalOutput;
+      if (!abortRef.current) {
+        const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
+        if (typeof finalOutput === 'string' && finalOutput.length > fullText.length) {
+          fullText = finalOutput;
+        }
       }
 
       const finalMsg: ChatMessage = {
@@ -187,14 +212,17 @@ export function useAgentChat(conversationId: string | null) {
       await saveMessage(finalMsg);
     } catch (error) {
       const errorText = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      const errorMsg: ChatMessage = {
+        ...assistantMsg,
+        content: `エラー: ${errorText}`,
+      };
       setMessages((prev) => {
         const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last.id === assistantMsg.id) {
-          updated[updated.length - 1] = { ...last, content: `エラー: ${errorText}` };
-        }
+        const idx = updated.findIndex((m) => m.id === assistantMsg.id);
+        if (idx >= 0) updated[idx] = errorMsg;
         return updated;
       });
+      await saveMessage(errorMsg);
       trace.rootSpan.endWithError(error);
     } finally {
       await trace.finish().catch(() => {});
