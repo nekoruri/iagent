@@ -1603,7 +1603,7 @@ export async function executeWorkerTool(
           results.push({ type: 'invalid', applied: false, reason: '', detail: 'action はオブジェクトである必要があります', timestamp: Date.now() });
           continue;
         }
-        const a = rawAction as Record<string, unknown>;
+        const a = rawAction as unknown as Record<string, unknown>;
         const hasValidType = typeof a.type === 'string' && (a.type as string).trim().length > 0;
         const hasValidReason = typeof a.reason === 'string' && (a.reason as string).trim().length > 0;
         if (!hasValidType || !hasValidReason) {
