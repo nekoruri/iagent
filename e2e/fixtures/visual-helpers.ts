@@ -38,9 +38,12 @@ export async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<voi
 export async function freezeTime(page: Page, timestamp = 1709449200000): Promise<void> {
   await page.addInitScript((ts) => {
     const OrigDate = globalThis.Date;
-    const frozen = new OrigDate(ts);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MockDate: any = function (...args: unknown[]) {
+      if (!new.target) {
+        // Date() を関数として呼び出した場合は文字列を返す（本来の挙動）
+        return new OrigDate(ts).toString();
+      }
       if (args.length === 0) return new OrigDate(ts);
       // @ts-expect-error spread constructor
       return new OrigDate(...args);
@@ -49,7 +52,6 @@ export async function freezeTime(page: Page, timestamp = 1709449200000): Promise
     MockDate.now = () => ts;
     MockDate.parse = OrigDate.parse;
     MockDate.UTC = OrigDate.UTC;
-    Object.defineProperty(frozen, 'constructor', { value: MockDate });
     globalThis.Date = MockDate;
   }, timestamp);
 }
@@ -147,8 +149,8 @@ export async function seedMemories(
           category: mem.category ?? 'general',
           importance: mem.importance ?? 5,
           tags: mem.tags ?? [],
-          createdAt: mem.createdAt ?? Date.now(),
-          updatedAt: mem.updatedAt ?? Date.now(),
+          createdAt: mem.createdAt ?? 0,
+          updatedAt: mem.updatedAt ?? 0,
           accessCount: 0,
         });
       }
@@ -210,7 +212,7 @@ export async function seedFeedItems(
           id: feed.id,
           title: feed.title,
           url: feed.url ?? `https://example.com/${feed.id}/rss`,
-          lastFetchedAt: feed.lastFetchedAt ?? Date.now(),
+          lastFetchedAt: feed.lastFetchedAt ?? 0,
         });
       }
       for (const item of feedItems) {
@@ -220,7 +222,7 @@ export async function seedFeedItems(
           title: item.title,
           url: item.url ?? `https://example.com/article/${item.id}`,
           summary: item.summary ?? '',
-          publishedAt: item.publishedAt ?? Date.now(),
+          publishedAt: item.publishedAt ?? 0,
           guid: item.guid ?? item.id,
         });
       }

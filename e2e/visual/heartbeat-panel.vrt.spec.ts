@@ -20,15 +20,7 @@ const FROZEN_TS = 1709449200000;
 
 function seedHeartbeatResults(page: import('@playwright/test').Page, results: unknown[]) {
   return page.addInitScript((data) => {
-    const request = indexedDB.open('iagent-db', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('heartbeat')) {
-        db.createObjectStore('heartbeat', { keyPath: 'key' });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
+    function writeState(db: IDBDatabase) {
       const tx = db.transaction('heartbeat', 'readwrite');
       tx.objectStore('heartbeat').put({
         key: 'state',
@@ -37,6 +29,26 @@ function seedHeartbeatResults(page: import('@playwright/test').Page, results: un
       });
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
+    }
+
+    const request = indexedDB.open('iagent-db');
+    request.onsuccess = () => {
+      const db = request.result;
+      // heartbeat ストアが存在する場合はそのまま書き込み
+      if (db.objectStoreNames.contains('heartbeat')) {
+        writeState(db);
+        return;
+      }
+      // ストアが無い場合は DB バージョンアップして作成
+      db.close();
+      const version = db.version + 1;
+      const req2 = indexedDB.open('iagent-db', version);
+      req2.onupgradeneeded = () => {
+        if (!req2.result.objectStoreNames.contains('heartbeat')) {
+          req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
+        }
+      };
+      req2.onsuccess = () => writeState(req2.result);
     };
   }, { results, ts: FROZEN_TS });
 }
