@@ -71,9 +71,12 @@ vi.mock('../core/pushSubscription', () => ({
 describe('useHeartbeat', () => {
   let swAddEventListener: ReturnType<typeof vi.fn>;
   let swRemoveEventListener: ReturnType<typeof vi.fn>;
+  let originalSwDescriptor: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // navigator.serviceWorker の元の descriptor を退避
+    originalSwDescriptor = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
     // navigator.serviceWorker のモック
     swAddEventListener = vi.fn();
     swRemoveEventListener = vi.fn();
@@ -89,6 +92,13 @@ describe('useHeartbeat', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // navigator.serviceWorker を復元
+    if (originalSwDescriptor) {
+      Object.defineProperty(navigator, 'serviceWorker', originalSwDescriptor);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).serviceWorker;
+    }
   });
 
   it('初期化時にエンジンと Worker ブリッジを作成してスタートする', () => {
