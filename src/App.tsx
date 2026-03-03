@@ -154,6 +154,7 @@ export default function App() {
         conversationId: activeConversationId,
       };
       setMessages((prev) => [...prev, errorMsg]);
+      await saveMessage(errorMsg);
     }
   }, [activeConversationId, messages.length, sendMessage, rename, touch, setMessages]);
 
@@ -315,7 +316,7 @@ export default function App() {
         </main>
         <Suspense fallback={null}>
           {showWizard && <SetupWizard onComplete={handleWizardComplete} />}
-          <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />
+          {settingsOpen && <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />}
         </Suspense>
       </div>
     </div>

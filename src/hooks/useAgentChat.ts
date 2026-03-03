@@ -84,6 +84,9 @@ export function useAgentChat(conversationId: string | null) {
     trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
     trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-mini');
 
+    let fullText = '';
+    const toolCalls: ToolCallInfo[] = [];
+
     try {
       const mcpServers = mcpManager.getActiveServers();
       const agent = await createAgent(mcpServers, text);
@@ -93,9 +96,6 @@ export function useAgentChat(conversationId: string | null) {
         stream: true,
         signal: abortController.signal,
       });
-
-      let fullText = '';
-      const toolCalls: ToolCallInfo[] = [];
       let currentToolSpan: ReturnType<typeof trace.startSpan> | null = null;
 
       for await (const event of result as AsyncIterable<RunStreamEvent>) {
@@ -193,8 +193,20 @@ export function useAgentChat(conversationId: string | null) {
       });
       await saveMessage(finalMsg);
     } catch (error) {
-      // AbortError は正常停止なのでエラー表示しない
+      // AbortError は正常停止 — 中断時点のテキストでメッセージを確定・保存
       if (error instanceof DOMException && error.name === 'AbortError') {
+        const abortedMsg: ChatMessage = {
+          ...assistantMsg,
+          content: fullText,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        };
+        setMessages((prev) => {
+          const updated = [...prev];
+          const idx = updated.findIndex((m) => m.id === assistantMsg.id);
+          if (idx >= 0) updated[idx] = abortedMsg;
+          return updated;
+        });
+        await saveMessage(abortedMsg);
         return;
       }
       const errorText = error instanceof Error ? error.message : '不明なエラーが発生しました';
