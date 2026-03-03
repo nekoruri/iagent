@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mockOpenAIResponses } from '../fixtures/api-mocks';
-import { ensureConversation, sendChatMessage } from '../fixtures/test-helpers';
+import { sendChatMessage } from '../fixtures/test-helpers';
 import { setupForVRT, setTheme, disableAnimations } from '../fixtures/visual-helpers';
 
 test.describe('サイドバー VRT', () => {

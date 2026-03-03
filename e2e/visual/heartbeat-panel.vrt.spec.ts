@@ -15,6 +15,9 @@ const heartbeatConfig = {
 /**
  * ページロード前に IndexedDB へ Heartbeat 結果をシードする。
  */
+// freezeTime のデフォルト値と一致させる
+const FROZEN_TS = 1709449200000;
+
 function seedHeartbeatResults(page: import('@playwright/test').Page, results: unknown[]) {
   return page.addInitScript((data) => {
     const request = indexedDB.open('iagent-db', 1);
@@ -29,13 +32,13 @@ function seedHeartbeatResults(page: import('@playwright/test').Page, results: un
       const tx = db.transaction('heartbeat', 'readwrite');
       tx.objectStore('heartbeat').put({
         key: 'state',
-        lastChecked: Date.now(),
-        recentResults: data,
+        lastChecked: data.ts,
+        recentResults: data.results,
       });
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
     };
-  }, results);
+  }, { results, ts: FROZEN_TS });
 }
 
 test.describe('Heartbeat パネル VRT', () => {

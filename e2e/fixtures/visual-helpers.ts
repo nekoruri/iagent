@@ -131,7 +131,9 @@ export async function seedMemories(
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('memories')) {
-        db.createObjectStore('memories', { keyPath: 'id' });
+        const store = db.createObjectStore('memories', { keyPath: 'id' });
+        store.createIndex('category', 'category', { unique: false });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -187,7 +189,10 @@ export async function seedFeedItems(
         db.createObjectStore('feeds', { keyPath: 'id' });
       }
       if (!db.objectStoreNames.contains('feed-items')) {
-        db.createObjectStore('feed-items', { keyPath: 'id' });
+        const feedItemStore = db.createObjectStore('feed-items', { keyPath: 'id' });
+        feedItemStore.createIndex('feedId', 'feedId', { unique: false });
+        feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
+        feedItemStore.createIndex('guid', 'guid', { unique: false });
       }
     };
     request.onsuccess = () => {

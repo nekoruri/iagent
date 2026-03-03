@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --project=desktop-chromium --project=mobile-chromium",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:ui": "playwright test --project=desktop-chromium --project=mobile-chromium --ui",
     "test:e2e:push": "playwright test --config playwright.push.config.ts",
     "test:e2e:vrt": "playwright test --project=vrt-desktop --project=vrt-mobile",
     "test:e2e:vrt:update": "playwright test --project=vrt-desktop --project=vrt-mobile --update-snapshots"

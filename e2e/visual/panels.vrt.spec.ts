@@ -23,7 +23,8 @@ test.describe('FeedPanel + MemoryPanel VRT', () => {
 
   test('FeedPanel 記事あり', async ({ page }) => {
     const ts = 1709449200000;
-    // addInitScript ベースなので goto の前に呼ぶ
+    // freezeTime を先に登録して Date.now() を固定化
+    await freezeTime(page);
     await seedFeedItems(
       page,
       [
@@ -32,12 +33,11 @@ test.describe('FeedPanel + MemoryPanel VRT', () => {
         { id: 'item-3', feedId: 'feed-2', title: 'TypeScript 6.0 の新機能', publishedAt: ts - 10800000 },
       ],
       [
-        { id: 'feed-1', title: 'テック速報' },
-        { id: 'feed-2', title: 'プログラミング最前線' },
+        { id: 'feed-1', title: 'テック速報', lastFetchedAt: ts - 1800000 },
+        { id: 'feed-2', title: 'プログラミング最前線', lastFetchedAt: ts - 1800000 },
       ],
     );
     await injectConfig(page);
-    await freezeTime(page);
     await page.goto('/');
     await page.waitForSelector('.app-container', { state: 'visible' });
     await disableAnimations(page);
