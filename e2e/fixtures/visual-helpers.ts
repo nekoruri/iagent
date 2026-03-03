@@ -132,17 +132,7 @@ export async function seedMemories(
   }>,
 ): Promise<void> {
   await page.addInitScript(({ memories: data, fallbackTs }) => {
-    const request = indexedDB.open('iagent-db', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('memories')) {
-        const store = db.createObjectStore('memories', { keyPath: 'id' });
-        store.createIndex('category', 'category', { unique: false });
-        store.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
+    function writeMemories(db: IDBDatabase) {
       const tx = db.transaction('memories', 'readwrite');
       const store = tx.objectStore('memories');
       for (const mem of data) {
@@ -159,6 +149,26 @@ export async function seedMemories(
       }
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
+    }
+
+    const request = indexedDB.open('iagent-db');
+    request.onsuccess = () => {
+      const db = request.result;
+      if (db.objectStoreNames.contains('memories')) {
+        writeMemories(db);
+        return;
+      }
+      // ストアが無い場合はバージョンアップして作成
+      db.close();
+      const req2 = indexedDB.open('iagent-db', db.version + 1);
+      req2.onupgradeneeded = () => {
+        if (!req2.result.objectStoreNames.contains('memories')) {
+          const store = req2.result.createObjectStore('memories', { keyPath: 'id' });
+          store.createIndex('category', 'category', { unique: false });
+          store.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
+      };
+      req2.onsuccess = () => writeMemories(req2.result);
     };
   }, { memories, fallbackTs: DEFAULT_FROZEN_TS });
 }
@@ -187,26 +197,7 @@ export async function seedFeedItems(
   }> = [],
 ): Promise<void> {
   await page.addInitScript(({ items: feedItems, feeds: feedList, fallbackTs }) => {
-    const request = indexedDB.open('iagent-db', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('feeds')) {
-        db.createObjectStore('feeds', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('feed-items')) {
-        const feedItemStore = db.createObjectStore('feed-items', { keyPath: 'id' });
-        feedItemStore.createIndex('feedId', 'feedId', { unique: false });
-        feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
-        feedItemStore.createIndex('guid', 'guid', { unique: false });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
-      const storeNames = Array.from(db.objectStoreNames);
-      if (!storeNames.includes('feeds') || !storeNames.includes('feed-items')) {
-        db.close();
-        return;
-      }
+    function writeFeedData(db: IDBDatabase) {
       const tx = db.transaction(['feeds', 'feed-items'], 'readwrite');
       const feedStore = tx.objectStore('feeds');
       const itemStore = tx.objectStore('feed-items');
@@ -231,6 +222,31 @@ export async function seedFeedItems(
       }
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
+    }
+
+    const request = indexedDB.open('iagent-db');
+    request.onsuccess = () => {
+      const db = request.result;
+      if (db.objectStoreNames.contains('feeds') && db.objectStoreNames.contains('feed-items')) {
+        writeFeedData(db);
+        return;
+      }
+      // ストアが無い場合はバージョンアップして作成
+      db.close();
+      const req2 = indexedDB.open('iagent-db', db.version + 1);
+      req2.onupgradeneeded = () => {
+        const upgradeDb = req2.result;
+        if (!upgradeDb.objectStoreNames.contains('feeds')) {
+          upgradeDb.createObjectStore('feeds', { keyPath: 'id' });
+        }
+        if (!upgradeDb.objectStoreNames.contains('feed-items')) {
+          const feedItemStore = upgradeDb.createObjectStore('feed-items', { keyPath: 'id' });
+          feedItemStore.createIndex('feedId', 'feedId', { unique: false });
+          feedItemStore.createIndex('publishedAt', 'publishedAt', { unique: false });
+          feedItemStore.createIndex('guid', 'guid', { unique: false });
+        }
+      };
+      req2.onsuccess = () => writeFeedData(req2.result);
     };
   }, { items, feeds, fallbackTs: DEFAULT_FROZEN_TS });
 }
