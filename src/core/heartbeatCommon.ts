@@ -115,6 +115,9 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const tasks = await getTasksDueFromIDB(hbConfig);
   if (tasks.length === 0) return EMPTY;
 
+  // 実行前にフラグをクリア（前回の持ち越しを防止）
+  getAndResetConfigChangedFlag();
+
   // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
   const db = await getDB();
   const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
@@ -126,37 +129,43 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // persona を取得（未設定時はデフォルト）
   const persona = freshConfig?.persona ?? getDefaultPersonaConfig();
 
-  const results = await executeWorkerHeartbeatCheck(
-    resolvedApiKey,
-    tasks,
-    calendarEvents,
-    memories,
-    persona,
-  );
+  let configChanged = false;
+  try {
+    const results = await executeWorkerHeartbeatCheck(
+      resolvedApiKey,
+      tasks,
+      calendarEvents,
+      memories,
+      persona,
+    );
 
-  const now = Date.now();
-  const heartbeatResults: HeartbeatResult[] = [];
-  const label = source ?? 'unknown';
+    const now = Date.now();
+    const heartbeatResults: HeartbeatResult[] = [];
+    const label = source ?? 'unknown';
 
-  console.log(`[Heartbeat:${label}] ${results.length} 件のタスクを実行`);
+    console.log(`[Heartbeat:${label}] ${results.length} 件のタスクを実行`);
 
-  for (const r of results) {
-    const tagged = {
-      ...r,
-      source,
-      pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
-    };
-    await addHeartbeatResult(tagged);
-    await updateTaskLastRun(r.taskId, now);
-    if (r.hasChanges) {
-      heartbeatResults.push(tagged);
+    for (const r of results) {
+      const tagged = {
+        ...r,
+        source,
+        pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
+      };
+      await addHeartbeatResult(tagged);
+      await updateTaskLastRun(r.taskId, now);
+      if (r.hasChanges) {
+        heartbeatResults.push(tagged);
+      }
     }
+
+    // configChanged フラグを確認（applyHeartbeatConfigAction が設定変更した場合）
+    configChanged = getAndResetConfigChangedFlag();
+
+    console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
+
+    return { results: heartbeatResults, configChanged };
+  } finally {
+    // 例外時もフラグを確実にリセット（次回実行への持ち越し防止）
+    getAndResetConfigChangedFlag();
   }
-
-  // configChanged フラグを確認（applyHeartbeatConfigAction が設定変更した場合）
-  const configChanged = getAndResetConfigChangedFlag();
-
-  console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
-
-  return { results: heartbeatResults, configChanged };
 }
