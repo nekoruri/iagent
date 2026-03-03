@@ -8,7 +8,7 @@ export async function injectConfig(
   overrides: Record<string, unknown> = {},
 ): Promise<void> {
   const config = {
-    openaiApiKey: 'sk-test-1234567890',
+    openaiApiKey: 'test-api-key-dummy',
     braveApiKey: '',
     openWeatherMapApiKey: '',
     mcpServers: [],
@@ -71,7 +71,7 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
 /**
  * セットアップウィザードを完了する（初回起動時）。
  */
-export async function completeSetupWizard(page: Page, apiKey = 'sk-test-1234567890'): Promise<void> {
+export async function completeSetupWizard(page: Page, apiKey = 'test-api-key-dummy'): Promise<void> {
   await page.waitForSelector('.wizard-modal', { state: 'visible' });
   await page.click('text=はじめる');
   await page.fill('input[placeholder="sk-..."]', apiKey);
@@ -125,16 +125,21 @@ export async function injectHeartbeatResults(
     pinned?: boolean;
     feedback?: { type: string; snoozedUntil?: number };
   }>,
+  options: { lastChecked?: number } = {},
 ): Promise<void> {
-  await page.evaluate((data) => {
+  await page.evaluate(({ results: data, lastChecked: lastCheckedArg }) => {
+    // lastChecked 未指定時はブラウザ側の Date.now() を使う（freezeTime と整合）
+    const lastChecked = lastCheckedArg ?? Date.now();
     return new Promise<void>((resolve, reject) => {
+      function writeState(db: IDBDatabase) {
+        const tx = db.transaction('heartbeat', 'readwrite');
+        tx.objectStore('heartbeat').put({
+          key: 'state', lastChecked, recentResults: data,
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      }
       const request = indexedDB.open('iagent-db');
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('heartbeat')) {
-          db.createObjectStore('heartbeat', { keyPath: 'key' });
-        }
-      };
       request.onsuccess = () => {
         const db = request.result;
         // heartbeat ストアがない場合は DB バージョンアップが必要
@@ -147,24 +152,16 @@ export async function injectHeartbeatResults(
               req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
             }
           };
-          req2.onsuccess = () => {
-            const db2 = req2.result;
-            const tx = db2.transaction('heartbeat', 'readwrite');
-            const store = tx.objectStore('heartbeat');
-            store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
-            tx.oncomplete = () => { db2.close(); resolve(); };
-            tx.onerror = () => { db2.close(); reject(tx.error); };
-          };
+          req2.onsuccess = () => writeState(req2.result);
           req2.onerror = () => reject(req2.error);
+          req2.onblocked = () => {
+            reject(new Error('IndexedDB upgrade for iagent-db is blocked (heartbeat store)'));
+          };
           return;
         }
-        const tx = db.transaction('heartbeat', 'readwrite');
-        const store = tx.objectStore('heartbeat');
-        store.put({ key: 'state', lastChecked: Date.now(), recentResults: data });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
+        writeState(db);
       };
       request.onerror = () => reject(request.error);
     });
-  }, results);
+  }, { results, lastChecked: options.lastChecked });
 }

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { setupForVRT, setTheme, disableAnimations } from '../fixtures/visual-helpers';
+import { injectHeartbeatResults } from '../fixtures/test-helpers';
+import { setupForVRT, setTheme, disableAnimations, DEFAULT_FROZEN_TS } from '../fixtures/visual-helpers';
 
 const heartbeatConfig = {
   heartbeat: {
@@ -11,35 +12,6 @@ const heartbeatConfig = {
     desktopNotification: false,
   },
 };
-
-/**
- * ページロード前に IndexedDB へ Heartbeat 結果をシードする。
- */
-// freezeTime のデフォルト値と一致させる
-const FROZEN_TS = 1709449200000;
-
-function seedHeartbeatResults(page: import('@playwright/test').Page, results: unknown[]) {
-  return page.addInitScript((data) => {
-    const request = indexedDB.open('iagent-db', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('heartbeat')) {
-        db.createObjectStore('heartbeat', { keyPath: 'key' });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction('heartbeat', 'readwrite');
-      tx.objectStore('heartbeat').put({
-        key: 'state',
-        lastChecked: data.ts,
-        recentResults: data.results,
-      });
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    };
-  }, { results, ts: FROZEN_TS });
-}
 
 test.describe('Heartbeat パネル VRT', () => {
   test('空パネル', async ({ page }) => {
@@ -57,13 +29,17 @@ test.describe('Heartbeat パネル VRT', () => {
   });
 
   test('結果一覧（ピン留め + フィードバックボタン）', async ({ page }) => {
-    const ts = 1709449200000; // freezeTime のデフォルト値と一致
-    await seedHeartbeatResults(page, [
+    const ts = DEFAULT_FROZEN_TS;
+    await setupForVRT(page, { configOverrides: heartbeatConfig });
+
+    // アプリ起動後にデータをシードしてリロード
+    await injectHeartbeatResults(page, [
       { taskId: 'test-task', timestamp: ts - 60000, hasChanges: true, summary: 'テスト結果1: 天気が変わりました', pinned: true },
       { taskId: 'test-task', timestamp: ts - 30000, hasChanges: false, summary: '変化なし' },
       { taskId: 'test-task', timestamp: ts - 10000, hasChanges: true, summary: 'テスト結果2: 新しいニュース' },
-    ]);
-    await setupForVRT(page, { configOverrides: heartbeatConfig });
+    ], { lastChecked: ts });
+    await page.reload();
+    await page.waitForSelector('.app-container', { state: 'visible' });
 
     await page.locator('.heartbeat-bell').click();
     await expect(page.locator('.heartbeat-dropdown')).toBeVisible();
@@ -78,10 +54,14 @@ test.describe('Heartbeat パネル VRT', () => {
   });
 
   test('未読バッジ表示', async ({ page }) => {
-    await seedHeartbeatResults(page, [
-      { taskId: 'test-task', timestamp: 1709449200000, hasChanges: true, summary: '新着結果' },
-    ]);
     await setupForVRT(page, { configOverrides: heartbeatConfig });
+
+    // アプリ起動後にデータをシードしてリロード
+    await injectHeartbeatResults(page, [
+      { taskId: 'test-task', timestamp: DEFAULT_FROZEN_TS, hasChanges: true, summary: '新着結果' },
+    ], { lastChecked: DEFAULT_FROZEN_TS });
+    await page.reload();
+    await page.waitForSelector('.app-container', { state: 'visible' });
 
     await expect(page.locator('.heartbeat-badge')).toBeVisible({ timeout: 5000 });
     await disableAnimations(page);

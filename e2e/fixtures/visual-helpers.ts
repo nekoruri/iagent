@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test';
 import { injectConfig } from './test-helpers';
 
+/** freezeTime のデフォルト固定時刻。シード関数のデフォルト値にも使用する。 */
+export const DEFAULT_FROZEN_TS = 1709449200000;
+
 /**
  * CSS アニメーション・トランジションを全無効化する。
  * Playwright の animations: 'disabled' と二重保証。
@@ -35,12 +38,17 @@ export async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<voi
  * Date.now() を固定値にモックする。
  * page.goto() の前に呼ぶこと（addInitScript）。
  */
-export async function freezeTime(page: Page, timestamp = 1709449200000): Promise<void> {
+export async function freezeTime(page: Page, timestamp = DEFAULT_FROZEN_TS): Promise<void> {
   await page.addInitScript((ts) => {
     const OrigDate = globalThis.Date;
-    const frozen = new OrigDate(ts);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const MockDate: any = function (...args: unknown[]) {
+      if (!new.target) {
+        // Date() を関数として呼び出した場合、引数の有無にかかわらず
+        // 現在時刻の文字列を返すのが ECMAScript 仕様（ECMA-262 §21.4.2.1）。
+        // モック環境では固定時刻の文字列を返す。
+        return new OrigDate(ts).toString();
+      }
       if (args.length === 0) return new OrigDate(ts);
       // @ts-expect-error spread constructor
       return new OrigDate(...args);
@@ -49,7 +57,6 @@ export async function freezeTime(page: Page, timestamp = 1709449200000): Promise
     MockDate.now = () => ts;
     MockDate.parse = OrigDate.parse;
     MockDate.UTC = OrigDate.UTC;
-    Object.defineProperty(frozen, 'constructor', { value: MockDate });
     globalThis.Date = MockDate;
   }, timestamp);
 }
@@ -126,18 +133,8 @@ export async function seedMemories(
     updatedAt?: number;
   }>,
 ): Promise<void> {
-  await page.addInitScript((data) => {
-    const request = indexedDB.open('iagent-db', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('memories')) {
-        const store = db.createObjectStore('memories', { keyPath: 'id' });
-        store.createIndex('category', 'category', { unique: false });
-        store.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
+  await page.addInitScript(({ memories: data, fallbackTs }) => {
+    function writeMemories(db: IDBDatabase) {
       const tx = db.transaction('memories', 'readwrite');
       const store = tx.objectStore('memories');
       for (const mem of data) {
@@ -147,15 +144,30 @@ export async function seedMemories(
           category: mem.category ?? 'general',
           importance: mem.importance ?? 5,
           tags: mem.tags ?? [],
-          createdAt: mem.createdAt ?? Date.now(),
-          updatedAt: mem.updatedAt ?? Date.now(),
+          createdAt: mem.createdAt ?? fallbackTs,
+          updatedAt: mem.updatedAt ?? fallbackTs,
           accessCount: 0,
         });
       }
       tx.oncomplete = () => db.close();
       tx.onerror = () => db.close();
+    }
+
+    const request = indexedDB.open('iagent-db');
+    // 初回作成 / バージョンアップ時に memories ストアとインデックスを作成する
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('memories')) {
+        const store = db.createObjectStore('memories', { keyPath: 'id' });
+        store.createIndex('category', 'category', { unique: false });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
+      }
     };
-  }, memories);
+    request.onsuccess = () => {
+      writeMemories(request.result);
+    };
+    request.onerror = () => console.error('seedMemories: open failed', request.error);
+  }, { memories, fallbackTs: DEFAULT_FROZEN_TS });
 }
 
 /**
@@ -181,8 +193,36 @@ export async function seedFeedItems(
     lastFetchedAt?: number;
   }> = [],
 ): Promise<void> {
-  await page.addInitScript(({ items: feedItems, feeds: feedList }) => {
-    const request = indexedDB.open('iagent-db', 1);
+  await page.addInitScript(({ items: feedItems, feeds: feedList, fallbackTs }) => {
+    function writeFeedData(db: IDBDatabase) {
+      const tx = db.transaction(['feeds', 'feed-items'], 'readwrite');
+      const feedStore = tx.objectStore('feeds');
+      const itemStore = tx.objectStore('feed-items');
+      for (const feed of feedList) {
+        feedStore.put({
+          id: feed.id,
+          title: feed.title,
+          url: feed.url ?? `https://example.com/${feed.id}/rss`,
+          lastFetchedAt: feed.lastFetchedAt ?? fallbackTs,
+        });
+      }
+      for (const item of feedItems) {
+        itemStore.put({
+          id: item.id,
+          feedId: item.feedId,
+          title: item.title,
+          url: item.url ?? `https://example.com/article/${item.id}`,
+          summary: item.summary ?? '',
+          publishedAt: item.publishedAt ?? fallbackTs,
+          guid: item.guid ?? item.id,
+        });
+      }
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => db.close();
+    }
+
+    const request = indexedDB.open('iagent-db');
+    // 初回作成およびスキーマアップデート時にストアを作成する
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('feeds')) {
@@ -196,36 +236,8 @@ export async function seedFeedItems(
       }
     };
     request.onsuccess = () => {
-      const db = request.result;
-      const storeNames = Array.from(db.objectStoreNames);
-      if (!storeNames.includes('feeds') || !storeNames.includes('feed-items')) {
-        db.close();
-        return;
-      }
-      const tx = db.transaction(['feeds', 'feed-items'], 'readwrite');
-      const feedStore = tx.objectStore('feeds');
-      const itemStore = tx.objectStore('feed-items');
-      for (const feed of feedList) {
-        feedStore.put({
-          id: feed.id,
-          title: feed.title,
-          url: feed.url ?? `https://example.com/${feed.id}/rss`,
-          lastFetchedAt: feed.lastFetchedAt ?? Date.now(),
-        });
-      }
-      for (const item of feedItems) {
-        itemStore.put({
-          id: item.id,
-          feedId: item.feedId,
-          title: item.title,
-          url: item.url ?? `https://example.com/article/${item.id}`,
-          summary: item.summary ?? '',
-          publishedAt: item.publishedAt ?? Date.now(),
-          guid: item.guid ?? item.id,
-        });
-      }
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
+      writeFeedData(request.result);
     };
-  }, { items, feeds });
+    request.onerror = () => console.error('seedFeedItems: open failed', request.error);
+  }, { items, feeds, fallbackTs: DEFAULT_FROZEN_TS });
 }

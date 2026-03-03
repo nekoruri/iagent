@@ -48,7 +48,7 @@ test.describe('Push 通知統合テスト', () => {
           const tx = db.transaction('config', 'readwrite');
           tx.objectStore('config').put({
             key: 'app-config',
-            openaiApiKey: 'sk-test-push-e2e',
+            openaiApiKey: 'test-api-key-push-e2e',
             braveApiKey: '',
             openWeatherMapApiKey: '',
             mcpServers: [],

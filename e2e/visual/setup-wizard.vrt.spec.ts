@@ -29,7 +29,7 @@ test.describe('セットアップウィザード VRT', () => {
 
   test('Step 2 Persona 設定', async ({ page }) => {
     await page.click('text=はじめる');
-    await page.fill('input[placeholder="sk-..."]', 'sk-test-1234567890');
+    await page.fill('input[placeholder="sk-..."]', 'test-api-key-dummy');
     await page.click('text=次へ');
 
     for (const theme of ['light', 'dark'] as const) {
@@ -41,7 +41,7 @@ test.describe('セットアップウィザード VRT', () => {
 
   test('Step 3 完了', async ({ page }) => {
     await page.click('text=はじめる');
-    await page.fill('input[placeholder="sk-..."]', 'sk-test-1234567890');
+    await page.fill('input[placeholder="sk-..."]', 'test-api-key-dummy');
     await page.click('text=次へ');
     await page.click('text=スキップ');
 
