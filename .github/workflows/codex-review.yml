@@ -19,14 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Pre-fetch base and head refs
+      - name: Pre-fetch base ref
         run: |
           git fetch --no-tags origin \
-            ${{ github.event.pull_request.base.ref }} \
-            +refs/pull/${{ github.event.pull_request.number }}/head
+            ${{ github.event.pull_request.base.ref }}
 
       - name: Run Codex Review
         id: run_codex
