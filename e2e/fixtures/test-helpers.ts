@@ -127,7 +127,9 @@ export async function injectHeartbeatResults(
   }>,
   options: { lastChecked?: number } = {},
 ): Promise<void> {
-  await page.evaluate(({ results: data, lastChecked }) => {
+  await page.evaluate(({ results: data, lastChecked: lastCheckedArg }) => {
+    // lastChecked 未指定時はブラウザ側の Date.now() を使う（freezeTime と整合）
+    const lastChecked = lastCheckedArg ?? Date.now();
     return new Promise<void>((resolve, reject) => {
       function writeState(db: IDBDatabase) {
         const tx = db.transaction('heartbeat', 'readwrite');
@@ -158,5 +160,5 @@ export async function injectHeartbeatResults(
       };
       request.onerror = () => reject(request.error);
     });
-  }, { results, lastChecked: options.lastChecked ?? Date.now() });
+  }, { results, lastChecked: options.lastChecked });
 }
