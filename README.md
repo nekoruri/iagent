@@ -4,6 +4,8 @@
 
 ブラウザ上で動作するパーソナルAIアシスタント。OpenAI Agents SDK を活用し、リアルタイムストリーミング、バックグラウンドチェック（Heartbeat）、MCP サーバー連携をサポートする PWA アプリケーション。
 
+利用手順は [利用ガイド](docs/USER-GUIDE.md)、Push/Proxy サーバー運用は [運用ガイド](docs/OPERATIONS.md) を参照してください。
+
 ## 技術スタック
 
 - **フロントエンド**: React 19 + TypeScript
@@ -29,6 +31,9 @@
 - **Web 検索** — Brave Search API 経由（上位 5 件）
 - **デバイス情報** — バッテリー残量、位置情報、天気
 - **メモリ** — ユーザー情報の長期記憶（save / search / list / delete）
+- **クリップ** — Web 情報の構造化保存・検索
+- **フィード** — RSS/Atom 購読と記事取得
+- **Web ページ監視** — 指定ページの差分検知
 
 ### MCP サーバー連携
 - 任意の MCP サーバー URL を設定画面から登録
@@ -69,6 +74,8 @@ npm run dev
 | OpenAI API Key | ✅ | チャット・Heartbeat |
 | Brave Search API Key | — | Web 検索ツール |
 | OpenWeatherMap API Key | — | 天気ツール |
+
+詳細な画面操作・設定は [利用ガイド](docs/USER-GUIDE.md) を参照。
 
 ## スクリプト
 
@@ -129,8 +136,11 @@ src/
 │   └── types.ts                  型定義
 ├── tools/             # エージェント用ツール
 │   ├── calendarTool.ts
+│   ├── clipTool.ts
 │   ├── deviceInfoTool.ts
+│   ├── feedTool.ts
 │   ├── memoryTool.ts
+│   ├── webMonitorTool.ts
 │   └── webSearchTool.ts
 ├── types/
 │   └── index.ts
@@ -174,6 +184,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push /
 
 ## ドキュメント
 
+- [利用ガイド](docs/USER-GUIDE.md)
+- [運用ガイド（Push/Proxy サーバー）](docs/OPERATIONS.md)
 - [アーキテクチャ詳細](docs/ARCHITECTURE.md)
 - [ロードマップ](docs/ROADMAP.md)
 
