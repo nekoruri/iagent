@@ -171,7 +171,10 @@ export async function seedMemories(
         }
       };
       req2.onsuccess = () => writeMemories(req2.result);
+      req2.onerror = () => console.error('seedMemories: upgrade open failed', req2.error);
+      req2.onblocked = () => console.warn('seedMemories: upgrade blocked – close other connections');
     };
+    request.onerror = () => console.error('seedMemories: initial open failed', request.error);
   }, { memories, fallbackTs: DEFAULT_FROZEN_TS });
 }
 
@@ -249,6 +252,9 @@ export async function seedFeedItems(
         }
       };
       req2.onsuccess = () => writeFeedData(req2.result);
+      req2.onerror = () => console.error('seedFeedItems: upgrade open failed', req2.error);
+      req2.onblocked = () => console.warn('seedFeedItems: upgrade blocked – close other connections');
     };
+    request.onerror = () => console.error('seedFeedItems: initial open failed', request.error);
   }, { items, feeds, fallbackTs: DEFAULT_FROZEN_TS });
 }
