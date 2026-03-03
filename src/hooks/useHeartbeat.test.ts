@@ -62,13 +62,43 @@ vi.mock('../core/notifier', () => ({
   sendHeartbeatNotifications: vi.fn(),
 }));
 
+// pushSubscription モック
+vi.mock('../core/pushSubscription', () => ({
+  getPushSubscription: vi.fn().mockResolvedValue(null),
+  registerPeriodicSync: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('useHeartbeat', () => {
+  let swAddEventListener: ReturnType<typeof vi.fn>;
+  let swRemoveEventListener: ReturnType<typeof vi.fn>;
+  let originalSwDescriptor: PropertyDescriptor | undefined;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // navigator.serviceWorker の元の descriptor を退避
+    originalSwDescriptor = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+    // navigator.serviceWorker のモック
+    swAddEventListener = vi.fn();
+    swRemoveEventListener = vi.fn();
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        addEventListener: swAddEventListener,
+        removeEventListener: swRemoveEventListener,
+      },
+      writable: true,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // navigator.serviceWorker を復元
+    if (originalSwDescriptor) {
+      Object.defineProperty(navigator, 'serviceWorker', originalSwDescriptor);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).serviceWorker;
+    }
   });
 
   it('初期化時にエンジンと Worker ブリッジを作成してスタートする', () => {
@@ -121,5 +151,37 @@ describe('useHeartbeat', () => {
     // stop → start で再起動
     expect(mockEngine.stop).toHaveBeenCalled();
     expect(mockEngine.start).toHaveBeenCalledTimes(2);
+  });
+
+  it('SW からの config-changed メッセージで IDB → localStorage 同期する', async () => {
+    const { loadConfigFromIDB } = await import('../store/configStore');
+    const onNotification = vi.fn();
+    renderHook(() => useHeartbeat({ isStreaming: false, onNotification }));
+
+    // addEventListener に登録されたハンドラを取得
+    expect(swAddEventListener).toHaveBeenCalledWith('message', expect.any(Function));
+    const handler = swAddEventListener.mock.calls.find(
+      (call: unknown[]) => call[0] === 'message',
+    )![1] as (event: MessageEvent) => void;
+
+    // config-changed メッセージを発火
+    await act(async () => {
+      handler(new MessageEvent('message', { data: { type: 'config-changed' } }));
+      // 非同期処理を待つ
+      await vi.waitFor(() => {
+        expect(loadConfigFromIDB).toHaveBeenCalled();
+      });
+    });
+  });
+
+  it('アンマウント時に SW message listener を解除する', () => {
+    const onNotification = vi.fn();
+    const { unmount } = renderHook(() =>
+      useHeartbeat({ isStreaming: false, onNotification }),
+    );
+
+    unmount();
+
+    expect(swRemoveEventListener).toHaveBeenCalledWith('message', expect.any(Function));
   });
 });

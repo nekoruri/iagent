@@ -139,13 +139,10 @@ export function applyAction(hb: HeartbeatConfig, action: ActionRequest): ActionR
   }
 }
 
-// --- configChanged フラグ（モジュールスコープ） ---
-let _configChangedFlag = false;
-
-export function getAndResetConfigChangedFlag(): boolean {
-  const v = _configChangedFlag;
-  _configChangedFlag = false;
-  return v;
+/** executeWorkerTool の戻り値 */
+export interface WorkerToolResult {
+  result: string;
+  configChanged: boolean;
 }
 
 // --- 月次 goal 統計 (F15) ---
@@ -1100,7 +1097,8 @@ export const WORKER_TOOLS = [
 export async function executeWorkerTool(
   name: string,
   args: Record<string, unknown>,
-): Promise<string> {
+): Promise<WorkerToolResult> {
+  const wrap = (result: string, configChanged = false): WorkerToolResult => ({ result, configChanged });
   switch (name) {
     case 'listCalendarEvents': {
       const db = await getDB();
@@ -1112,9 +1110,9 @@ export async function executeWorkerTool(
         events = (await db.getAll('calendar')) as CalendarEvent[];
       }
       if (events.length === 0) {
-        return JSON.stringify({ events: [], message: 'イベントはありません。' });
+        return wrap(JSON.stringify({ events: [], message: 'イベントはありません。' }));
       }
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         events: events.map((e) => ({
           id: e.id,
           title: e.title,
@@ -1122,7 +1120,7 @@ export async function executeWorkerTool(
           time: e.time,
           description: e.description,
         })),
-      });
+      }));
     }
     case 'getCurrentTime': {
       const now = new Date();
@@ -1131,16 +1129,16 @@ export async function executeWorkerTool(
       const weekdayPart = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', weekday: 'short' }).format(now);
       const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
       const dayOfWeek = weekdayMap[weekdayPart] ?? now.getDay();
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         currentTime: now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
         dayOfWeek,
         dayOfWeekName: dayNames[dayOfWeek],
-      });
+      }));
     }
     case 'listFeeds': {
       const db = await getDB();
       const feeds: Feed[] = await db.getAll('feeds');
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         feeds: feeds.map((f) => ({
           id: f.id,
           title: f.title,
@@ -1149,13 +1147,13 @@ export async function executeWorkerTool(
           lastFetchedAt: f.lastFetchedAt,
         })),
         count: feeds.length,
-      });
+      }));
     }
     case 'fetchFeeds': {
       const db = await getDB();
       const feeds: Feed[] = await db.getAll('feeds');
       if (feeds.length === 0) {
-        return JSON.stringify({ message: '購読中のフィードはありません。', results: [] });
+        return wrap(JSON.stringify({ message: '購読中のフィードはありません。', results: [] }));
       }
 
       const config = await loadConfigFromIDB();
@@ -1219,13 +1217,13 @@ export async function executeWorkerTool(
         }
       }
 
-      return JSON.stringify({ results, totalFeeds: feeds.length });
+      return wrap(JSON.stringify({ results, totalFeeds: feeds.length }));
     }
     case 'checkMonitors': {
       const db = await getDB();
       const monitors: Monitor[] = await db.getAll('monitors');
       if (monitors.length === 0) {
-        return JSON.stringify({ message: '監視対象はありません。', results: [] });
+        return wrap(JSON.stringify({ message: '監視対象はありません。', results: [] }));
       }
 
       const config = await loadConfigFromIDB();
@@ -1284,11 +1282,11 @@ export async function executeWorkerTool(
         }
       }
 
-      return JSON.stringify({ results, totalMonitors: monitors.length });
+      return wrap(JSON.stringify({ results, totalMonitors: monitors.length }));
     }
     case 'getRecentMemoriesForReflection': {
       const { recent, topAccessed } = await getRecentMemoriesForReflection();
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         recent: recent.map((m) => ({
           id: m.id,
           content: m.content,
@@ -1309,12 +1307,12 @@ export async function executeWorkerTool(
         })),
         recentCount: recent.length,
         topAccessedCount: topAccessed.length,
-      });
+      }));
     }
     case 'saveReflection': {
       const content = args.content as string;
       if (!content) {
-        return JSON.stringify({ error: 'content は必須です' });
+        return wrap(JSON.stringify({ error: 'content は必須です' }));
       }
       const importance = typeof args.importance === 'number'
         ? Math.max(1, Math.min(5, args.importance))
@@ -1323,14 +1321,14 @@ export async function executeWorkerTool(
         ? args.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
         : [];
       const memory = await saveMemory(content, 'reflection', { importance, tags });
-      return JSON.stringify({ message: 'ふりかえりを保存しました', memory });
+      return wrap(JSON.stringify({ message: 'ふりかえりを保存しました', memory }));
     }
     case 'cleanupMemories': {
       const archivedCount = await cleanupLowScoredMemories(5);
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         message: `${archivedCount} 件の記憶をアーカイブしました`,
         archivedCount,
-      });
+      }));
     }
     case 'listUnreadFeedItems': {
       const offset = Math.max(0, typeof args.offset === 'number' ? Math.floor(args.offset) : 0);
@@ -1340,7 +1338,7 @@ export async function executeWorkerTool(
       const feeds: Feed[] = await db.getAll('feeds');
       const feedMap = new Map(feeds.map((f) => [f.id, f.title]));
       console.debug(`[Heartbeat] listUnreadFeedItems — ${result.items.length}/${result.total} 件取得 (offset=${offset}, hasMore=${result.hasMore})`);
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         items: result.items.map((item) => ({
           id: item.id,
           feedTitle: feedMap.get(item.feedId) ?? '',
@@ -1353,12 +1351,12 @@ export async function executeWorkerTool(
         offset: result.offset,
         limit: result.limit,
         hasMore: result.hasMore,
-      });
+      }));
     }
     case 'saveFeedClassification': {
       const classifications = args.classifications as Array<{ itemId: string; tier: string }> | undefined;
       if (!Array.isArray(classifications)) {
-        return JSON.stringify({ error: 'classifications は必須です' });
+        return wrap(JSON.stringify({ error: 'classifications は必須です' }));
       }
       const validTiers = new Set(['must-read', 'recommended', 'skip']);
       let savedCount = 0;
@@ -1373,7 +1371,7 @@ export async function executeWorkerTool(
         }
       }
       console.debug(`[Heartbeat] saveFeedClassification — ${savedCount} 件保存:`, tierCounts);
-      return JSON.stringify({ message: `${savedCount} 件の分類を保存しました`, savedCount });
+      return wrap(JSON.stringify({ message: `${savedCount} 件の分類を保存しました`, savedCount }));
     }
     case 'listClassifiedFeedItems': {
       const rawTier = args.tier as string | undefined;
@@ -1383,7 +1381,7 @@ export async function executeWorkerTool(
       const feeds2: Feed[] = await db2.getAll('feeds');
       const feedMap2 = new Map(feeds2.map((f) => [f.id, f.title]));
       console.debug(`[Heartbeat] listClassifiedFeedItems — ${items.length} 件 (tier=${tierFilter ?? 'all'})`);
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         items: items.map((item) => ({
           id: item.id,
           feedTitle: feedMap2.get(item.feedId) ?? '',
@@ -1393,13 +1391,13 @@ export async function executeWorkerTool(
           publishedAt: item.publishedAt,
         })),
         count: items.length,
-      });
+      }));
     }
     case 'getHeartbeatFeedbackSummary': {
       const periodHours = Math.max(1, Math.min(168, typeof args.periodHours === 'number' ? Math.floor(args.periodHours) : 24));
       const periodMs = periodHours * 60 * 60 * 1000;
       const summary = await getHeartbeatFeedbackSummary(periodMs);
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         periodHours,
         totalResults: summary.totalResults,
         totalWithFeedback: summary.totalWithFeedback,
@@ -1412,16 +1410,16 @@ export async function executeWorkerTool(
           total: s.total,
           acceptRate: Math.round(s.acceptRate * 100),
         })),
-      });
+      }));
     }
     case 'searchMemoriesByQuery': {
       const query = args.query as string | undefined;
       if (!query || !query.trim()) {
-        return JSON.stringify({ error: 'query は必須です' });
+        return wrap(JSON.stringify({ error: 'query は必須です' }));
       }
       const limit = Math.max(1, Math.min(20, typeof args.limit === 'number' ? Math.floor(args.limit) : 5));
       const memories = await getRelevantMemories(query, limit);
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         memories: memories.map((m) => ({
           id: m.id,
           content: m.content,
@@ -1432,7 +1430,7 @@ export async function executeWorkerTool(
         })),
         count: memories.length,
         query,
-      });
+      }));
     }
     case 'getInfoThresholdStatus': {
       const thresholds = { unclassifiedFeed: 50, unreadClassified: 30, clips: 100 };
@@ -1454,14 +1452,14 @@ export async function executeWorkerTool(
         unreadClassifiedExceeded: unreadClassifiedCount > thresholds.unreadClassified,
         clipsExceeded: totalClipCount > thresholds.clips,
       };
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         unclassifiedFeedCount,
         unreadClassifiedCount,
         totalClipCount,
         thresholds,
         exceeded: details.unclassifiedFeedExceeded || details.unreadClassifiedExceeded || details.clipsExceeded,
         details,
-      });
+      }));
     }
     case 'getWeeklyReflections': {
       const DAY_MS = 24 * 60 * 60 * 1000;
@@ -1478,11 +1476,11 @@ export async function executeWorkerTool(
           createdAt: m.createdAt,
           updatedAt: m.updatedAt,
         }));
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         reflections: filtered,
         count: filtered.length,
         periodDays,
-      });
+      }));
     }
     case 'getCrossSourceTopics': {
       const DAY_MS = 24 * 60 * 60 * 1000;
@@ -1543,16 +1541,16 @@ export async function executeWorkerTool(
       // sourceCount >= 2 のみ、上限 20
       const topics = allGroups.filter((g) => g.sourceCount >= 2).slice(0, 20);
 
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         topics,
         totalTopics: topics.length,
         periodDays,
-      });
+      }));
     }
     case 'getMonthlyGoalStats': {
       const goals = await listMemories('goal');
       const stats = computeMonthlyGoalStats(goals, new Date());
-      return JSON.stringify(stats);
+      return wrap(JSON.stringify(stats));
     }
     case 'getUserActivityPatterns': {
       const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 14));
@@ -1562,7 +1560,7 @@ export async function executeWorkerTool(
       const allMemories = await listMemories();
       const filteredMemories = allMemories.filter((m) => m.createdAt >= cutoff);
       const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
-      return JSON.stringify({ ...patterns, periodDays });
+      return wrap(JSON.stringify({ ...patterns, periodDays }));
     }
     case 'getSuggestionOptimizations': {
       const periodDays = Math.max(1, Math.min(30, typeof args.periodDays === 'number' ? Math.floor(args.periodDays) : 14));
@@ -1578,22 +1576,22 @@ export async function executeWorkerTool(
       );
       const patterns = computeUserActivityPatterns(filteredResults, filteredMemories, new Date());
       const optimizations = computeSuggestionOptimizations(feedbackSummary, patterns, new Date());
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         ...optimizations,
         periodDays,
         totalResults: feedbackSummary.totalResults,
         totalWithFeedback: feedbackSummary.totalWithFeedback,
-      });
+      }));
     }
     case 'applyHeartbeatConfigAction': {
       const actions = args.actions as ActionRequest[] | undefined;
       if (!Array.isArray(actions) || actions.length === 0) {
-        return JSON.stringify({ error: 'actions 配列は必須です' });
+        return wrap(JSON.stringify({ error: 'actions 配列は必須です' }));
       }
       // 現在設定を取得
       const config = await loadConfigFromIDB();
       if (!config?.heartbeat) {
-        return JSON.stringify({ error: 'Heartbeat 設定が見つかりません' });
+        return wrap(JSON.stringify({ error: 'Heartbeat 設定が見つかりません' }));
       }
       const hb = config.heartbeat;
       const results: ActionResult[] = [];
@@ -1631,17 +1629,15 @@ export async function executeWorkerTool(
             .filter((r) => r.applied)
             .map((r) => ({ type: r.type, reason: r.reason, detail: r.detail, timestamp: r.timestamp })),
         );
-        // configChanged フラグをセット
-        _configChangedFlag = true;
       }
-      return JSON.stringify({
+      return wrap(JSON.stringify({
         message: `${appliedCount}/${actions.length} 件のアクションを適用しました`,
         appliedCount,
         totalActions: actions.length,
         results,
-      });
+      }), appliedCount > 0);
     }
     default:
-      return JSON.stringify({ error: `不明なツール: ${name}` });
+      return wrap(JSON.stringify({ error: `不明なツール: ${name}` }));
   }
 }

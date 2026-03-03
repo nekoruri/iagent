@@ -5,7 +5,6 @@ import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getDefaultPersonaConfig } from './config';
-import { getAndResetConfigChangedFlag } from './heartbeatTools';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent } from '../types';
 
 /** executeHeartbeatAndStore の戻り値 */
@@ -126,7 +125,7 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // persona を取得（未設定時はデフォルト）
   const persona = freshConfig?.persona ?? getDefaultPersonaConfig();
 
-  const results = await executeWorkerHeartbeatCheck(
+  const { results, configChanged } = await executeWorkerHeartbeatCheck(
     resolvedApiKey,
     tasks,
     calendarEvents,
@@ -152,9 +151,6 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
       heartbeatResults.push(tagged);
     }
   }
-
-  // configChanged フラグを確認（applyHeartbeatConfigAction が設定変更した場合）
-  const configChanged = getAndResetConfigChangedFlag();
 
   console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
 

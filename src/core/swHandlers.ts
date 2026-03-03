@@ -16,8 +16,14 @@ export interface SwNotifier {
 }
 
 /** クライアントウィンドウ操作コンテキスト */
+export interface SwClient {
+  url: string;
+  focus?: () => Promise<unknown>;
+  postMessage(msg: unknown): void;
+}
+
 export interface SwClients {
-  matchAll(options?: { type?: string; includeUncontrolled?: boolean }): Promise<ReadonlyArray<{ url: string; focus?: () => Promise<unknown> }>>;
+  matchAll(options?: { type?: string; includeUncontrolled?: boolean }): Promise<ReadonlyArray<SwClient>>;
   openWindow(url: string): Promise<unknown>;
 }
 
@@ -113,7 +119,7 @@ async function notifyConfigChanged(clients: SwClients): Promise<void> {
   try {
     const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of allClients) {
-      (client as unknown as { postMessage(msg: unknown): void }).postMessage({ type: 'config-changed' });
+      client.postMessage({ type: 'config-changed' });
     }
   } catch {
     // クライアント通知失敗は無視（次回タブ復帰時に IDB から読み込まれる）

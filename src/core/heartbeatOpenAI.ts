@@ -99,6 +99,12 @@ function buildSystemPrompt(memories: Memory[], persona?: PersonaConfig): string 
   });
 }
 
+/** executeWorkerHeartbeatCheck の戻り値 */
+export interface WorkerHeartbeatCheckResult {
+  results: HeartbeatResult[];
+  configChanged: boolean;
+}
+
 /** Worker 内で Heartbeat チェックを実行する（DOM/localStorage 非依存） */
 export async function executeWorkerHeartbeatCheck(
   apiKey: string,
@@ -106,7 +112,7 @@ export async function executeWorkerHeartbeatCheck(
   calendarEvents: CalendarEvent[],
   memories: Memory[],
   persona?: PersonaConfig,
-): Promise<HeartbeatResult[]> {
+): Promise<WorkerHeartbeatCheckResult> {
   const systemPrompt = buildSystemPrompt(memories, persona);
   const taskDescriptions = tasks.map((t) =>
     `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
@@ -125,6 +131,8 @@ export async function executeWorkerHeartbeatCheck(
 
   console.debug('[Heartbeat] tool calling 開始 — タスク:', tasks.map(t => t.id).join(', '));
 
+  let configChanged = false;
+
   // tool calling ループ（最大 MAX_TOOL_ROUNDS 回）
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await callChatCompletions(apiKey, 'gpt-5-nano', messages, WORKER_TOOLS);
@@ -138,7 +146,7 @@ export async function executeWorkerHeartbeatCheck(
     // tool_calls がなければ最終レスポンス
     if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
       console.debug(`[Heartbeat] ラウンド ${round + 1}/${MAX_TOOL_ROUNDS} — 最終レスポンス（ツール呼び出しなし）`);
-      return parseHeartbeatResponse(assistantMessage.content);
+      return { results: parseHeartbeatResponse(assistantMessage.content), configChanged };
     }
 
     const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name);
@@ -159,10 +167,11 @@ export async function executeWorkerHeartbeatCheck(
       } catch {
         // パース失敗時は空オブジェクト
       }
-      const result = await executeWorkerTool(toolCall.function.name, args);
+      const toolResult = await executeWorkerTool(toolCall.function.name, args);
+      if (toolResult.configChanged) configChanged = true;
       messages.push({
         role: 'tool',
-        content: result,
+        content: toolResult.result,
         tool_call_id: toolCall.id,
       });
     }
@@ -172,7 +181,7 @@ export async function executeWorkerHeartbeatCheck(
   console.warn(`[Heartbeat] ツール呼び出しラウンド上限（${MAX_TOOL_ROUNDS}）に到達`);
   const finalResponse = await callChatCompletions(apiKey, 'gpt-5-nano', messages);
   const finalChoice = finalResponse.choices[0];
-  return parseHeartbeatResponse(finalChoice?.message?.content);
+  return { results: parseHeartbeatResponse(finalChoice?.message?.content), configChanged };
 }
 
 /** レスポンスから HeartbeatResult[] をパースする */

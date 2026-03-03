@@ -63,7 +63,7 @@ describe('executeWorkerTool', () => {
   describe('listCalendarEvents', () => {
     it('イベントなしで空配列を返す', async () => {
       const result = await executeWorkerTool('listCalendarEvents', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.events).toEqual([]);
       expect(parsed.message).toBe('イベントはありません。');
     });
@@ -78,7 +78,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('listCalendarEvents', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.events).toHaveLength(2);
     });
 
@@ -92,7 +92,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('listCalendarEvents', { date: '2026-02-25' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.events).toHaveLength(1);
       expect(parsed.events[0].title).toBe('会議');
     });
@@ -101,7 +101,7 @@ describe('executeWorkerTool', () => {
   describe('getCurrentTime', () => {
     it('現在時刻を返す', async () => {
       const result = await executeWorkerTool('getCurrentTime', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.currentTime).toBeDefined();
       expect(typeof parsed.currentTime).toBe('string');
     });
@@ -113,7 +113,7 @@ describe('executeWorkerTool', () => {
       await saveMemory('もう一つの記憶', 'preference');
 
       const result = await executeWorkerTool('getRecentMemoriesForReflection', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.recentCount).toBe(2);
       expect(parsed.topAccessedCount).toBe(2);
       expect(parsed.recent).toHaveLength(2);
@@ -122,7 +122,7 @@ describe('executeWorkerTool', () => {
 
     it('記憶なしでも正常に動作する', async () => {
       const result = await executeWorkerTool('getRecentMemoriesForReflection', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.recentCount).toBe(0);
       expect(parsed.topAccessedCount).toBe(0);
     });
@@ -135,7 +135,7 @@ describe('executeWorkerTool', () => {
         importance: 4,
         tags: '洞察,パターン',
       });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.message).toBe('ふりかえりを保存しました');
       expect(parsed.memory.category).toBe('reflection');
       expect(parsed.memory.importance).toBe(4);
@@ -144,7 +144,7 @@ describe('executeWorkerTool', () => {
 
     it('content なしでエラーを返す', async () => {
       const result = await executeWorkerTool('saveReflection', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.error).toBe('content は必須です');
     });
 
@@ -152,7 +152,7 @@ describe('executeWorkerTool', () => {
       const result = await executeWorkerTool('saveReflection', {
         content: 'シンプルな振り返り',
       });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.memory.importance).toBe(3);
     });
   });
@@ -164,14 +164,14 @@ describe('executeWorkerTool', () => {
       }
 
       const result = await executeWorkerTool('cleanupMemories', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.archivedCount).toBe(5);
       expect(parsed.message).toContain('5 件');
     });
 
     it('記憶なしでもエラーにならない', async () => {
       const result = await executeWorkerTool('cleanupMemories', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.archivedCount).toBe(0);
     });
   });
@@ -185,7 +185,7 @@ describe('executeWorkerTool', () => {
       ]);
 
       const result = await executeWorkerTool('listUnreadFeedItems', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items).toHaveLength(2);
       expect(parsed.total).toBe(2);
       expect(parsed.items[0].feedTitle).toBe('テストフィード');
@@ -202,7 +202,7 @@ describe('executeWorkerTool', () => {
       ]);
 
       const result = await executeWorkerTool('listUnreadFeedItems', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items[0].excerpt).toHaveLength(100);
     });
 
@@ -214,17 +214,17 @@ describe('executeWorkerTool', () => {
 
       // 負の offset → 0 にクランプ
       const r1 = await executeWorkerTool('listUnreadFeedItems', { offset: -5, limit: 10 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.items).toHaveLength(5);
       expect(p1.offset).toBe(0);
 
       // limit 200 → 100 にクランプ、limit 0 → 1 にクランプ
       const r2 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 200 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.limit).toBe(100);
 
       const r3 = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 0 });
-      const p3 = JSON.parse(r3);
+      const p3 = JSON.parse(r3.result);
       expect(p3.limit).toBe(1);
     });
 
@@ -235,7 +235,7 @@ describe('executeWorkerTool', () => {
       })));
 
       const result = await executeWorkerTool('listUnreadFeedItems', { offset: 0, limit: 2 });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items).toHaveLength(2);
       expect(parsed.hasMore).toBe(true);
       expect(parsed.total).toBe(5);
@@ -260,7 +260,7 @@ describe('executeWorkerTool', () => {
           { itemId: items[1].id, tier: 'skip' },
         ],
       });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.savedCount).toBe(2);
     });
 
@@ -278,7 +278,7 @@ describe('executeWorkerTool', () => {
           { itemId: items[0].id, tier: 'invalid-tier' },
         ],
       });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.savedCount).toBe(0);
     });
 
@@ -297,13 +297,13 @@ describe('executeWorkerTool', () => {
           { itemId: 'non-existent-id', tier: 'recommended' },
         ],
       });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.savedCount).toBe(1); // 存在する 1 件のみカウント
     });
 
     it('classifications なしでエラーを返す', async () => {
       const result = await executeWorkerTool('saveFeedClassification', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.error).toContain('classifications は必須です');
     });
   });
@@ -332,7 +332,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('listClassifiedFeedItems', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items).toHaveLength(2);
       expect(parsed.items.map((i: { title: string }) => i.title)).toContain('Must');
       expect(parsed.items.map((i: { title: string }) => i.title)).toContain('Rec');
@@ -358,7 +358,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'all' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items).toHaveLength(2);
     });
 
@@ -380,7 +380,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('listClassifiedFeedItems', { tier: 'must-read' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.items).toHaveLength(1);
     });
   });
@@ -394,7 +394,7 @@ describe('executeWorkerTool', () => {
       await setHeartbeatFeedback('task-b', now - 2000, 'dismissed');
 
       const result = await executeWorkerTool('getHeartbeatFeedbackSummary', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.periodHours).toBe(24);
       expect(parsed.totalResults).toBe(2);
       expect(parsed.totalWithFeedback).toBe(2);
@@ -405,18 +405,18 @@ describe('executeWorkerTool', () => {
     it('periodHours がクランプされる（1-168）', async () => {
       // 0 → 1 にクランプ
       const r1 = await executeWorkerTool('getHeartbeatFeedbackSummary', { periodHours: 0 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.periodHours).toBe(1);
 
       // 200 → 168 にクランプ
       const r2 = await executeWorkerTool('getHeartbeatFeedbackSummary', { periodHours: 200 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.periodHours).toBe(168);
     });
 
     it('結果なしで正常に動作する', async () => {
       const result = await executeWorkerTool('getHeartbeatFeedbackSummary', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalResults).toBe(0);
       expect(parsed.taskStats).toEqual([]);
     });
@@ -428,7 +428,7 @@ describe('executeWorkerTool', () => {
       await saveMemory('B社のプロジェクト進行中', 'context');
 
       const result = await executeWorkerTool('searchMemoriesByQuery', { query: 'A社' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.count).toBeGreaterThan(0);
       expect(parsed.query).toBe('A社');
       expect(parsed.memories[0].content).toContain('A社');
@@ -436,13 +436,13 @@ describe('executeWorkerTool', () => {
 
     it('空クエリでエラーを返す', async () => {
       const result = await executeWorkerTool('searchMemoriesByQuery', { query: '' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.error).toBe('query は必須です');
     });
 
     it('query 未指定でエラーを返す', async () => {
       const result = await executeWorkerTool('searchMemoriesByQuery', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.error).toBe('query は必須です');
     });
 
@@ -453,23 +453,23 @@ describe('executeWorkerTool', () => {
 
       // limit=2 で 2 件のみ
       const r1 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 2 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.count).toBeLessThanOrEqual(2);
 
       // limit=0 → 1 にクランプ
       const r2 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 0 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.count).toBeLessThanOrEqual(1);
 
       // limit=100 → 20 にクランプ
       const r3 = await executeWorkerTool('searchMemoriesByQuery', { query: 'テスト', limit: 100 });
-      const p3 = JSON.parse(r3);
+      const p3 = JSON.parse(r3.result);
       expect(p3.count).toBeLessThanOrEqual(20);
     });
 
     it('記憶なしでも正常に動作する', async () => {
       const result = await executeWorkerTool('searchMemoriesByQuery', { query: '存在しないキーワード' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.count).toBe(0);
       expect(parsed.memories).toEqual([]);
     });
@@ -478,7 +478,7 @@ describe('executeWorkerTool', () => {
   describe('getInfoThresholdStatus', () => {
     it('データなしで全カウント 0、exceeded=false', async () => {
       const result = await executeWorkerTool('getInfoThresholdStatus', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.unclassifiedFeedCount).toBe(0);
       expect(parsed.unreadClassifiedCount).toBe(0);
       expect(parsed.totalClipCount).toBe(0);
@@ -493,7 +493,7 @@ describe('executeWorkerTool', () => {
       })));
 
       const result = await executeWorkerTool('getInfoThresholdStatus', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.unclassifiedFeedCount).toBe(51);
       expect(parsed.exceeded).toBe(true);
       expect(parsed.details.unclassifiedFeedExceeded).toBe(true);
@@ -506,7 +506,7 @@ describe('executeWorkerTool', () => {
       })));
 
       const result = await executeWorkerTool('getInfoThresholdStatus', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.unclassifiedFeedCount).toBe(50);
       expect(parsed.exceeded).toBe(false);
       expect(parsed.details.unclassifiedFeedExceeded).toBe(false);
@@ -526,7 +526,7 @@ describe('executeWorkerTool', () => {
       }
 
       const result = await executeWorkerTool('getInfoThresholdStatus', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalClipCount).toBe(101);
       expect(parsed.exceeded).toBe(true);
       expect(parsed.details.clipsExceeded).toBe(true);
@@ -539,30 +539,30 @@ describe('executeWorkerTool', () => {
       await saveMemory('事実メモ', 'fact');
 
       const result = await executeWorkerTool('getWeeklyReflections', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.count).toBe(1);
       expect(parsed.reflections[0].content).toBe('今日のふりかえり');
     });
 
     it('デフォルト periodDays=7', async () => {
       const result = await executeWorkerTool('getWeeklyReflections', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.periodDays).toBe(7);
     });
 
     it('periodDays がクランプされる（0→1、60→30）', async () => {
       const r1 = await executeWorkerTool('getWeeklyReflections', { periodDays: 0 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.periodDays).toBe(1);
 
       const r2 = await executeWorkerTool('getWeeklyReflections', { periodDays: 60 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.periodDays).toBe(30);
     });
 
     it('reflection なしで空配列', async () => {
       const result = await executeWorkerTool('getWeeklyReflections', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.reflections).toEqual([]);
       expect(parsed.count).toBe(0);
     });
@@ -588,7 +588,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('getWeeklyReflections', { periodDays: 7 });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.count).toBe(1);
       expect(parsed.reflections[0].content).toBe('今日のふりかえり');
     });
@@ -612,7 +612,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('getCrossSourceTopics', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalTopics).toBe(1);
       expect(parsed.topics[0].sourceCount).toBe(2);
       expect(parsed.topics[0].items).toHaveLength(2);
@@ -629,7 +629,7 @@ describe('executeWorkerTool', () => {
       ]);
 
       const result = await executeWorkerTool('getCrossSourceTopics', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalTopics).toBe(1);
       expect(parsed.topics[0].sourceCount).toBe(2);
     });
@@ -641,18 +641,18 @@ describe('executeWorkerTool', () => {
       ]);
 
       const result = await executeWorkerTool('getCrossSourceTopics', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalTopics).toBe(0);
       expect(parsed.topics).toEqual([]);
     });
 
     it('periodDays クランプ（0→1、60→30）', async () => {
       const r1 = await executeWorkerTool('getCrossSourceTopics', { periodDays: 0 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.periodDays).toBe(1);
 
       const r2 = await executeWorkerTool('getCrossSourceTopics', { periodDays: 60 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.periodDays).toBe(30);
     });
 
@@ -673,7 +673,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('getCrossSourceTopics', { periodDays: 7 });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalTopics).toBe(0);
     });
 
@@ -694,7 +694,7 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('getCrossSourceTopics', { query: 'Bun' });
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       // Bun 関連のみ（feed + clip → sourceCount=2）
       expect(parsed.totalTopics).toBeGreaterThanOrEqual(1);
       for (const topic of parsed.topics) {
@@ -723,14 +723,14 @@ describe('executeWorkerTool', () => {
       });
 
       const result = await executeWorkerTool('getCrossSourceTopics', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       // skip 記事は除外されるので sourceCount=1 (clip のみ) → トピックに含まれない
       expect(parsed.totalTopics).toBe(0);
     });
 
     it('データなしで空配列', async () => {
       const result = await executeWorkerTool('getCrossSourceTopics', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.topics).toEqual([]);
       expect(parsed.totalTopics).toBe(0);
       expect(parsed.periodDays).toBe(7);
@@ -743,7 +743,7 @@ describe('executeWorkerTool', () => {
       await saveMemory('毎日30分の読書', 'goal', { importance: 3 });
 
       const result = await executeWorkerTool('getMonthlyGoalStats', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalGoals).toBe(2);
       expect(parsed.goals).toHaveLength(2);
       expect(parsed.goals[0]).toHaveProperty('status');
@@ -753,7 +753,7 @@ describe('executeWorkerTool', () => {
 
     it('goal なしで正常動作', async () => {
       const result = await executeWorkerTool('getMonthlyGoalStats', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalGoals).toBe(0);
       expect(parsed.goals).toEqual([]);
     });
@@ -766,7 +766,7 @@ describe('executeWorkerTool', () => {
       await setHeartbeatFeedback('task-a', now - 1000, 'accepted');
 
       const result = await executeWorkerTool('getUserActivityPatterns', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.periodDays).toBe(14);
       expect(parsed.totalResults).toBe(1);
       expect(parsed.totalWithFeedback).toBe(1);
@@ -780,17 +780,17 @@ describe('executeWorkerTool', () => {
 
     it('periodDays がクランプされる（0→1、60→30）', async () => {
       const r1 = await executeWorkerTool('getUserActivityPatterns', { periodDays: 0 });
-      const p1 = JSON.parse(r1);
+      const p1 = JSON.parse(r1.result);
       expect(p1.periodDays).toBe(1);
 
       const r2 = await executeWorkerTool('getUserActivityPatterns', { periodDays: 60 });
-      const p2 = JSON.parse(r2);
+      const p2 = JSON.parse(r2.result);
       expect(p2.periodDays).toBe(30);
     });
 
     it('データなしで安全にデフォルト値を返す', async () => {
       const result = await executeWorkerTool('getUserActivityPatterns', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.totalResults).toBe(0);
       expect(parsed.totalWithFeedback).toBe(0);
       expect(parsed.hourlyActivity).toEqual([]);
@@ -805,7 +805,7 @@ describe('executeWorkerTool', () => {
   describe('不明なツール', () => {
     it('エラーメッセージを返す', async () => {
       const result = await executeWorkerTool('unknownTool', {});
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(result.result);
       expect(parsed.error).toContain('不明なツール');
     });
   });
@@ -1440,7 +1440,7 @@ describe('computeSuggestionOptimizations', () => {
 // --- getSuggestionOptimizations Worker ツールテスト (F16) ---
 describe('executeWorkerTool: getSuggestionOptimizations', () => {
   it('デフォルト期間 14 日で空データを安全に処理する', async () => {
-    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', {}));
+    const result = JSON.parse((await executeWorkerTool('getSuggestionOptimizations', {})).result);
     expect(result.periodDays).toBe(14);
     expect(result.overallScore).toBe(0);
     expect(result.taskOptimizations).toEqual([]);
@@ -1449,12 +1449,12 @@ describe('executeWorkerTool: getSuggestionOptimizations', () => {
   });
 
   it('periodDays をクランプする（上限 30）', async () => {
-    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', { periodDays: 100 }));
+    const result = JSON.parse((await executeWorkerTool('getSuggestionOptimizations', { periodDays: 100 })).result);
     expect(result.periodDays).toBe(30);
   });
 
   it('periodDays をクランプする（下限 1）', async () => {
-    const result = JSON.parse(await executeWorkerTool('getSuggestionOptimizations', { periodDays: -5 }));
+    const result = JSON.parse((await executeWorkerTool('getSuggestionOptimizations', { periodDays: -5 })).result);
     expect(result.periodDays).toBe(1);
   });
 });
@@ -1662,21 +1662,27 @@ describe('applyAction', () => {
 // ============================================================
 describe('executeWorkerTool: applyHeartbeatConfigAction', () => {
   it('actions が空配列ならエラー', async () => {
-    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', { actions: [] }));
+    const toolResult = await executeWorkerTool('applyHeartbeatConfigAction', { actions: [] });
+    const result = JSON.parse(toolResult.result);
     expect(result.error).toBeDefined();
+    expect(toolResult.configChanged).toBe(false);
   });
 
   it('actions が未指定ならエラー', async () => {
-    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {}));
+    const toolResult = await executeWorkerTool('applyHeartbeatConfigAction', {});
+    const result = JSON.parse(toolResult.result);
     expect(result.error).toBeDefined();
+    expect(toolResult.configChanged).toBe(false);
   });
 
   it('設定がない場合はエラー', async () => {
     // IDB に設定なし
-    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+    const toolResult = await executeWorkerTool('applyHeartbeatConfigAction', {
       actions: [{ type: 'toggle-task', taskId: 'calendar-check', enabled: false, reason: 'テスト' }],
-    }));
+    });
+    const result = JSON.parse(toolResult.result);
     expect(result.error).toContain('Heartbeat 設定が見つかりません');
+    expect(toolResult.configChanged).toBe(false);
   });
 
   it('設定ありでアクションを適用する', async () => {
@@ -1690,17 +1696,19 @@ describe('executeWorkerTool: applyHeartbeatConfigAction', () => {
       heartbeat: makeHbConfig(),
     });
 
-    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+    const toolResult = await executeWorkerTool('applyHeartbeatConfigAction', {
       actions: [
         { type: 'toggle-task', taskId: 'calendar-check', enabled: false, reason: 'Accept率低い' },
         { type: 'update-quiet-hours', quietHoursStart: 22, quietHoursEnd: 7, reason: 'パターン分析' },
       ],
-    }));
+    });
+    const result = JSON.parse(toolResult.result);
     expect(result.appliedCount).toBe(2);
     expect(result.totalActions).toBe(2);
     expect(result.results).toHaveLength(2);
     expect(result.results[0].applied).toBe(true);
     expect(result.results[1].applied).toBe(true);
+    expect(toolResult.configChanged).toBe(true);
   });
 
   it('一部失敗しても他のアクションは適用される', async () => {
@@ -1713,15 +1721,17 @@ describe('executeWorkerTool: applyHeartbeatConfigAction', () => {
       heartbeat: makeHbConfig(),
     });
 
-    const result = JSON.parse(await executeWorkerTool('applyHeartbeatConfigAction', {
+    const toolResult = await executeWorkerTool('applyHeartbeatConfigAction', {
       actions: [
         { type: 'toggle-task', taskId: 'nonexistent', enabled: false, reason: 'テスト' },
         { type: 'update-quiet-days', quietDays: [0, 6], reason: 'テスト' },
       ],
-    }));
+    });
+    const result = JSON.parse(toolResult.result);
     expect(result.appliedCount).toBe(1);
     expect(result.totalActions).toBe(2);
     expect(result.results[0].applied).toBe(false);
     expect(result.results[1].applied).toBe(true);
+    expect(toolResult.configChanged).toBe(true);
   });
 });

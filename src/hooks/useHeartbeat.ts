@@ -66,18 +66,29 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       }
     });
 
-    // Worker からの設定変更通知で IDB → localStorage 同期
-    const unsubConfigChange = bridge.subscribeConfigChange(async () => {
+    // IDB → localStorage 同期処理（Worker / SW 共通）
+    const syncConfigFromIDB = async () => {
       try {
         const freshConfig = await loadConfigFromIDB();
         if (freshConfig) {
           saveConfig(freshConfig);
-          console.debug('[useHeartbeat] Worker 経由の設定変更を localStorage に同期しました');
+          console.debug('[useHeartbeat] 設定変更を IDB → localStorage に同期しました');
         }
       } catch (e) {
         console.warn('[useHeartbeat] 設定同期失敗:', e);
       }
-    });
+    };
+
+    // Layer 2: Worker ブリッジからの設定変更通知
+    const unsubConfigChange = bridge.subscribeConfigChange(syncConfigFromIDB);
+
+    // Layer 3: Service Worker からの config-changed メッセージ受信
+    const swMessageHandler = (event: MessageEvent) => {
+      if (event.data?.type === 'config-changed') {
+        void syncConfigFromIDB();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', swMessageHandler);
 
     const config = getConfig().heartbeat;
     if (config?.enabled) {
@@ -93,6 +104,7 @@ export function useHeartbeat({ isStreaming, onNotification }: UseHeartbeatOption
       unsubBridge();
       unsubBridgeNotify();
       unsubConfigChange();
+      navigator.serviceWorker?.removeEventListener('message', swMessageHandler);
       engine.stop();
       bridge.dispose();
       engineRef.current = null;
