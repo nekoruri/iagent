@@ -122,6 +122,14 @@ export interface OtelConfig {
   flushIntervalMs: number;
 }
 
+export interface WebSpeechConfig {
+  sttEnabled: boolean;       // 音声入力有効
+  ttsEnabled: boolean;       // 音声出力有効
+  ttsAutoRead: boolean;      // AI 応答の自動読み上げ
+  lang: string;              // 'ja-JP'
+  ttsRate: number;           // 0.5-2.0
+}
+
 export interface AppConfig {
   openaiApiKey: string;
   braveApiKey: string;
@@ -134,6 +142,7 @@ export interface AppConfig {
   persona?: PersonaConfig;
   theme?: ThemeMode;
   suggestionFrequency?: SuggestionFrequency;
+  webSpeech?: WebSpeechConfig;
 }
 
 export type MemoryCategory = 'preference' | 'fact' | 'context' | 'routine' | 'goal' | 'personality' | 'reflection' | 'other';

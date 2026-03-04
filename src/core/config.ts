@@ -1,4 +1,4 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode, WebSpeechConfig } from '../types';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -149,6 +149,16 @@ export function getDefaultOtelConfig(): OtelConfig {
   };
 }
 
+export function getDefaultWebSpeechConfig(): WebSpeechConfig {
+  return {
+    sttEnabled: true,
+    ttsEnabled: false,
+    ttsAutoRead: false,
+    lang: 'ja-JP',
+    ttsRate: 1.0,
+  };
+}
+
 export function getDefaultPersonaConfig(): PersonaConfig {
   return {
     name: 'iAgent',
@@ -193,6 +203,7 @@ function getDefaultAppConfig(): AppConfig {
     otel: getDefaultOtelConfig(),
     persona: getDefaultPersonaConfig(),
     theme: 'system',
+    webSpeech: getDefaultWebSpeechConfig(),
   };
 }
 
@@ -236,6 +247,9 @@ export function getConfig(): AppConfig {
     suggestionFrequency: (['high', 'medium', 'low'].includes(parsed.suggestionFrequency as string)
       ? parsed.suggestionFrequency as SuggestionFrequency
       : undefined),
+    webSpeech: parsed.webSpeech
+      ? { ...getDefaultWebSpeechConfig(), ...parsed.webSpeech }
+      : getDefaultWebSpeechConfig(),
   };
 }
 

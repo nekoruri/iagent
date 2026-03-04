@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, getDefaultPersonaConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, getDefaultPersonaConfig, getDefaultWebSpeechConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import { isSpeechRecognitionSupported, isSpeechSynthesisSupported } from '../core/speechService';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
@@ -8,16 +9,16 @@ import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode, SuggestionFrequency } from '../types';
+import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode, SuggestionFrequency, WebSpeechConfig } from '../types';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-type SectionId = 'basic' | 'agent' | 'mcp' | 'heartbeat' | 'proxy' | 'otel' | 'storage';
+type SectionId = 'basic' | 'agent' | 'mcp' | 'heartbeat' | 'speech' | 'proxy' | 'otel' | 'storage';
 
-const ALL_SECTIONS: SectionId[] = ['basic', 'agent', 'mcp', 'heartbeat', 'proxy', 'otel', 'storage'];
+const ALL_SECTIONS: SectionId[] = ['basic', 'agent', 'mcp', 'heartbeat', 'speech', 'proxy', 'otel', 'storage'];
 
 function initOpenSections(): Record<SectionId, boolean> {
   return Object.fromEntries(ALL_SECTIONS.map((id) => [id, true])) as Record<SectionId, boolean>;
@@ -79,6 +80,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
   const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
+  const webSpeech: WebSpeechConfig = config.webSpeech ?? getDefaultWebSpeechConfig();
 
   // Push Subscription 状態を初期化
   useEffect(() => {
@@ -120,6 +122,13 @@ export function SettingsModal({ open, onClose }: Props) {
     setConfig((prev) => ({
       ...prev,
       persona: { ...(prev.persona ?? getDefaultPersonaConfig()), ...patch },
+    }));
+  };
+
+  const updateWebSpeech = (patch: Partial<WebSpeechConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      webSpeech: { ...(prev.webSpeech ?? getDefaultWebSpeechConfig()), ...patch },
     }));
   };
 
@@ -813,7 +822,86 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
           </details>
 
-          {/* セクション 5: CORS プロキシ */}
+          {/* セクション 5: 音声入出力 */}
+          <details className="settings-section" open={openSections.speech}>
+            <summary onClick={handleSummaryClick('speech')}>音声入出力</summary>
+            <div className="settings-section-content">
+              <p className="mcp-hint">Web Speech API を使用した音声入力・読み上げ機能です。Chrome/Edge で最も安定して動作します。</p>
+
+              <div className="hb-notification-row">
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={webSpeech.sttEnabled}
+                    disabled={!isSpeechRecognitionSupported()}
+                    onChange={(e) => updateWebSpeech({ sttEnabled: e.target.checked })}
+                  />
+                  音声入力（STT）
+                </label>
+                {!isSpeechRecognitionSupported() && (
+                  <p className="hb-notification-denied">このブラウザは音声認識をサポートしていません。</p>
+                )}
+              </div>
+
+              <div className="hb-notification-row">
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={webSpeech.ttsEnabled}
+                    disabled={!isSpeechSynthesisSupported()}
+                    onChange={(e) => updateWebSpeech({ ttsEnabled: e.target.checked })}
+                  />
+                  音声読み上げ（TTS）
+                </label>
+                {!isSpeechSynthesisSupported() && (
+                  <p className="hb-notification-denied">このブラウザは音声合成をサポートしていません。</p>
+                )}
+              </div>
+
+              {webSpeech.ttsEnabled && (
+                <div className="hb-notification-row">
+                  <label className="mcp-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={webSpeech.ttsAutoRead}
+                      onChange={(e) => updateWebSpeech({ ttsAutoRead: e.target.checked })}
+                    />
+                    AI 応答を自動読み上げ
+                  </label>
+                </div>
+              )}
+
+              {webSpeech.ttsEnabled && (
+                <label className="hb-range-label">
+                  読み上げ速度: {webSpeech.ttsRate.toFixed(1)}x
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2.0}
+                    step={0.1}
+                    value={webSpeech.ttsRate}
+                    onChange={(e) => updateWebSpeech({ ttsRate: Number(e.target.value) })}
+                  />
+                </label>
+              )}
+
+              <label className="hb-range-label">
+                言語:
+                <select
+                  value={webSpeech.lang}
+                  onChange={(e) => updateWebSpeech({ lang: e.target.value })}
+                >
+                  <option value="ja-JP">日本語</option>
+                  <option value="en-US">英語（米国）</option>
+                  <option value="en-GB">英語（英国）</option>
+                  <option value="zh-CN">中国語（簡体）</option>
+                  <option value="ko-KR">韓国語</option>
+                </select>
+              </label>
+            </div>
+          </details>
+
+          {/* セクション 6: CORS プロキシ */}
           <details className="settings-section" open={openSections.proxy}>
             <summary onClick={handleSummaryClick('proxy')}>
               <span>CORS プロキシ</span>
@@ -894,7 +982,7 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
           </details>
 
-          {/* セクション 6: オブザーバビリティ */}
+          {/* セクション 7: オブザーバビリティ */}
           <details className="settings-section" open={openSections.otel}>
             <summary onClick={handleSummaryClick('otel')}>
               <span>オブザーバビリティ</span>
@@ -944,7 +1032,7 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
           </details>
 
-          {/* セクション 7: ストレージ */}
+          {/* セクション 8: ストレージ */}
           {storageInfo && (
             <details className="settings-section" open={openSections.storage}>
               <summary onClick={handleSummaryClick('storage')}>

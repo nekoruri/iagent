@@ -9,6 +9,7 @@ import {
   validateAttachmentCount,
   formatFileSize,
 } from '../core/fileUtils';
+import { useSpeechInput } from '../hooks/useSpeechInput';
 
 interface Props {
   onSend: (text: string, attachments?: PendingAttachment[]) => void;
@@ -16,14 +17,25 @@ interface Props {
   isStreaming: boolean;
   onStop: () => void;
   isOnline?: boolean;
+  webSpeechLang?: string;
+  webSpeechSttEnabled?: boolean;
 }
 
-export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = true }: Props) {
+export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = true, webSpeechLang, webSpeechSttEnabled }: Props) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSpeechResult = useCallback((result: string) => {
+    setText((prev) => prev ? prev + ' ' + result : result);
+  }, []);
+  const speechInput = useSpeechInput(
+    webSpeechLang ?? 'ja-JP',
+    handleSpeechResult,
+    webSpeechSttEnabled ?? false,
+  );
 
   const hasContent = text.trim().length > 0 || attachments.length > 0;
 
@@ -157,6 +169,9 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
       {attachError && (
         <div className="attachment-error" role="alert">{attachError}</div>
       )}
+      {speechInput.error && (
+        <div className="attachment-error" role="alert">{speechInput.error}</div>
+      )}
       <div className="input-bar-row">
         <button
           className="btn-icon btn-attach"
@@ -179,13 +194,34 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
           capture="environment"
           onChange={handleFileSelect}
         />
+        {speechInput.isSupported && (webSpeechSttEnabled ?? false) && (
+          <button
+            className={`btn-icon btn-mic${speechInput.isListening ? ' mic-active' : ''}`}
+            onClick={speechInput.isListening ? speechInput.stopListening : speechInput.startListening}
+            title={speechInput.isListening ? '音声入力を停止' : '音声入力'}
+            aria-label={speechInput.isListening ? '音声入力を停止' : '音声入力'}
+            type="button"
+            disabled={disabled}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+          </button>
+        )}
         <textarea
           ref={textareaRef}
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder={isOnline ? 'メッセージを入力...' : 'オフラインです — ネットワーク接続を確認してください'}
+          placeholder={
+            !isOnline ? 'オフラインです — ネットワーク接続を確認してください'
+              : speechInput.isListening ? (speechInput.interimText || '話してください...')
+                : 'メッセージを入力...'
+          }
           rows={1}
           disabled={disabled}
         />

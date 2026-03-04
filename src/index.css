@@ -2468,3 +2468,77 @@ body {
 .offline-banner-text {
   font-weight: 500;
 }
+
+/* === 音声入出力（Web Speech API） === */
+
+/* マイクボタン（btn-attach と同パターン） */
+.btn-mic {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.btn-mic:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.btn-mic:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-mic.mic-active {
+  color: #dc2626;
+  border-color: #dc2626;
+  animation: mic-pulse 1.5s infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+
+/* TTS ボタン（ホバー表示） */
+.btn-tts {
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  min-width: 28px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.btn-tts:hover {
+  color: var(--text);
+}
+
+.message-bubble:hover .btn-tts {
+  opacity: 1;
+}
+
+.btn-tts.tts-active {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ライトテーマ対応 */
+[data-theme="light"] .btn-mic.mic-active {
+  color: #dc2626;
+  border-color: #dc2626;
+}
