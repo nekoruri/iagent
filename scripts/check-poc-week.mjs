@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
@@ -20,11 +21,13 @@ Options:
   --strict               Enable strict completeness checks
   --require-interviews   Require all 3 interview notes to be completed
   --json                 Print machine-readable summary JSON
+  --report-json <path>   Write machine-readable summary JSON to file
   --help                 Show this help
 
 Examples:
   npm run poc:check-week -- --week 2026-W11
   npm run poc:check-week -- --week 2026-W11 --strict --require-interviews
+  npm run poc:check-week -- --week 2026-W11 --report-json /tmp/poc-week-check.json
 `);
 }
 
@@ -35,6 +38,7 @@ function parseArgs(argv) {
     strict: false,
     requireInterviews: false,
     json: false,
+    reportJson: '',
     help: false,
   };
 
@@ -54,6 +58,11 @@ function parseArgs(argv) {
     }
     if (a === '--json') {
       args.json = true;
+      continue;
+    }
+    if (a === '--report-json') {
+      args.reportJson = argv[i + 1] ?? '';
+      i++;
       continue;
     }
     if (a === '--week') {
@@ -324,6 +333,11 @@ async function main() {
   if (opts.json) {
     console.log('\n=== JSON ===');
     console.log(JSON.stringify(summary, null, 2));
+  }
+  if (opts.reportJson) {
+    await mkdir(dirname(opts.reportJson), { recursive: true });
+    await writeFile(opts.reportJson, `${JSON.stringify(summary, null, 2)}\n`);
+    console.log(`- reportJsonWritten: ${opts.reportJson}`);
   }
 
   if (!summary.ok) {

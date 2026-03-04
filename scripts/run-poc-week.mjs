@@ -21,6 +21,8 @@ Options:
   --check-strict         Run check with strict completeness validation
   --check-require-interviews
                          Run check requiring all interviews completed
+  --check-report-json <path>
+                         Write weekly readiness check summary JSON to file
   --dry-run-validation   Preview validation section without writing file
   --skip-init            Skip week scaffold initialization
   --skip-metrics         Skip KPI/SLO collection and file update
@@ -46,6 +48,7 @@ function parseArgs(argv) {
     check: false,
     checkStrict: false,
     checkRequireInterviews: false,
+    checkReportJson: '',
     dryRunValidation: false,
     skipInit: false,
     skipMetrics: false,
@@ -77,6 +80,11 @@ function parseArgs(argv) {
     }
     if (a === '--check-require-interviews') {
       args.checkRequireInterviews = true;
+      continue;
+    }
+    if (a === '--check-report-json') {
+      args.checkReportJson = argv[i + 1] ?? '';
+      i++;
       continue;
     }
     if (a === '--dry-run-validation') {
@@ -217,6 +225,9 @@ async function main() {
     }
     if (opts.checkRequireInterviews) {
       checkArgs.push('--require-interviews');
+    }
+    if (opts.checkReportJson) {
+      checkArgs.push('--report-json', opts.checkReportJson);
     }
     await runNodeScript('scripts/check-poc-week.mjs', checkArgs, 'Final Check: Weekly readiness');
   }
