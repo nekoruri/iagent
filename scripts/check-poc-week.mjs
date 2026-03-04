@@ -108,6 +108,22 @@ function extractLineByPrefix(content, prefix) {
   return '';
 }
 
+function extractBetween(content, startMarker, endMarker = '') {
+  const start = content.indexOf(startMarker);
+  if (start < 0) return '';
+  const from = start + startMarker.length;
+  if (!endMarker) {
+    return content.slice(from);
+  }
+  const end = content.indexOf(endMarker, from);
+  return end >= 0 ? content.slice(from, end) : content.slice(from);
+}
+
+function hasFilledBullet(content) {
+  const bullets = content.match(/^- .+$/gm) ?? [];
+  return bullets.some((line) => !/^-\s*$/.test(line.trim()));
+}
+
 function hasPlaceholder(value) {
   if (!value) return true;
   if (/^[-\s]+$/.test(value)) return true;
@@ -180,16 +196,10 @@ function checkWeeklyReview(content, weeklyPath, week, opts, issues) {
     }
   });
 
-  const ownerSection = actionSection.includes('オーナー:')
-    ? actionSection.slice(actionSection.indexOf('オーナー:'))
-    : '';
-  const deadlineSection = actionSection.includes('期限:')
-    ? actionSection.slice(actionSection.indexOf('期限:'))
-    : '';
-  const ownerBullets = ownerSection.match(/^- .+$/gm) ?? [];
-  const deadlineBullets = deadlineSection.match(/^- .+$/gm) ?? [];
-  const ownerFilled = ownerBullets.some((line) => !/^-\s*$/.test(line.trim()));
-  const deadlineFilled = deadlineBullets.some((line) => !/^-\s*$/.test(line.trim()));
+  const ownerSection = extractBetween(actionSection, 'オーナー:', '期限:');
+  const deadlineSection = extractBetween(actionSection, '期限:');
+  const ownerFilled = hasFilledBullet(ownerSection);
+  const deadlineFilled = hasFilledBullet(deadlineSection);
 
   if (!ownerFilled) {
     pushIssue(issues, opts.strict ? 'error' : 'warn', weeklyPath, 'オーナーが未入力です');
