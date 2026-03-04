@@ -468,17 +468,20 @@ async function main() {
           }
         }
 
-        // recentResults は 50 件 cap のため、7日窓が cap を超えているときは補完に使わない
+        // recentResults は 50 件 cap。pinned が混在すると最古 timestamp 判定だけでは不足検知できない。
+        // そのため、cap 到達時は「最古 unpinned が窓内なら不足の可能性あり」とみなす。
         let recentResultsLikelyCappedForWindow = false;
         if (recentResults.length >= MAX_RECENT_RESULTS) {
-          let oldestRecentResultTs = Number.POSITIVE_INFINITY;
+          let oldestUnpinnedResultTs = Number.POSITIVE_INFINITY;
+          let hasUnpinnedResult = false;
           for (const r of recentResults) {
+            if (r?.pinned) continue;
             if (typeof r?.timestamp !== 'number') continue;
-            if (r.timestamp < oldestRecentResultTs) oldestRecentResultTs = r.timestamp;
+            hasUnpinnedResult = true;
+            if (r.timestamp < oldestUnpinnedResultTs) oldestUnpinnedResultTs = r.timestamp;
           }
-          recentResultsLikelyCappedForWindow = (
-            Number.isFinite(oldestRecentResultTs) && oldestRecentResultTs >= cutoff
-          );
+          recentResultsLikelyCappedForWindow = !hasUnpinnedResult
+            || (Number.isFinite(oldestUnpinnedResultTs) && oldestUnpinnedResultTs >= cutoff);
         }
 
         if (!recentResultsLikelyCappedForWindow) {

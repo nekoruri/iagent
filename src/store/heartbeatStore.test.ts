@@ -576,4 +576,22 @@ describe('ops events', () => {
       source: 'worker',
     }));
   });
+
+  it('appendOpsEvent を並列実行してもイベント欠落しない', async () => {
+    const now = Date.now();
+    const total = 20;
+    await Promise.all(
+      Array.from({ length: total }, (_, i) => appendOpsEvent({
+        type: 'heartbeat-run',
+        timestamp: now + i,
+        source: 'tab',
+        status: 'success',
+      })),
+    );
+
+    const events = await loadOpsEvents();
+    const runEvents = events.filter((event) => event.type === 'heartbeat-run');
+    expect(runEvents).toHaveLength(total);
+    expect(new Set(runEvents.map((event) => event.timestamp)).size).toBe(total);
+  });
 });

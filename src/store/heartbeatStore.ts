@@ -23,6 +23,7 @@ export async function loadHeartbeatState(): Promise<HeartbeatState> {
 const OPS_EVENTS_KEY = 'ops-events';
 const MAX_OPS_EVENTS = 2000;
 const OPS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+let opsEventsWriteQueue: Promise<void> = Promise.resolve();
 
 export type OpsEventType =
   | 'notification-shown'
@@ -83,20 +84,29 @@ export async function loadOpsEvents(): Promise<OpsEvent[]> {
 /** 運用イベントを追記する（保持上限 + 保持期間でトリム） */
 export async function appendOpsEvents(events: OpsEvent[]): Promise<void> {
   if (events.length === 0) return;
-  const db = await getDB();
-  const row = await db.get(STORE_NAME, OPS_EVENTS_KEY);
-  const existing = Array.isArray(row?.events) ? row.events : [];
-  const merged = normalizeOpsEvents([
-    ...existing,
-    ...events.map((event) => ({
-      ...event,
-      timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
-    })),
-  ]);
-  const trimmed = merged.length > MAX_OPS_EVENTS
-    ? merged.slice(merged.length - MAX_OPS_EVENTS)
-    : merged;
-  await db.put(STORE_NAME, { key: OPS_EVENTS_KEY, events: trimmed });
+  const run = opsEventsWriteQueue.then(async () => {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const row = await store.get(OPS_EVENTS_KEY);
+    const existing = Array.isArray(row?.events) ? row.events : [];
+    const merged = normalizeOpsEvents([
+      ...existing,
+      ...events.map((event) => ({
+        ...event,
+        timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
+      })),
+    ]);
+    const trimmed = merged.length > MAX_OPS_EVENTS
+      ? merged.slice(merged.length - MAX_OPS_EVENTS)
+      : merged;
+    await store.put({ key: OPS_EVENTS_KEY, events: trimmed });
+    await tx.done;
+  });
+
+  // 以降の書き込みを詰まらせないように、失敗時もキュー自体は継続させる
+  opsEventsWriteQueue = run.catch(() => {});
+  await run;
 }
 
 /** 単一イベントを追記する */
