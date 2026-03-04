@@ -14,7 +14,7 @@ declare const self: ServiceWorkerGlobalScope;
 // Workbox precache（vite-plugin-pwa が自動注入するマニフェスト）
 precacheAndRoute(self.__WB_MANIFEST);
 
-// オフライン時のナビゲーションフォールバック — precache 済みの index.html を返す
+// SPA アプリシェルパターン — ナビゲーションリクエストに precache 済みの index.html を返す
 const navigationHandler = createHandlerBoundToURL('/index.html');
 registerRoute(new NavigationRoute(navigationHandler));
 

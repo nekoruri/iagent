@@ -4,8 +4,8 @@ import { ConversationSidebar } from './components/ConversationSidebar';
 import { FeedPanel } from './components/FeedPanel';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
 import { InstallPrompt } from './components/InstallPrompt';
-import { OfflineBanner } from './components/OfflineBanner';
 import { MemoryPanel } from './components/MemoryPanel';
+import { OfflineBanner } from './components/OfflineBanner';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
 );

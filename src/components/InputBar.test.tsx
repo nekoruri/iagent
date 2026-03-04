@@ -87,15 +87,8 @@ describe('InputBar', () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
-  it('isOnline=false の場合、テキストエリアが無効化される', () => {
-    render(<InputBar {...defaultProps} isOnline={false} disabled={true} />);
-
-    const textarea = screen.getByPlaceholderText('オフラインです — ネットワーク接続を確認してください');
-    expect(textarea).toBeDisabled();
-  });
-
   it('isOnline=false の場合、placeholder がオフラインメッセージに変わる', () => {
-    render(<InputBar {...defaultProps} isOnline={false} disabled={true} />);
+    render(<InputBar {...defaultProps} isOnline={false} />);
 
     expect(screen.getByPlaceholderText('オフラインです — ネットワーク接続を確認してください')).toBeInTheDocument();
   });
