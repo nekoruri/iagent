@@ -4,7 +4,7 @@ import { setDefaultOpenAIClient } from '@openai/agents-openai';
 import OpenAI from 'openai';
 import type { AgentInputItem, RunStreamEvent } from '@openai/agents';
 import { createAgent } from '../core/agent';
-import { isImageMimeType } from '../core/fileUtils';
+import { isImageMimeType, sanitizeFilename } from '../core/fileUtils';
 import { getConfigValue } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
 import { saveAttachment } from '../store/attachmentStore';
@@ -77,7 +77,7 @@ export function useAgentChat(conversationId: string | null) {
           id: att.id,
           messageId: userMsg.id,
           conversationId,
-          filename: att.file.name,
+          filename: sanitizeFilename(att.file.name),
           mimeType: att.file.type,
           size: att.file.size,
           dataUri: att.dataUri,
@@ -115,7 +115,11 @@ export function useAgentChat(conversationId: string | null) {
 
       // 添付がある場合は UserContent[] 形式で送信
       if (hasAttachments) {
-        const contents: { type: string; text?: string; image?: string; detail?: string; file?: string; filename?: string }[] = [];
+        type UserContentItem =
+          | { type: 'input_text'; text: string }
+          | { type: 'input_image'; image: string; detail: string }
+          | { type: 'input_file'; file: string; filename: string };
+        const contents: UserContentItem[] = [];
         if (hasText) {
           contents.push({ type: 'input_text', text });
         }
@@ -123,7 +127,7 @@ export function useAgentChat(conversationId: string | null) {
           if (isImageMimeType(att.file.type)) {
             contents.push({ type: 'input_image', image: att.dataUri, detail: 'auto' });
           } else {
-            contents.push({ type: 'input_file', file: att.dataUri, filename: att.file.name });
+            contents.push({ type: 'input_file', file: att.dataUri, filename: sanitizeFilename(att.file.name) });
           }
         }
         historyRef.current.push(user(contents as Parameters<typeof user>[0]));

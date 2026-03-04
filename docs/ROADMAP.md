@@ -25,7 +25,7 @@
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
 - ファイル添付・画像認識（マルチモーダル対応 — 画像/PDF/テキスト + クリップボードペースト + モバイルカメラ + IndexedDB 永続化）
-- テスト 1096 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
+- テスト 1107 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -173,6 +173,9 @@
 - [x] IndexedDB 永続化（attachments ストア、DB_VERSION 11）
 - [x] メッセージ表示の添付対応（サムネイル + フルサイズ表示）
 - [x] 会話削除時の添付データクリーンアップ
+- [ ] data URI → Blob 保存への移行（メモリ最適化）
+- [ ] N+1 クエリ解消（`getAttachmentsByMessageIds()` バッチ関数）
+- [ ] Web Worker でサムネイル生成（メインスレッドブロック回避）
 
 ### オフライン対応
 - [x] オフラインフォールバック UI（オンライン状態検知 + バナー表示 + 送信無効化）

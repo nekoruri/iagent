@@ -30,3 +30,13 @@ export const SUPPORTED_IMAGE_TYPES = [
   'image/gif',
   'image/webp',
 ];
+
+// 許可する MIME タイプのホワイトリスト
+export const ALLOWED_MIME_TYPES = [
+  ...SUPPORTED_IMAGE_TYPES,
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'application/vnd.ms-excel',  // .csv のブラウザ/OS バリアント
+];

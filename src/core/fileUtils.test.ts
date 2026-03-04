@@ -3,6 +3,7 @@ import {
   isImageMimeType,
   validateFile,
   validateAttachmentCount,
+  sanitizeFilename,
   formatFileSize,
 } from './fileUtils';
 
@@ -41,6 +42,31 @@ describe('validateFile', () => {
     expect(result.valid).toBe(false);
     expect(result.error).toContain('20MB');
   });
+
+  it('許可されていない MIME タイプはエラー', () => {
+    const file = new File(['<svg></svg>'], 'test.svg', { type: 'image/svg+xml' });
+    const result = validateFile(file);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('image/svg+xml');
+  });
+
+  it.each([
+    ['image/jpeg'],
+    ['image/png'],
+    ['application/pdf'],
+    ['text/plain'],
+    ['text/csv'],
+    ['text/markdown'],
+    ['application/vnd.ms-excel'],  // .csv のブラウザ/OS バリアント
+  ])('許可された MIME タイプ %s は valid', (mimeType) => {
+    const file = new File(['content'], 'test', { type: mimeType });
+    expect(validateFile(file)).toEqual({ valid: true });
+  });
+
+  it('MIME タイプが空（不明）の場合は通過する', () => {
+    const file = new File(['content'], 'unknown');
+    expect(validateFile(file)).toEqual({ valid: true });
+  });
 });
 
 describe('validateAttachmentCount', () => {
@@ -53,6 +79,23 @@ describe('validateAttachmentCount', () => {
     const result = validateAttachmentCount(5);
     expect(result.valid).toBe(false);
     expect(result.error).toContain('5件');
+  });
+});
+
+describe('sanitizeFilename', () => {
+  it('パス区切り文字を除去する', () => {
+    expect(sanitizeFilename('path/to/file.txt')).toBe('path_to_file.txt');
+    expect(sanitizeFilename('path\\to\\file.txt')).toBe('path_to_file.txt');
+    expect(sanitizeFilename('../../../etc/passwd')).toBe('.._.._.._etc_passwd');
+  });
+
+  it('255 文字に切り詰める', () => {
+    const longName = 'a'.repeat(300) + '.txt';
+    expect(sanitizeFilename(longName).length).toBe(255);
+  });
+
+  it('通常のファイル名はそのまま', () => {
+    expect(sanitizeFilename('photo.jpg')).toBe('photo.jpg');
   });
 });
 

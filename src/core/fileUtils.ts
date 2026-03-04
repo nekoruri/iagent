@@ -2,6 +2,7 @@ import {
   MAX_FILE_SIZE,
   MAX_ATTACHMENTS_PER_MESSAGE,
   SUPPORTED_IMAGE_TYPES,
+  ALLOWED_MIME_TYPES,
 } from '../types/attachment';
 
 /** MIME タイプが画像かどうか判定 */
@@ -23,6 +24,9 @@ export function validateFile(file: File): FileValidationResult {
   }
   if (file.size === 0) {
     return { valid: false, error: 'ファイルが空です' };
+  }
+  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+    return { valid: false, error: `このファイル形式（${file.type}）には対応していません` };
   }
   return { valid: true };
 }
@@ -52,35 +56,58 @@ export function generateThumbnail(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      const { width, height } = img;
-      let w = width;
-      let h = height;
-
-      if (w > maxSize || h > maxSize) {
-        if (w > h) {
-          h = Math.round((h * maxSize) / w);
-          w = maxSize;
-        } else {
-          w = Math.round((w * maxSize) / h);
-          h = maxSize;
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas コンテキストの取得に失敗しました'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    const cleanup = () => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
     };
-    img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+    img.onload = () => {
+      try {
+        const { width, height } = img;
+        let w = width;
+        let h = height;
+
+        if (w > maxSize || h > maxSize) {
+          if (w > h) {
+            h = Math.round((h * maxSize) / w);
+            w = maxSize;
+          } else {
+            w = Math.round((w * maxSize) / h);
+            h = maxSize;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          cleanup();
+          reject(new Error('Canvas コンテキストの取得に失敗しました'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const thumbnailUri = canvas.toDataURL('image/jpeg', 0.7);
+        canvas.width = 0;
+        canvas.height = 0;
+        cleanup();
+        resolve(thumbnailUri);
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    };
+    img.onerror = () => {
+      cleanup();
+      reject(new Error('画像の読み込みに失敗しました'));
+    };
     img.src = dataUri;
   });
+}
+
+/** ファイル名のサニタイズ（パス区切り除去 + 長さ制限） */
+export function sanitizeFilename(name: string): string {
+  return name.replace(/[/\\]/g, '_').slice(0, 255);
 }
 
 /** ファイルサイズを人間が読みやすい形式に変換 */

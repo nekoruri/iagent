@@ -53,6 +53,7 @@ vi.mock('../store/attachmentStore', () => ({
 
 vi.mock('../core/fileUtils', () => ({
   isImageMimeType: (mime: string) => mime.startsWith('image/'),
+  sanitizeFilename: (name: string) => name,
 }));
 
 // テレメトリモック

@@ -94,7 +94,8 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
           if (prev.length >= MAX_ATTACHMENTS_PER_MESSAGE) return prev;
           return [...prev, pending];
         });
-      } catch {
+      } catch (error) {
+        console.error('[InputBar] ファイル読み込みエラー:', error);
         setAttachError('ファイルの読み込みに失敗しました');
       }
     }

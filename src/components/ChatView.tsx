@@ -20,6 +20,8 @@ interface Props {
 export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [attachmentMap, setAttachmentMap] = useState<Record<string, Attachment[]>>({});
+  // ロード済み or ロード中の ID を追跡（ストリーミング中の重複フェッチ防止）
+  const loadedOrLoadingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -30,9 +32,14 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
     const msgIds = messages
       .filter((m) => m.attachmentIds && m.attachmentIds.length > 0)
       .map((m) => m.id)
-      .filter((id) => !(id in attachmentMap));
+      .filter((id) => !loadedOrLoadingRef.current.has(id));
 
     if (msgIds.length === 0) return;
+
+    // ロード中としてマーク（次回の effect で重複フェッチしない）
+    for (const id of msgIds) {
+      loadedOrLoadingRef.current.add(id);
+    }
 
     Promise.all(
       msgIds.map(async (id) => {
@@ -47,8 +54,13 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
         }
         return next;
       });
+    }).catch(() => {
+      // 読み取り失敗時はロード中マークを外してリトライ可能にする
+      for (const id of msgIds) {
+        loadedOrLoadingRef.current.delete(id);
+      }
     });
-  }, [messages, attachmentMap]);
+  }, [messages]);
 
   return (
     <div className="chat-view">

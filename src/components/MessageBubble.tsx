@@ -52,7 +52,19 @@ export function MessageBubble({ message, attachments }: Props) {
                     src={att.thumbnailUri ?? att.dataUri}
                     alt={att.filename}
                     className="message-attachment-image"
-                    onClick={() => window.open(att.dataUri, '_blank')}
+                    onClick={() => {
+                      // data URI → Blob URL で開く（メモリ効率改善）
+                      const byteString = atob(att.dataUri.split(',')[1]);
+                      const mimeMatch = att.dataUri.match(/data:([^;]+);/);
+                      const mime = mimeMatch ? mimeMatch[1] : att.mimeType;
+                      const ab = new ArrayBuffer(byteString.length);
+                      const ia = new Uint8Array(ab);
+                      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+                      const blob = new Blob([ab], { type: mime });
+                      const url = URL.createObjectURL(blob);
+                      window.open(url, '_blank');
+                      setTimeout(() => URL.revokeObjectURL(url), 30000);
+                    }}
                   />
                 ) : (
                   <div className="message-attachment-file">
