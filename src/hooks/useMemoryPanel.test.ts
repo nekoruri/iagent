@@ -6,6 +6,7 @@ vi.mock('../store/db');
 
 import { useMemoryPanel } from './useMemoryPanel';
 import { saveMemory, cleanupLowScoredMemories } from '../store/memoryStore';
+import * as memoryStore from '../store/memoryStore';
 
 beforeEach(() => {
   __resetStores();
@@ -130,6 +131,60 @@ describe('useMemoryPanel', () => {
     });
 
     expect(result.current.archivedMemories).toHaveLength(archiveCount - 1);
+  });
+
+  it('refresh の連続呼び出しで先に開始した応答が後から解決しても state を上書きしない', async () => {
+    await saveMemory('メモリ1', 'other');
+    await saveMemory('メモリ2', 'fact');
+
+    const { result } = renderHook(() => useMemoryPanel());
+
+    // 初回 refresh 完了を待つ
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    // listMemories をスパイして遅延制御
+    let resolveFirst!: (v: Awaited<ReturnType<typeof memoryStore.listMemories>>) => void;
+    const firstCall = new Promise<Awaited<ReturnType<typeof memoryStore.listMemories>>>((r) => { resolveFirst = r; });
+    const spy = vi.spyOn(memoryStore, 'listMemories');
+    spy.mockImplementationOnce(() => firstCall);
+    // 2回目は即座に解決（fact のみ）
+    spy.mockImplementationOnce(async (cat) => {
+      const all = await memoryStore.listMemories.call(null, cat);
+      return all;
+    });
+
+    // spy の2回目を本来の実装に戻すため、ここで restore → 再設定
+    spy.mockRestore();
+    const spy2 = vi.spyOn(memoryStore, 'listMemories');
+    let resolveFirst2!: (v: Awaited<ReturnType<typeof memoryStore.listMemories>>) => void;
+    const firstCall2 = new Promise<Awaited<ReturnType<typeof memoryStore.listMemories>>>((r) => { resolveFirst2 = r; });
+    spy2.mockImplementationOnce(() => firstCall2);
+
+    // 1回目の refresh（遅延される）
+    let p1: Promise<void>;
+    act(() => {
+      p1 = result.current.refresh();
+    });
+
+    // 2回目の refresh（即座に解決 → 最新データ）
+    await act(async () => {
+      await result.current.refresh('fact');
+    });
+    const afterSecond = result.current.memories;
+
+    // 1回目が遅延して解決 → 古いデータで上書きされないこと
+    await act(async () => {
+      resolveFirst2([{ id: 'stale', content: '古い', category: 'other', importance: 0.5, accessCount: 0, createdAt: 0, updatedAt: 0 }]);
+      await p1!;
+    });
+
+    // 2回目の結果が維持されていること
+    expect(result.current.memories).toEqual(afterSecond);
+    expect(result.current.isLoading).toBe(false);
+
+    spy2.mockRestore();
   });
 
   it('handleDeleteArchived でアーカイブを完全削除できる', async () => {

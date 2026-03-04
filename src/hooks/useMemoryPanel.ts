@@ -93,12 +93,10 @@ export function useMemoryPanel() {
     await refreshArchive(selectedCategory);
   }, [refreshArchive, selectedCategory]);
 
-  // 初回マウント時にデータ読み込み
+  // 初回マウント時にデータ読み込み（refreshIdRef ガード対象）
   useEffect(() => {
-    listMemories().then((data) => {
-      setMemories(data);
-    });
-  }, []);
+    refresh();
+  }, [refresh]);
 
   return {
     isOpen, memories, archivedMemories, selectedCategory, viewTab, isLoading,

@@ -1657,15 +1657,12 @@ body {
   .memory-restore-btn {
     opacity: 1;
   }
-  .memory-delete-btn {
-    display: block;
-  }
-  /* タップターゲット 44px 最小保証 */
+  /* タップターゲット 44px 最小保証（後続の display: none を上書き） */
   .memory-delete-btn,
   .memory-restore-btn {
     min-width: 44px;
     min-height: 44px;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
   }
