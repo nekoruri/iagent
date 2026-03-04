@@ -880,7 +880,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     max={2.0}
                     step={0.1}
                     value={webSpeech.ttsRate}
-                    onChange={(e) => updateWebSpeech({ ttsRate: Number(e.target.value) })}
+                    onChange={(e) => updateWebSpeech({ ttsRate: Number(e.target.value) || 1.0 })}
                   />
                 </label>
               )}
