@@ -68,6 +68,7 @@ export function SettingsModal({ open, onClose }: Props) {
     usage: number;
     quota: number;
   } | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
 
   // MCPManager の状態変更をリッスン
   useEffect(() => {
@@ -87,6 +88,29 @@ export function SettingsModal({ open, onClose }: Props) {
     if (!open) return;
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
   }, [open]);
+
+  const refreshNotificationPermission = useCallback(() => {
+    setNotificationPermission(getNotificationPermission());
+  }, []);
+
+  // 通知権限を定期チェック（ブラウザ側自動取り消し/設定変更に追従）
+  useEffect(() => {
+    if (!open) return;
+    const handlePermissionMayChange = () => {
+      refreshNotificationPermission();
+    };
+    const initialRefreshId = window.setTimeout(handlePermissionMayChange, 0);
+    document.addEventListener('visibilitychange', handlePermissionMayChange);
+    window.addEventListener('focus', handlePermissionMayChange);
+    const timerId = window.setInterval(handlePermissionMayChange, 30_000);
+
+    return () => {
+      window.clearTimeout(initialRefreshId);
+      document.removeEventListener('visibilitychange', handlePermissionMayChange);
+      window.removeEventListener('focus', handlePermissionMayChange);
+      window.clearInterval(timerId);
+    };
+  }, [open, refreshNotificationPermission]);
 
   // MCP ツール一覧を取得
   useEffect(() => {
@@ -286,6 +310,33 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const builtinTasks = heartbeat.tasks.filter((t) => t.type === 'builtin');
   const customTasks = heartbeat.tasks.filter((t) => t.type === 'custom');
+  const canEnablePush = notificationPermission === 'granted';
+
+  const permissionStatusLabel = (() => {
+    switch (notificationPermission) {
+      case 'granted':
+        return { text: '通知権限: 許可済み', className: 'mcp-status-connected' };
+      case 'denied':
+        return { text: '通知権限: ブロック中', className: 'mcp-status-error' };
+      case 'unsupported':
+        return { text: '通知権限: 非対応', className: 'mcp-status-warning' };
+      default:
+        return { text: '通知権限: 未設定', className: 'mcp-status-warning' };
+    }
+  })();
+
+  const permissionRecoveryMessage = (() => {
+    switch (notificationPermission) {
+      case 'granted':
+        return '通知権限は許可済みです。通知が届かない場合は OS 側の通知設定（集中モード/通知許可）を確認してください。';
+      case 'denied':
+        return '通知がブロックされています。ブラウザのサイト設定でこのサイトの通知を「許可」に変更し、再度「権限を再確認」を押してください。';
+      case 'unsupported':
+        return 'このブラウザは通知をサポートしていません。Push/デスクトップ通知を使う場合は対応ブラウザを利用してください。';
+      default:
+        return '通知権限は未設定です。「デスクトップ通知」を ON にして、ブラウザの許可ダイアログで許可してください。';
+    }
+  })();
 
   const toggleSection = (id: SectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -506,37 +557,38 @@ export function SettingsModal({ open, onClose }: Props) {
             <div className="settings-section-content">
               <p className="mcp-hint">定期的にバックグラウンドチェックを実行し、変化があればチャットに通知します。</p>
 
-              {(() => {
-                const permission = getNotificationPermission();
-                return (
-                  <div className="hb-notification-row">
-                    <label className="mcp-toggle-label">
-                      <input
-                        type="checkbox"
-                        checked={heartbeat.desktopNotification}
-                        disabled={permission === 'denied' || permission === 'unsupported'}
-                        onChange={async (e) => {
-                          if (e.target.checked) {
-                            const result = await requestNotificationPermission();
-                            if (result === 'granted') {
-                              updateHeartbeat({ desktopNotification: true });
-                            }
-                          } else {
-                            updateHeartbeat({ desktopNotification: false });
-                          }
-                        }}
-                      />
-                      デスクトップ通知
-                    </label>
-                    {permission === 'denied' && (
-                      <p className="hb-notification-denied">通知がブロックされています。ブラウザの設定から許可してください。</p>
-                    )}
-                    {permission === 'unsupported' && (
-                      <p className="hb-notification-denied">このブラウザは通知をサポートしていません。</p>
-                    )}
-                  </div>
-                );
-              })()}
+              <div className="hb-notification-row">
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={heartbeat.desktopNotification}
+                    disabled={notificationPermission === 'denied' || notificationPermission === 'unsupported'}
+                    onChange={async (e) => {
+                      if (e.target.checked) {
+                        const result = await requestNotificationPermission();
+                        setNotificationPermission(result);
+                        updateHeartbeat({ desktopNotification: result === 'granted' });
+                      } else {
+                        updateHeartbeat({ desktopNotification: false });
+                      }
+                    }}
+                  />
+                  デスクトップ通知
+                </label>
+                <span className={`mcp-status ${permissionStatusLabel.className}`}>{permissionStatusLabel.text}</span>
+                <p className={`hb-notification-help ${notificationPermission === 'granted' ? 'hb-notification-help-ok' : 'hb-notification-help-alert'}`}>
+                  {permissionRecoveryMessage}
+                </p>
+                <div className="hb-notification-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={refreshNotificationPermission}
+                  >
+                    権限を再確認
+                  </button>
+                </div>
+              </div>
 
               <label className="hb-range-label">
                 チェック間隔: {heartbeat.intervalMinutes}分
@@ -627,7 +679,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     <input
                       type="checkbox"
                       checked={push.enabled}
-                      disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing'}
+                      disabled={pushStatus === 'subscribing' || pushStatus === 'unsubscribing' || (!canEnablePush && !push.enabled)}
                       onChange={(e) => handlePushToggle(e.target.checked)}
                     />
                     {pushStatus === 'subscribing' ? '登録中...' :
@@ -639,6 +691,9 @@ export function SettingsModal({ open, onClose }: Props) {
                   )}
                 </div>
                 {pushError && <p className="mcp-error-text">{pushError}</p>}
+                {!canEnablePush && !push.enabled && (
+                  <p className="hb-notification-denied">Push 通知を有効化するには、先に通知権限を許可してください。</p>
+                )}
                 {isIOSSafari() && !isStandaloneMode() && (
                   <p className="mcp-hint storage-warning">
                     iOS で Push 通知を受け取るには、まずこのアプリをホーム画面に追加（PWA インストール）してください。
