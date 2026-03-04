@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const PERSONAS = [
   { label: '情報収集型', suffix: 'info-collector' },
@@ -20,6 +21,7 @@ Options:
   --weekly-dir <dir>     Weekly docs dir (default: docs/weekly)
   --strict               Enable strict completeness checks
   --require-interviews   Require all 3 interview notes to be completed
+  --as-of <YYYY-MM-DD>   Evaluate interview due-date checks as of this date (default: JST today)
   --json                 Print machine-readable summary JSON
   --report-json <path>   Write machine-readable summary JSON to file
   --help                 Show this help
@@ -27,6 +29,7 @@ Options:
 Examples:
   npm run poc:check-week -- --week 2026-W11
   npm run poc:check-week -- --week 2026-W11 --strict --require-interviews
+  npm run poc:check-week -- --week 2026-W11 --strict --require-interviews --as-of 2026-03-15
   npm run poc:check-week -- --week 2026-W11 --report-json /tmp/poc-week-check.json
 `);
 }
@@ -37,6 +40,7 @@ function parseArgs(argv) {
     weeklyDir: DEFAULT_WEEKLY_DIR,
     strict: false,
     requireInterviews: false,
+    asOf: '',
     json: false,
     reportJson: '',
     help: false,
@@ -54,6 +58,11 @@ function parseArgs(argv) {
     }
     if (a === '--require-interviews') {
       args.requireInterviews = true;
+      continue;
+    }
+    if (a === '--as-of') {
+      args.asOf = argv[i + 1] ?? '';
+      i++;
       continue;
     }
     if (a === '--json') {
@@ -88,6 +97,21 @@ function assertWeek(week) {
   const weekNum = Number(match[2]);
   if (weekNum < 1 || weekNum > 53) {
     throw new Error(`Invalid week number: ${weekNum} (expected 01-53)`);
+  }
+}
+
+function todayJstDate() {
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Tokyo',
+  }).format(new Date()).replaceAll('/', '-');
+}
+
+function assertDate(value, label) {
+  if (!DATE_RE.test(value)) {
+    throw new Error(`Invalid ${label} format: ${value} (expected YYYY-MM-DD)`);
   }
 }
 
@@ -240,17 +264,30 @@ function checkBaseline(content, baselinePath, opts, issues) {
   }
 }
 
-function checkInterviews(interviews, opts, issues) {
+function checkInterviews(interviews, opts, issues, asOfDate) {
   for (const interview of interviews) {
     const status = extractLineByPrefix(interview.content, 'ステータス:');
+    const scheduledDate = extractLineByPrefix(interview.content, '実施予定日:');
     const completed = isInterviewCompleted(status);
     if (!status) {
       pushIssue(issues, 'warn', interview.path, 'ステータスが未入力です');
       continue;
     }
     if (!completed) {
-      const severity = opts.requireInterviews ? 'error' : 'warn';
-      pushIssue(issues, severity, interview.path, `インタビュー未完了です（ステータス=${status}）`);
+      if (!opts.requireInterviews) {
+        pushIssue(issues, 'warn', interview.path, `インタビュー未完了です（ステータス=${status}）`);
+        continue;
+      }
+      if (scheduledDate && DATE_RE.test(scheduledDate) && scheduledDate > asOfDate) {
+        pushIssue(
+          issues,
+          'warn',
+          interview.path,
+          `インタビュー未完了だが予定日未到来です（ステータス=${status}, 予定日=${scheduledDate}, asOf=${asOfDate}）`,
+        );
+        continue;
+      }
+      pushIssue(issues, 'error', interview.path, `インタビュー未完了です（ステータス=${status}）`);
     }
   }
 }
@@ -265,6 +302,8 @@ async function main() {
     throw new Error('--week is required');
   }
   assertWeek(opts.week);
+  const asOfDate = opts.asOf || todayJstDate();
+  assertDate(asOfDate, '--as-of');
 
   const weeklyPath = `${opts.weeklyDir}/${opts.week}.md`;
   const baselinePath = `${opts.weeklyDir}/${opts.week}-baseline.md`;
@@ -300,7 +339,7 @@ async function main() {
   if (baselineRaw) {
     checkBaseline(baselineRaw, baselinePath, opts, issues);
   }
-  checkInterviews(interviews.filter((i) => i.content), opts, issues);
+  checkInterviews(interviews.filter((i) => i.content), opts, issues, asOfDate);
 
   const errors = issues.filter((i) => i.severity === 'error');
   const warns = issues.filter((i) => i.severity === 'warn');
@@ -309,6 +348,7 @@ async function main() {
     weeklyDir: opts.weeklyDir,
     strict: opts.strict,
     requireInterviews: opts.requireInterviews,
+    asOfDate,
     files: fileStatuses,
     counts: {
       errors: errors.length,
@@ -322,6 +362,7 @@ async function main() {
   console.log(`- week: ${summary.week}`);
   console.log(`- strict: ${summary.strict ? 'on' : 'off'}`);
   console.log(`- requireInterviews: ${summary.requireInterviews ? 'on' : 'off'}`);
+  console.log(`- asOfDate: ${summary.asOfDate}`);
   console.log(`- errors: ${summary.counts.errors}`);
   console.log(`- warnings: ${summary.counts.warnings}`);
 

@@ -21,6 +21,7 @@ Options:
   --check-strict         Run check with strict completeness validation
   --check-require-interviews
                          Run check requiring all interviews completed
+  --check-as-of <date>   Evaluate final check as of YYYY-MM-DD
   --check-report-json <path>
                          Write weekly readiness check summary JSON to file
   --dry-run-validation   Preview validation section without writing file
@@ -48,6 +49,7 @@ function parseArgs(argv) {
     check: false,
     checkStrict: false,
     checkRequireInterviews: false,
+    checkAsOf: '',
     checkReportJson: '',
     dryRunValidation: false,
     skipInit: false,
@@ -80,6 +82,11 @@ function parseArgs(argv) {
     }
     if (a === '--check-require-interviews') {
       args.checkRequireInterviews = true;
+      continue;
+    }
+    if (a === '--check-as-of') {
+      args.checkAsOf = argv[i + 1] ?? '';
+      i++;
       continue;
     }
     if (a === '--check-report-json') {
@@ -225,6 +232,9 @@ async function main() {
     }
     if (opts.checkRequireInterviews) {
       checkArgs.push('--require-interviews');
+    }
+    if (opts.checkAsOf) {
+      checkArgs.push('--as-of', opts.checkAsOf);
     }
     if (opts.checkReportJson) {
       checkArgs.push('--report-json', opts.checkReportJson);
