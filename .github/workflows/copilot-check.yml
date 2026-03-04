@@ -110,15 +110,25 @@ jobs:
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             const setStatus = async (sha, state, description) => {
-              await github.rest.repos.createCommitStatus({
-                owner,
-                repo,
-                sha,
-                state,
-                context: statusContext,
-                description: description.slice(0, 140),
-                target_url: targetUrl,
-              });
+              try {
+                await github.rest.repos.createCommitStatus({
+                  owner,
+                  repo,
+                  sha,
+                  state,
+                  context: statusContext,
+                  description: description.slice(0, 140),
+                  target_url: targetUrl,
+                });
+                return true;
+              } catch (error) {
+                const status = error?.status || 'unknown';
+                const message = error?.message || 'unknown';
+                core.info(
+                  `createCommitStatus failed sha="${sha}" state="${state}" status=${status} message=${message}`,
+                );
+                return false;
+              }
             };
 
             const getCurrentContextStatusState = async (sha) => {
@@ -146,6 +156,19 @@ jobs:
                 return;
               }
               await setStatus(sha, 'pending', description);
+            };
+
+            const setTerminalStatusSafely = async (sha, state, description, reason) => {
+              const currentState = await getCurrentContextStatusState(sha);
+              if (currentState === state) {
+                core.info(`Skip ${reason}: context already state=${currentState}`);
+                return;
+              }
+              if (state === 'success' && TERMINAL_STATUS_STATES.has(currentState)) {
+                core.info(`Skip ${reason}: terminal state=${currentState} should not be overwritten by success`);
+                return;
+              }
+              await setStatus(sha, state, description);
             };
 
             let reportCommentId = null;
@@ -209,23 +232,26 @@ jobs:
 
             const newSignalCache = () => ({
               items: [],
-              ids: new Set(),
+              indexById: new Map(),
               sinceTs: 0,
             });
             const reviewSignalCache = newSignalCache();
             const reviewCommentSignalCache = newSignalCache();
             const issueCommentSignalCache = newSignalCache();
             const headObservedAtCache = new Map();
+            const headPrUpdatedAtCache = new Map();
 
             const trimSignalCache = (cache) => {
               if (cache.items.length <= SIGNAL_CACHE_LIMIT) {
                 return;
               }
               const overflow = cache.items.length - SIGNAL_CACHE_LIMIT;
-              const removed = cache.items.splice(0, overflow);
-              for (const item of removed) {
-                if (item?.id) {
-                  cache.ids.delete(item.id);
+              cache.items.splice(0, overflow);
+              cache.indexById.clear();
+              for (let i = 0; i < cache.items.length; i++) {
+                const id = cache.items[i]?.id;
+                if (id) {
+                  cache.indexById.set(id, i);
                 }
               }
             };
@@ -233,12 +259,14 @@ jobs:
             const mergeSignalCache = (cache, incomingItems) => {
               for (const item of incomingItems) {
                 const id = item?.id;
-                if (id && cache.ids.has(id)) {
+                if (id && cache.indexById.has(id)) {
+                  const index = cache.indexById.get(id);
+                  cache.items[index] = item;
                   continue;
                 }
                 cache.items.push(item);
                 if (id) {
-                  cache.ids.add(id);
+                  cache.indexById.set(id, cache.items.length - 1);
                 }
               }
               trimSignalCache(cache);
@@ -287,6 +315,16 @@ jobs:
               return headObservedAtCache.get(sha);
             };
 
+            const getHeadPrUpdatedAt = (sha, prUpdatedTs) => {
+              if (!sha) {
+                return prUpdatedTs;
+              }
+              if (!headPrUpdatedAtCache.has(sha)) {
+                headPrUpdatedAtCache.set(sha, prUpdatedTs);
+              }
+              return headPrUpdatedAtCache.get(sha);
+            };
+
             const headCommitTimestampCache = new Map();
 
             const getHeadCommitTimestamp = async (sha, fallbackTs) => {
@@ -323,11 +361,12 @@ jobs:
                 repo,
                 pull_number: prNumber,
               });
+              const prUpdatedTs = toTimestamp(pr.updated_at);
               const headCommitTs = await getHeadCommitTimestamp(
                 pr.head?.sha,
-                toTimestamp(pr.updated_at),
+                prUpdatedTs,
               );
-              return { pr, headCommitTs };
+              return { pr, headCommitTs, prUpdatedTs };
             };
 
             const requestCopilotReviewIfNeeded = async (pr, hasHeadReview) => {
@@ -434,7 +473,7 @@ jobs:
               await upsertReportComment(body);
             };
 
-            const collectCopilotSignals = async (headSha, headCommitTs, headObservedAtTs) => {
+            const collectCopilotSignals = async (headSha, headCommitTs, headPrUpdatedAtTs, headObservedAtTs) => {
               await Promise.all([
                 refreshReviewSignalCache(),
                 refreshReviewCommentSignalCache(),
@@ -448,7 +487,8 @@ jobs:
               const copilotReviews = reviews.filter((review) =>
                 isCopilotLogin(review?.user?.login)
                 && review?.state
-                && review.state !== 'PENDING',
+                && review.state !== 'PENDING'
+                && review.state !== 'DISMISSED'
               );
 
               const isHeadOrFresh = (itemTs, itemCommitId) => {
@@ -462,6 +502,7 @@ jobs:
                 const freshnessFloorTs = Math.max(
                   0,
                   headCommitTs,
+                  headPrUpdatedAtTs,
                   headObservedAtTs - HEAD_FRESH_GRACE_MS,
                 );
                 return itemTs >= freshnessFloorTs;
@@ -537,12 +578,18 @@ jobs:
             }
 
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              const { pr, headCommitTs } = await fetchPrSnapshot();
+              const { pr, headCommitTs, prUpdatedTs } = await fetchPrSnapshot();
               const headSha = pr.head.sha;
+              const headPrUpdatedAtTs = getHeadPrUpdatedAt(headSha, prUpdatedTs);
               const headObservedAtTs = getHeadObservedAt(headSha);
               core.info(`Attempt ${attempt}/${maxAttempts} head=${headSha} draft=${pr.draft}`);
 
-              const signals = await collectCopilotSignals(headSha, headCommitTs, headObservedAtTs);
+              const signals = await collectCopilotSignals(
+                headSha,
+                headCommitTs,
+                headPrUpdatedAtTs,
+                headObservedAtTs,
+              );
 
               if (shouldRequestReview && (attempt === 1 || attempt % 6 === 1)) {
                 const requestResult = await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
@@ -554,10 +601,10 @@ jobs:
                   signals.copilotReviewComments.length + signals.copilotIssueComments.length;
                 const state = signals.hasCritical ? 'failure' : 'success';
                 const description = signals.hasCritical
-                  ? `Copilot: Critical 指摘あり (${totalCommentCount}件)`
-                  : `Copilot レビュー完了 (${totalCommentCount}件)`;
+                  ? `Copilot: Critical 指摘あり (コメント件数: ${totalCommentCount})`
+                  : `Copilot レビュー完了 (コメント件数: ${totalCommentCount})`;
 
-                await setStatus(headSha, state, description);
+                await setTerminalStatusSafely(headSha, state, description, 'signal');
                 core.info(`Copilot signal detected. state=${state} comments=${totalCommentCount}`);
                 return;
               }
@@ -583,10 +630,11 @@ jobs:
             }
 
             const finalSnapshot = await fetchPrSnapshot();
-            await setStatus(
+            await setTerminalStatusSafely(
               finalSnapshot.pr.head.sha,
               'success',
               'Copilot レビュー未検出 (timeout: 手動確認推奨)',
+              'timeout',
             );
             await upsertReportComment(
               [
