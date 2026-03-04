@@ -17,6 +17,10 @@ Options:
   --owner <name>         Weekly owner for init (default: iAgent チーム)
   --force-init           Overwrite week scaffold files on init
   --strict               Enable fail-on-action for metrics step
+  --check                Run weekly readiness check at the end
+  --check-strict         Run check with strict completeness validation
+  --check-require-interviews
+                         Run check requiring all interviews completed
   --dry-run-validation   Preview validation section without writing file
   --skip-init            Skip week scaffold initialization
   --skip-metrics         Skip KPI/SLO collection and file update
@@ -39,6 +43,9 @@ function parseArgs(argv) {
     owner: 'iAgent チーム',
     forceInit: false,
     strict: false,
+    check: false,
+    checkStrict: false,
+    checkRequireInterviews: false,
     dryRunValidation: false,
     skipInit: false,
     skipMetrics: false,
@@ -58,6 +65,18 @@ function parseArgs(argv) {
     }
     if (a === '--strict') {
       args.strict = true;
+      continue;
+    }
+    if (a === '--check') {
+      args.check = true;
+      continue;
+    }
+    if (a === '--check-strict') {
+      args.checkStrict = true;
+      continue;
+    }
+    if (a === '--check-require-interviews') {
+      args.checkRequireInterviews = true;
       continue;
     }
     if (a === '--dry-run-validation') {
@@ -189,6 +208,17 @@ async function main() {
       validationArgs.push('--dry-run');
     }
     await runNodeScript('scripts/sync-poc-validation.mjs', validationArgs, 'Step 3/3: Sync user validation');
+  }
+
+  if (opts.check || opts.checkStrict || opts.checkRequireInterviews) {
+    const checkArgs = ['--week', opts.week, '--weekly-dir', opts.weeklyDir];
+    if (opts.checkStrict) {
+      checkArgs.push('--strict');
+    }
+    if (opts.checkRequireInterviews) {
+      checkArgs.push('--require-interviews');
+    }
+    await runNodeScript('scripts/check-poc-week.mjs', checkArgs, 'Final Check: Weekly readiness');
   }
 
   console.log('\n[poc:run-week] Completed.');
