@@ -83,4 +83,36 @@ describe('PoC CLI scripts', () => {
 
     await rm(workDir, { recursive: true, force: true });
   });
+
+  it('check-poc-week: require-interviews is warning before due date and error after due date', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-check-due-'));
+    const week = '2026-W20';
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const beforeDue = runCli('scripts/check-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--require-interviews',
+      '--as-of',
+      '2026-01-01',
+    ]);
+    expect(beforeDue.status).toBe(0);
+
+    const afterDue = runCli('scripts/check-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--require-interviews',
+      '--as-of',
+      '2026-12-31',
+    ]);
+    expect(afterDue.status).toBe(2);
+
+    await rm(workDir, { recursive: true, force: true });
+  });
 });
