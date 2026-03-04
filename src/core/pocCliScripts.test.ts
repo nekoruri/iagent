@@ -1,4 +1,7 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 type RunResult = {
@@ -49,5 +52,35 @@ describe('PoC CLI scripts', () => {
   it('collect-poc-metrics: help and week format validation', () => {
     expectHelp('scripts/collect-poc-metrics.mjs');
     expectInvalidWeek('scripts/collect-poc-metrics.mjs');
+  });
+
+  it('check-poc-week: can write summary JSON report', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-check-'));
+    const week = '2026-W20';
+    const reportPath = join(workDir, 'check-report.json');
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const checkResult = runCli('scripts/check-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--report-json',
+      reportPath,
+    ]);
+    expect(checkResult.status).toBe(0);
+
+    const json = JSON.parse(await readFile(reportPath, 'utf8')) as {
+      week: string;
+      counts: { errors: number; warnings: number };
+      ok: boolean;
+    };
+    expect(json.week).toBe(week);
+    expect(json.counts.errors).toBe(0);
+    expect(json.ok).toBe(true);
+
+    await rm(workDir, { recursive: true, force: true });
   });
 });
