@@ -211,4 +211,28 @@ describe('InputBar', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('空です');
     });
   });
+
+  // 音声入力テスト
+  describe('音声入力（STT）', () => {
+    it('sttEnabled=false の場合、マイクボタンが表示されない', () => {
+      render(<InputBar {...defaultProps} webSpeechSttEnabled={false} />);
+      expect(screen.queryByLabelText('音声入力')).toBeNull();
+    });
+
+    it('sttEnabled=true で API 対応の場合、マイクボタンが表示される', () => {
+      (window as unknown as Record<string, unknown>).SpeechRecognition = vi.fn(() => ({
+        lang: '', continuous: true, interimResults: false,
+        start: vi.fn(), stop: vi.fn(), abort: vi.fn(),
+        onresult: null, onerror: null, onend: null,
+      }));
+      render(<InputBar {...defaultProps} webSpeechSttEnabled={true} />);
+      expect(screen.getByLabelText('音声入力')).toBeInTheDocument();
+      delete (window as unknown as Record<string, unknown>).SpeechRecognition;
+    });
+
+    it('sttEnabled 未指定（デフォルト false）の場合、マイクボタンが表示されない', () => {
+      render(<InputBar {...defaultProps} />);
+      expect(screen.queryByLabelText('音声入力')).toBeNull();
+    });
+  });
 });

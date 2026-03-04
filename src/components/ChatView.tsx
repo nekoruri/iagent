@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { ToolIndicator } from './ToolIndicator';
 import { TaskProgress } from './TaskProgress';
@@ -7,6 +7,7 @@ import { getAttachmentsByMessageId } from '../store/attachmentStore';
 import type { ChatMessage, ToolCallInfo } from '../types';
 import type { Attachment } from '../types/attachment';
 import type { PendingAttachment } from '../types/attachment';
+import type { SpeechOutputState } from '../hooks/useSpeechOutput';
 
 interface Props {
   messages: ChatMessage[];
@@ -15,11 +16,33 @@ interface Props {
   isOnline: boolean;
   onSend: (text: string, attachments?: PendingAttachment[]) => void;
   onStop: () => void;
+  webSpeechLang?: string;
+  webSpeechSttEnabled?: boolean;
+  webSpeechTtsEnabled?: boolean;
+  speechOutput?: SpeechOutputState;
 }
 
-export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop }: Props) {
+export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop, webSpeechLang, webSpeechSttEnabled, webSpeechTtsEnabled, speechOutput }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [attachmentMap, setAttachmentMap] = useState<Record<string, Attachment[]>>({});
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+
+  // isSpeaking が false になったら speakingMessageId をクリア
+  useEffect(() => {
+    if (!speechOutput?.isSpeaking) {
+      setSpeakingMessageId(null);
+    }
+  }, [speechOutput?.isSpeaking]);
+
+  const handleSpeak = useCallback((msgId: string, text: string) => {
+    setSpeakingMessageId(msgId);
+    speechOutput?.speak(text);
+  }, [speechOutput]);
+
+  const handleStopSpeak = useCallback(() => {
+    setSpeakingMessageId(null);
+    speechOutput?.stop();
+  }, [speechOutput]);
   // ロード済み or ロード中の ID を追跡（ストリーミング中の重複フェッチ防止）
   const loadedOrLoadingRef = useRef<Set<string>>(new Set());
 
@@ -87,6 +110,10 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
             key={msg.id}
             message={msg}
             attachments={attachmentMap[msg.id]}
+            onSpeak={(text) => handleSpeak(msg.id, text)}
+            onStopSpeak={handleStopSpeak}
+            isSpeaking={speechOutput?.isSpeaking && speakingMessageId === msg.id}
+            ttsSupported={!!speechOutput?.isSupported && !!webSpeechTtsEnabled}
           />
         ))}
         {activeTools.length >= 2 ? (
@@ -96,7 +123,7 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
         )}
         <div ref={bottomRef} />
       </div>
-      <InputBar onSend={onSend} disabled={isStreaming || !isOnline} isStreaming={isStreaming} onStop={onStop} isOnline={isOnline} />
+      <InputBar onSend={onSend} disabled={isStreaming || !isOnline} isStreaming={isStreaming} onStop={onStop} isOnline={isOnline} webSpeechLang={webSpeechLang} webSpeechSttEnabled={webSpeechSttEnabled} />
     </div>
   );
 }

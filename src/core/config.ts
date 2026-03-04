@@ -1,4 +1,5 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode } from '../types';
+import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode, WebSpeechConfig } from '../types';
+import { VALID_SPEECH_LANGS } from './speechService';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -149,6 +150,16 @@ export function getDefaultOtelConfig(): OtelConfig {
   };
 }
 
+export function getDefaultWebSpeechConfig(): WebSpeechConfig {
+  return {
+    sttEnabled: true,
+    ttsEnabled: false,
+    ttsAutoRead: false,
+    lang: 'ja-JP',
+    ttsRate: 1.0,
+  };
+}
+
 export function getDefaultPersonaConfig(): PersonaConfig {
   return {
     name: 'iAgent',
@@ -181,6 +192,15 @@ function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
   return [...savedTasks, ...missing];
 }
 
+/** WebSpeechConfig の値を安全な範囲にクランプ・検証する */
+function sanitizeWebSpeechConfig(config: WebSpeechConfig): WebSpeechConfig {
+  return {
+    ...config,
+    ttsRate: Math.max(0.5, Math.min(2.0, Number(config.ttsRate) || 1.0)),
+    lang: VALID_SPEECH_LANGS.includes(config.lang) ? config.lang : 'ja-JP',
+  };
+}
+
 function getDefaultAppConfig(): AppConfig {
   return {
     openaiApiKey: '',
@@ -193,6 +213,7 @@ function getDefaultAppConfig(): AppConfig {
     otel: getDefaultOtelConfig(),
     persona: getDefaultPersonaConfig(),
     theme: 'system',
+    webSpeech: getDefaultWebSpeechConfig(),
   };
 }
 
@@ -236,6 +257,9 @@ export function getConfig(): AppConfig {
     suggestionFrequency: (['high', 'medium', 'low'].includes(parsed.suggestionFrequency as string)
       ? parsed.suggestionFrequency as SuggestionFrequency
       : undefined),
+    webSpeech: parsed.webSpeech
+      ? sanitizeWebSpeechConfig({ ...getDefaultWebSpeechConfig(), ...parsed.webSpeech })
+      : getDefaultWebSpeechConfig(),
   };
 }
 

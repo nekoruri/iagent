@@ -37,9 +37,14 @@
 
 ### 1. 静的チェック
 ```bash
-npx tsc --noEmit          # TypeScript 型チェック
+npx tsc -b                # TypeScript ビルドチェック（CI と同じ）
+npx tsc --noEmit          # TypeScript 型チェック（エディタ向け、tsc -b と挙動が異なる場合あり）
 npx vitest run            # 全ユニットテスト
+npm run test:e2e:vrt      # VRT スナップショットテスト（UI 変更時は `npm run test:e2e:vrt:update` で更新）
 ```
+
+> **注意**: `tsc --noEmit` と `tsc -b` は挙動が異なる。CI は `tsc -b` を使うため、PR 前に必ず `tsc -b` で確認すること。
+> 特に `.d.ts` 型宣言ファイルは `tsconfig.app.json` の `types` フィールド制約に影響される。
 
 ### 2. UI 確認（Playwright MCP または手動ブラウザ）
 ```bash

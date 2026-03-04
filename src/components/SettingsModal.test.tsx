@@ -54,7 +54,20 @@ vi.mock('../core/config', () => ({
     tone: '',
     customInstructions: '',
   })),
+  getDefaultWebSpeechConfig: vi.fn(() => ({
+    sttEnabled: true,
+    ttsEnabled: false,
+    ttsAutoRead: false,
+    lang: 'ja-JP',
+    ttsRate: 1.0,
+  })),
   BUILTIN_HEARTBEAT_TASKS: [],
+}));
+
+// speechService モック
+vi.mock('../core/speechService', () => ({
+  isSpeechRecognitionSupported: vi.fn(() => false),
+  isSpeechSynthesisSupported: vi.fn(() => false),
 }));
 
 // installDetect モック

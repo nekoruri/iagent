@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { FeedPanel } from './components/FeedPanel';
@@ -19,9 +19,10 @@ import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useSpeechOutput } from './hooks/useSpeechOutput';
 import { useViewportHeight } from './hooks/useViewportHeight';
 import { applyTheme, getStoredThemeMode } from './core/theme';
-import { isConfigured, getConfig } from './core/config';
+import { isConfigured, getConfig, getDefaultWebSpeechConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
 import type { HeartbeatNotification } from './core/heartbeat';
@@ -96,6 +97,12 @@ export default function App() {
     () => getConfig().heartbeat?.focusMode ?? false,
   );
 
+  // 音声入出力
+  const [webSpeech, setWebSpeech] = useState(
+    () => getConfig().webSpeech ?? getDefaultWebSpeechConfig(),
+  );
+  const speechOutput = useSpeechOutput(webSpeech.lang, webSpeech.ttsRate, webSpeech.ttsEnabled);
+
   const { syncHeartbeatConfig, toggleFocusMode: rawToggleFocusMode } = useHeartbeat({
     isStreaming,
     onNotification: handleHeartbeatNotification,
@@ -134,6 +141,18 @@ export default function App() {
       }
     })();
   }, []);
+
+  // TTS 自動読み上げ: ストリーミング終了時に最新 AI メッセージを読み上げ
+  const prevStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    prevStreamingRef.current = isStreaming;
+    if (!webSpeech.ttsAutoRead || !speechOutput.isSupported || isStreaming || !wasStreaming) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'assistant' && lastMsg.content) {
+      speechOutput.speak(lastMsg.content);
+    }
+  }, [isStreaming, webSpeech.ttsAutoRead, speechOutput.isSupported, speechOutput.speak, messages]);
 
   // メッセージ送信時にタイトル自動設定 & touch
   const handleSend = useCallback(async (text: string, attachments?: PendingAttachment[]) => {
@@ -197,6 +216,7 @@ export default function App() {
     syncHeartbeatConfig();
     setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
     setFocusMode(getConfig().heartbeat?.focusMode ?? false);
+    setWebSpeech(getConfig().webSpeech ?? getDefaultWebSpeechConfig());
 
     // 初回設定完了時に heartbeat の案内を表示
     const config = getConfig();
@@ -324,6 +344,10 @@ export default function App() {
             isOnline={isOnline}
             onSend={handleSend}
             onStop={stopStreaming}
+            webSpeechLang={webSpeech.lang}
+            webSpeechSttEnabled={webSpeech.sttEnabled}
+            webSpeechTtsEnabled={webSpeech.ttsEnabled}
+            speechOutput={speechOutput}
           />
         </main>
         <Suspense fallback={null}>

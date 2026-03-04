@@ -2468,3 +2468,95 @@ body {
 .offline-banner-text {
   font-weight: 500;
 }
+
+/* === 音声入出力（Web Speech API） === */
+
+/* マイクボタン（btn-attach と同パターン） */
+.btn-mic {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.btn-mic:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.btn-mic:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-mic.mic-active {
+  color: #dc2626;
+  border-color: #dc2626;
+  position: relative;
+}
+
+.btn-mic.mic-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgba(220, 38, 38, 0.3);
+  animation: mic-pulse 1.5s infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0; }
+}
+
+/* TTS ボタン（ホバー/フォーカス表示） */
+.btn-tts {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s, visibility 0.15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  min-width: 28px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.btn-tts:hover {
+  color: var(--text);
+}
+
+.message-bubble:hover .btn-tts,
+.message-bubble:focus-within .btn-tts {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.btn-tts.tts-active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  color: var(--accent);
+}
+
+/* ライトテーマ対応 */
+[data-theme="light"] .btn-mic.mic-active {
+  color: #dc2626;
+  border-color: #dc2626;
+}
