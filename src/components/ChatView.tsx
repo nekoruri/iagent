@@ -7,13 +7,7 @@ import { getAttachmentsByMessageId } from '../store/attachmentStore';
 import type { ChatMessage, ToolCallInfo } from '../types';
 import type { Attachment } from '../types/attachment';
 import type { PendingAttachment } from '../types/attachment';
-
-interface SpeechOutputState {
-  isSupported: boolean;
-  isSpeaking: boolean;
-  speak: (text: string) => void;
-  stop: () => void;
-}
+import type { SpeechOutputState } from '../hooks/useSpeechOutput';
 
 interface Props {
   messages: ChatMessage[];
