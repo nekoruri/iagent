@@ -49,6 +49,14 @@ describe('PoC CLI scripts', () => {
     expectInvalidWeek('scripts/run-poc-week.mjs');
   });
 
+  it('close-poc-week: help and week/as-of format validation', () => {
+    expectHelp('scripts/close-poc-week.mjs');
+    expectInvalidWeek('scripts/close-poc-week.mjs');
+
+    const badAsOf = runCli('scripts/close-poc-week.mjs', ['--week', '2026-W11', '--as-of', '20260320']);
+    expect(badAsOf.status).toBe(1);
+  });
+
   it('collect-poc-metrics: help and week format validation', () => {
     expectHelp('scripts/collect-poc-metrics.mjs');
     expectInvalidWeek('scripts/collect-poc-metrics.mjs');
