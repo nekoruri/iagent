@@ -118,7 +118,7 @@ src/
 │   ├── useHeartbeat.ts           Heartbeat ライフサイクル
 │   └── useHeartbeatPanel.ts      Heartbeat パネル状態
 ├── store/             # IndexedDB / localStorage ストア
-│   ├── db.ts                     DB 初期化（iagent-db, v10）
+│   ├── db.ts                     DB 初期化（iagent-db, v11）
 │   ├── calendarStore.ts          カレンダーイベント
 │   ├── configStore.ts            設定（IndexedDB）
 │   ├── conversationMetaStore.ts  会話メタデータ
@@ -188,6 +188,20 @@ GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push /
 - [運用ガイド（Push/Proxy サーバー）](docs/OPERATIONS.md)
 - [アーキテクチャ詳細](docs/ARCHITECTURE.md)
 - [ロードマップ](docs/ROADMAP.md)
+- [PoC KPI 定義](docs/POC-KPI.md)
+- [PoC ユーザー検証ループ](docs/POC-USER-VALIDATION.md)
+- [PoC SLO 運用ガイド](docs/POC-SLO.md)
+- [PoC 指標の収集手順](docs/POC-METRICS-COLLECTION.md)
+- [PoC 週次レビュー（W10）](docs/weekly/2026-W10.md)
+
+### PoC 指標収集
+
+```bash
+npm run metrics:poc
+```
+
+`iagent-db`（IndexedDB）から PoC KPI（Accept率 / 7日アクティブ率 / proxy再訪率）を収集する。
+継続観測では `--user-data-dir` 指定で同一プロファイルを使う。
 
 ## ライセンス
 
