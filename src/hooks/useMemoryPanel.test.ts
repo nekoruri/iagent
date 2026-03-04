@@ -12,6 +12,10 @@ beforeEach(() => {
   __resetStores();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('useMemoryPanel', () => {
   it('toggle でパネルの開閉を切り替えできる', async () => {
     const { result } = renderHook(() => useMemoryPanel());
@@ -134,7 +138,7 @@ describe('useMemoryPanel', () => {
   });
 
   it('refresh の連続呼び出しで先に開始した応答が後から解決しても state を上書きしない', async () => {
-    await saveMemory('メモリ1', 'other');
+    const staleMemory = await saveMemory('古いデータ', 'other');
     await saveMemory('メモリ2', 'fact');
 
     const { result } = renderHook(() => useMemoryPanel());
@@ -148,8 +152,7 @@ describe('useMemoryPanel', () => {
     type ListResult = Awaited<ReturnType<typeof memoryStore.listMemories>>;
     let resolveSlow!: (v: ListResult) => void;
     const slowCall = new Promise<ListResult>((r) => { resolveSlow = r; });
-    const spy = vi.spyOn(memoryStore, 'listMemories');
-    spy.mockImplementationOnce(() => slowCall);
+    vi.spyOn(memoryStore, 'listMemories').mockImplementationOnce(() => slowCall);
 
     // 1回目の refresh（遅延される）
     let p1: Promise<void>;
@@ -165,15 +168,13 @@ describe('useMemoryPanel', () => {
 
     // 1回目が遅延して解決 → 古いデータで上書きされないこと
     await act(async () => {
-      resolveSlow([{ id: 'stale', content: '古い', category: 'other', importance: 0.5, accessCount: 0, createdAt: 0, updatedAt: 0 }]);
+      resolveSlow([{ ...staleMemory, content: '古い遅延応答' }]);
       await p1!;
     });
 
     // 2回目の結果が維持されていること
     expect(result.current.memories).toEqual(afterSecond);
     expect(result.current.isLoading).toBe(false);
-
-    spy.mockRestore();
   });
 
   it('handleDeleteArchived でアーカイブを完全削除できる', async () => {
