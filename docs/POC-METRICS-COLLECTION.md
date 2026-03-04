@@ -20,11 +20,18 @@
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
 ```
 
-週次レビューを締めるときは、strict + 最終チェック込みの別名コマンドを使う:
+週次レビューを締めるときは、strict + 最終チェック込みの専用コマンドを使う:
 
 ```bash
 npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
 ```
+
+このコマンドは既定で以下を実行する:
+
+- `--strict`（KPI/SLO `Action` で非0終了）
+- `--check --check-strict --check-require-interviews`
+- `--check-as-of <JST 当日>`
+- `--check-report-json docs/weekly/<week>-check-strict-<YYYY-MM-DD>.json`
 
 実行内容:
 
