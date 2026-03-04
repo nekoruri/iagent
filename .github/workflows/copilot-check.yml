@@ -6,6 +6,7 @@ on:
     types: [submitted, edited, dismissed]
 
 permissions:
+  contents: read
   pull-requests: write
   issues: read
   statuses: write
@@ -44,10 +45,23 @@ jobs:
             ];
 
             const CRITICAL_KEYWORDS = [
-              'security', 'vulnerability', 'injection', 'xss', 'ssrf',
-              'critical', 'bug', 'crash', 'data loss', 'leak',
-              'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
-              'クラッシュ', 'データ損失', '漏洩',
+              /\bcritical\b/i,
+              /\bblocker\b/i,
+              /\bsev(?:erity)?\s*[:=]?\s*(critical|high)\b/i,
+              /\bhigh(?:\s+severity)?\b/i,
+              /\b(vulnerability|security issue|security risk)\b/i,
+              /\b(ssrf|xss|sql injection|rce)\b/i,
+              /重大(?:な)?(?:問題|不具合|バグ|脆弱性|セキュリティ)/i,
+              /高(?:重大度|優先度)/i,
+              /データ(?:損失|漏洩)/i,
+              /クラッシュ/i,
+            ];
+
+            const NON_CRITICAL_HINTS = [
+              /\bno\s+(critical|high severity|security issues?|bugs?)\b/i,
+              /(?:問題|バグ|脆弱性)(?:は|が)?(?:ありません|なし)/i,
+              /指摘なし/,
+              /問題なし/,
             ];
 
             const normalize = (value) => (value || '').toString().trim().toLowerCase();
@@ -58,8 +72,7 @@ jobs:
               if (!normalized) {
                 return false;
               }
-              return COPILOT_LOGIN_SET.has(normalized)
-                || normalized.includes('copilot');
+              return COPILOT_LOGIN_SET.has(normalized);
             };
 
             if (context.eventName === 'pull_request_review') {
@@ -92,21 +105,45 @@ jobs:
               });
             };
 
+            const headCommitTimestampCache = new Map();
+
+            const getHeadCommitTimestamp = async (sha, fallbackTs) => {
+              if (!sha) {
+                return fallbackTs;
+              }
+              if (headCommitTimestampCache.has(sha)) {
+                return headCommitTimestampCache.get(sha);
+              }
+              try {
+                const { data: headCommit } = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: sha,
+                });
+                const ts = toTimestamp(
+                  headCommit?.commit?.committer?.date
+                  || headCommit?.commit?.author?.date
+                  || fallbackTs,
+                );
+                headCommitTimestampCache.set(sha, ts);
+                return ts;
+              } catch (error) {
+                const status = error?.status || 'unknown';
+                const message = error?.message || 'unknown';
+                core.info(`repos.getCommit failed sha="${sha}" status=${status} message=${message}`);
+                return fallbackTs;
+              }
+            };
+
             const fetchPrSnapshot = async () => {
               const { data: pr } = await github.rest.pulls.get({
                 owner,
                 repo,
                 pull_number: prNumber,
               });
-              const commits = await github.paginate(
-                github.rest.pulls.listCommits,
-                { owner, repo, pull_number: prNumber, per_page: 100 },
-              );
-              const headCommit = commits.find((commit) => commit.sha === pr.head.sha) || commits[commits.length - 1];
-              const headCommitTs = toTimestamp(
-                headCommit?.commit?.committer?.date
-                || headCommit?.commit?.author?.date
-                || pr.updated_at,
+              const headCommitTs = await getHeadCommitTimestamp(
+                pr.head?.sha,
+                toTimestamp(pr.updated_at),
               );
               return { pr, headCommitTs };
             };
@@ -219,9 +256,15 @@ jobs:
                 ...copilotIssueComments.map((comment) => comment.body || ''),
               ].map((body) => normalize(body));
 
-              const hasCritical = textBodies.some((body) =>
-                CRITICAL_KEYWORDS.some((keyword) => body.includes(normalize(keyword))),
+              const hasCriticalReviewState =
+                Boolean(latestHeadReview) && latestHeadReview.state === 'CHANGES_REQUESTED';
+
+              const hasCriticalText = textBodies.some((body) =>
+                !NON_CRITICAL_HINTS.some((hint) => hint.test(body))
+                && CRITICAL_KEYWORDS.some((keyword) => keyword.test(body)),
               );
+
+              const hasCritical = hasCriticalReviewState || hasCriticalText;
 
               return {
                 hasAnyCopilotSignal,
