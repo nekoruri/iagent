@@ -12,6 +12,7 @@
   - 2026-03-05 03:13 JST（再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
   - 2026-03-05 03:26 JST（厳密KPI3/SLO 自動集計版で再計測）
   - 2026-03-05 03:31 JST（notificationId 突合版で再計測）
+  - 2026-03-05 03:33 JST（Good/Watch/Action 自動判定版で再計測）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
@@ -44,6 +45,10 @@
 - revisitRate: 0.0% (0.0000)
 - shownByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
 - clickedByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
+- kpiAcceptStatus: Action
+- kpiActiveStatus: Action
+- kpiRevisitStatus: Action
+- kpiOverallStatus: Action
 
 ---
 
@@ -67,6 +72,10 @@
 
 - p95: n/a（サンプル数 0）
 - 観測メモ: 計測基盤は稼働済み。実運用データ投入後に値が出る想定
+- slo24hHeartbeatStatus: NoData
+- slo24hPushStatus: NoData
+- slo24hLatencyStatus: NoData
+- slo24hOverallStatus: NoData
 
 ---
 

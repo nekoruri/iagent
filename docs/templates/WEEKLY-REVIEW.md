@@ -11,6 +11,11 @@
 - 提案 Accept 率（7日）:
 - 7日アクティブ率:
 - 通知経由再訪率（7日）:
+- KPI 判定:
+  - Accept:
+  - Active:
+  - Revisit:
+  - Overall:
 
 前週差分:
 
@@ -51,6 +56,11 @@
 - Heartbeat 実行成功率（24h平均）:
 - Push wake 実行成功率（24h平均）:
 - Heartbeat 遅延 p95（24h平均）:
+- SLO 判定:
+  - Heartbeat success:
+  - Push success:
+  - Latency:
+  - Overall:
 
 アラート発生:
 
@@ -72,4 +82,3 @@
 期限:
 
 - 
-

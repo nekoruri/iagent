@@ -196,3 +196,27 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 - `slo24hHeartbeatSuccessRate`
 - `slo24hPushSuccessRate`
 - `slo24hHeartbeatP95Ms` / `slo24hHeartbeatP95Sec`
+
+---
+
+## 判定（Good / Watch / Action / NoData）
+
+`npm run metrics:poc` は KPI/SLO の判定も自動で出力する。
+
+転記対象:
+
+- KPI:
+  - `kpiAcceptStatus`
+  - `kpiActiveStatus`
+  - `kpiRevisitStatus`
+  - `kpiOverallStatus`
+- SLO:
+  - `slo24hHeartbeatStatus`
+  - `slo24hPushStatus`
+  - `slo24hLatencyStatus`
+  - `slo24hOverallStatus`
+
+補足:
+
+- `NoData` は「計測対象サンプルが不足（attempts/sample=0）」を表す
+- KPI は利用実績ゼロでも `Action` 判定になり得る（PoC では運用上の改善シグナルとして扱う）
