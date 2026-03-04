@@ -47,6 +47,7 @@ npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-pr
 - `--check --check-strict` を付けると、実行後に週次記入漏れを自動検証できる
 - `--check-report-json <path>` を付けると、最終チェックの結果を JSON 保存できる
 - `--check-as-of <YYYY-MM-DD>` を付けると、インタビュー必須チェックの基準日を指定できる
+- strict の週次チェックでは、実施済みインタビューの主要項目未入力もエラーになる
 - 実行後は `npm run poc:check-week -- --week <week> --strict` で記入漏れチェック推奨
 
 ---

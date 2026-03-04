@@ -90,6 +90,7 @@ npm run poc:sync-validation -- --week 2026-W11
 - 週次締めは `npm run poc:close-week -- --week <week>` で strict + 最終チェックをまとめて実行できる
 - チェック結果を保存する場合は `--report-json` / `--check-report-json` を利用する
 - 予定日前のインタビューを厳格エラーにしたくない場合は `--as-of` / `--check-as-of` で基準日を固定する
+- strict チェックでは、`ステータス: 実施済み` の記録に主要項目（よかった/不要提案、通知評価、Must改善）が未入力だとエラーになる
 
 ---
 
