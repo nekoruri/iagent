@@ -4,6 +4,7 @@ import { ConversationSidebar } from './components/ConversationSidebar';
 import { FeedPanel } from './components/FeedPanel';
 import { HeartbeatPanel } from './components/HeartbeatPanel';
 import { InstallPrompt } from './components/InstallPrompt';
+import { OfflineBanner } from './components/OfflineBanner';
 import { MemoryPanel } from './components/MemoryPanel';
 const SettingsModal = lazy(() =>
   import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -17,6 +18,7 @@ import { useFeedPanel } from './hooks/useFeedPanel';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useHeartbeatPanel } from './hooks/useHeartbeatPanel';
 import { useMemoryPanel } from './hooks/useMemoryPanel';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useViewportHeight } from './hooks/useViewportHeight';
 import { applyTheme, getStoredThemeMode } from './core/theme';
 import { isConfigured, getConfig } from './core/config';
@@ -29,6 +31,7 @@ const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
 
 export default function App() {
   useViewportHeight();
+  const isOnline = useOnlineStatus();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
@@ -310,11 +313,13 @@ export default function App() {
           </div>
         </header>
         <InstallPrompt />
+        <OfflineBanner isOnline={isOnline} />
         <main className="app-main">
           <ChatView
             messages={messages}
             isStreaming={isStreaming}
             activeTools={activeTools}
+            isOnline={isOnline}
             onSend={handleSend}
             onStop={stopStreaming}
           />

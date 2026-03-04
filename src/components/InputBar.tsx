@@ -5,9 +5,10 @@ interface Props {
   disabled: boolean;
   isStreaming: boolean;
   onStop: () => void;
+  isOnline?: boolean;
 }
 
-export function InputBar({ onSend, disabled, isStreaming, onStop }: Props) {
+export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = true }: Props) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -42,7 +43,7 @@ export function InputBar({ onSend, disabled, isStreaming, onStop }: Props) {
         value={text}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
-        placeholder="メッセージを入力..."
+        placeholder={isOnline ? 'メッセージを入力...' : 'オフラインです — ネットワーク接続を確認してください'}
         rows={1}
         disabled={disabled}
       />

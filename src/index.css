@@ -2277,3 +2277,24 @@ body {
 .wizard-nav-spacer {
   flex: 1;
 }
+
+/* ===== Offline Banner ===== */
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--status-warning-bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--status-warning);
+  font-size: 14px;
+}
+
+.offline-banner-icon {
+  flex-shrink: 0;
+}
+
+.offline-banner-text {
+  font-weight: 500;
+}

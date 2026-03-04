@@ -9,11 +9,12 @@ interface Props {
   messages: ChatMessage[];
   isStreaming: boolean;
   activeTools: ToolCallInfo[];
+  isOnline: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
 }
 
-export function ChatView({ messages, isStreaming, activeTools, onSend, onStop }: Props) {
+export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,13 +29,13 @@ export function ChatView({ messages, isStreaming, activeTools, onSend, onStop }:
             <h2>iAgent</h2>
             <p>AIアシスタントに話しかけてみましょう</p>
             <div className="chat-suggestions">
-              <button onClick={() => onSend('こんにちは！何ができますか？')}>
+              <button onClick={() => onSend('こんにちは！何ができますか？')} disabled={!isOnline}>
                 こんにちは！何ができますか？
               </button>
-              <button onClick={() => onSend('バッテリー残量を教えて')}>
+              <button onClick={() => onSend('バッテリー残量を教えて')} disabled={!isOnline}>
                 バッテリー残量を教えて
               </button>
-              <button onClick={() => onSend('最新のテクノロジーニュースを検索して')}>
+              <button onClick={() => onSend('最新のテクノロジーニュースを検索して')} disabled={!isOnline}>
                 最新ニュースを検索
               </button>
             </div>
@@ -50,7 +51,7 @@ export function ChatView({ messages, isStreaming, activeTools, onSend, onStop }:
         )}
         <div ref={bottomRef} />
       </div>
-      <InputBar onSend={onSend} disabled={isStreaming} isStreaming={isStreaming} onStop={onStop} />
+      <InputBar onSend={onSend} disabled={isStreaming || !isOnline} isStreaming={isStreaming} onStop={onStop} isOnline={isOnline} />
     </div>
   );
 }
