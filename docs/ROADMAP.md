@@ -113,6 +113,10 @@
 - [x] 初回週次レビュー作成（W10）— `docs/weekly/2026-W10.md`
 - [x] W10 baseline/インタビュー実体ファイル作成 — `docs/weekly/2026-W10-baseline.md`, `docs/weekly/interviews/*`
 - [x] KPI/SLO 自動収集 CLI 追加（Playwright）— `npm run metrics:poc`, `scripts/collect-poc-metrics.mjs`
+- [x] 週次雛形自動生成 CLI 追加 — `npm run poc:init-week`, `scripts/init-poc-week.mjs`
+- [x] インタビュー→週次レビュー反映 CLI 追加 — `npm run poc:sync-validation`, `scripts/sync-poc-validation.mjs`
+- [x] 週次一括実行 CLI 追加（init + metrics + validation）— `npm run poc:run-week`, `scripts/run-poc-week.mjs`
+- [x] 週次レビュー記入漏れチェック CLI 追加 — `npm run poc:check-week`, `scripts/check-poc-week.mjs`
 
 ---
 
