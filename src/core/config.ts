@@ -191,6 +191,17 @@ function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
   return [...savedTasks, ...missing];
 }
 
+const VALID_SPEECH_LANGS = ['ja-JP', 'en-US', 'en-GB', 'zh-CN', 'ko-KR'];
+
+/** WebSpeechConfig の値を安全な範囲にクランプ・検証する */
+function sanitizeWebSpeechConfig(config: WebSpeechConfig): WebSpeechConfig {
+  return {
+    ...config,
+    ttsRate: Math.max(0.5, Math.min(2.0, Number(config.ttsRate) || 1.0)),
+    lang: VALID_SPEECH_LANGS.includes(config.lang) ? config.lang : 'ja-JP',
+  };
+}
+
 function getDefaultAppConfig(): AppConfig {
   return {
     openaiApiKey: '',
@@ -248,7 +259,7 @@ export function getConfig(): AppConfig {
       ? parsed.suggestionFrequency as SuggestionFrequency
       : undefined),
     webSpeech: parsed.webSpeech
-      ? { ...getDefaultWebSpeechConfig(), ...parsed.webSpeech }
+      ? sanitizeWebSpeechConfig({ ...getDefaultWebSpeechConfig(), ...parsed.webSpeech })
       : getDefaultWebSpeechConfig(),
   };
 }
