@@ -486,7 +486,7 @@ jobs:
                 isCopilotLogin(comment?.user?.login)
                 && isHeadOrFresh(
                   toTimestamp(comment.created_at || comment.updated_at),
-                  comment.commit_id || comment.original_commit_id,
+                  comment.original_commit_id || comment.commit_id,
                 ),
               );
 
