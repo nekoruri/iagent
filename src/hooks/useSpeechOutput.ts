@@ -57,7 +57,7 @@ export function useSpeechOutput(
     // 既存の読み上げをキャンセル
     cancelSpeech();
 
-    const plainText = stripMarkdown(text);
+    const plainText = stripMarkdown(text).slice(0, 1000);
     if (!plainText) return;
 
     const utterance = createUtterance(plainText, { lang, rate });

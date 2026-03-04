@@ -13,6 +13,8 @@ export function isSpeechSynthesisSupported(): boolean {
   return !!window.speechSynthesis;
 }
 
+const VALID_SPEECH_LANGS = ['ja-JP', 'en-US', 'en-GB', 'zh-CN', 'ko-KR'];
+
 /** SpeechRecognition インスタンスを生成 */
 export function createSpeechRecognition(lang: string): SpeechRecognition {
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -20,7 +22,7 @@ export function createSpeechRecognition(lang: string): SpeechRecognition {
     throw new Error('SpeechRecognition API は利用できません');
   }
   const recognition = new SpeechRecognitionCtor();
-  recognition.lang = lang;
+  recognition.lang = VALID_SPEECH_LANGS.includes(lang) ? lang : 'ja-JP';
   recognition.continuous = false;
   recognition.interimResults = true;
   return recognition;
