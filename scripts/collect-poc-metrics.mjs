@@ -4,6 +4,7 @@ import { chromium } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 
 function printHelp() {
   console.log(`Usage: npm run metrics:poc -- [options]
@@ -12,6 +13,7 @@ Options:
   --url <url>       Target app URL (default: http://localhost:5173)
   --days <n>        Rolling window days (default: 7)
   --user-data-dir   Chromium user data directory for persistent profile
+  --week <YYYY-W##> Auto-resolve weekly and baseline file paths
   --weekly-review   Update weekly review markdown file in-place
   --baseline        Update baseline markdown file in-place
   --headed          Run browser in headed mode
@@ -21,6 +23,7 @@ Examples:
   npm run metrics:poc
   npm run metrics:poc -- --url http://localhost:4173 --days 7
   npm run metrics:poc -- --user-data-dir /tmp/iagent-metrics-profile
+  npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
   npm run metrics:poc -- --weekly-review docs/weekly/2026-W10.md
   npm run metrics:poc -- --baseline docs/weekly/2026-W10-baseline.md
 `);
@@ -31,6 +34,7 @@ function parseArgs(argv) {
     url: 'http://localhost:5173',
     days: 7,
     userDataDir: '',
+    week: '',
     weeklyReview: '',
     baseline: '',
     headed: false,
@@ -54,6 +58,11 @@ function parseArgs(argv) {
     }
     if (a === '--user-data-dir') {
       args.userDataDir = argv[i + 1] ?? '';
+      i++;
+      continue;
+    }
+    if (a === '--week') {
+      args.week = argv[i + 1] ?? '';
       i++;
       continue;
     }
@@ -191,6 +200,26 @@ function appendExecutionDateLog(content, line) {
   return `${content.slice(0, blockStart)}${nextBlock}${rest}`;
 }
 
+function isValidWeek(week) {
+  return /^\d{4}-W\d{2}$/.test(week);
+}
+
+function resolveOutputPaths(opts) {
+  if (opts.week && !isValidWeek(opts.week)) {
+    throw new Error(`Invalid --week format: ${opts.week} (expected YYYY-W##)`);
+  }
+
+  const resolvedWeeklyReview = opts.weeklyReview
+    || (opts.week ? `${DEFAULT_WEEKLY_DIR}/${opts.week}.md` : '');
+  const resolvedBaseline = opts.baseline
+    || (opts.week ? `${DEFAULT_WEEKLY_DIR}/${opts.week}-baseline.md` : '');
+
+  return {
+    weeklyReview: resolvedWeeklyReview,
+    baseline: resolvedBaseline,
+  };
+}
+
 async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   const raw = await readFile(filePath, 'utf8');
   const kpiAcceptLine = `- 提案 Accept 率（7日）: ${toPercent(result.kpi.acceptRate.rate)}（accepted=${result.kpi.acceptRate.accepted}, dismissed=${result.kpi.acceptRate.dismissed}, snoozed=${result.kpi.acceptRate.snoozed}）`;
@@ -291,6 +320,7 @@ async function main() {
     printHelp();
     return;
   }
+  const outputPaths = resolveOutputPaths(opts);
 
   const browser = opts.userDataDir
     ? null
@@ -592,13 +622,13 @@ async function main() {
     const now = Date.now();
     console.log(`- collectedAtLocal: ${localDateTime(now)}`);
     console.log(`- collectedAtUtcDate: ${isoDate(now)}`);
-    if (opts.weeklyReview) {
-      await updateWeeklyReviewFile(opts.weeklyReview, result, now);
-      console.log(`- weeklyReviewUpdated: ${opts.weeklyReview}`);
+    if (outputPaths.weeklyReview) {
+      await updateWeeklyReviewFile(outputPaths.weeklyReview, result, now);
+      console.log(`- weeklyReviewUpdated: ${outputPaths.weeklyReview}`);
     }
-    if (opts.baseline) {
-      await updateBaselineFile(opts.baseline, result, now, opts.userDataDir);
-      console.log(`- baselineUpdated: ${opts.baseline}`);
+    if (outputPaths.baseline) {
+      await updateBaselineFile(outputPaths.baseline, result, now, opts.userDataDir);
+      console.log(`- baselineUpdated: ${outputPaths.baseline}`);
     }
     if (!opts.userDataDir) {
       console.log('- note: デフォルトは一時プロファイルで実行されるため、既存ブラウザの利用データは含まれません');
