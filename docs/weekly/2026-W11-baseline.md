@@ -8,6 +8,7 @@
 ## 実施ログ
 
 - 実施日:
+  - 2026-03-05 04:51 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
