@@ -11,7 +11,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: copilot-review-${{ github.event.pull_request.number || github.run_id }}
+  group: copilot-review-${{ github.event.pull_request.number || github.run_id }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
