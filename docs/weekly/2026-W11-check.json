@@ -31,34 +31,9 @@
   ],
   "counts": {
     "errors": 0,
-    "warnings": 8
+    "warnings": 3
   },
   "issues": [
-    {
-      "severity": "warn",
-      "path": "docs/weekly/2026-W11.md",
-      "message": "次週アクション 1 が未入力です"
-    },
-    {
-      "severity": "warn",
-      "path": "docs/weekly/2026-W11.md",
-      "message": "次週アクション 2 が未入力です"
-    },
-    {
-      "severity": "warn",
-      "path": "docs/weekly/2026-W11.md",
-      "message": "次週アクション 3 が未入力です"
-    },
-    {
-      "severity": "warn",
-      "path": "docs/weekly/2026-W11.md",
-      "message": "オーナーが未入力です"
-    },
-    {
-      "severity": "warn",
-      "path": "docs/weekly/2026-W11.md",
-      "message": "期限が未入力です"
-    },
     {
       "severity": "warn",
       "path": "docs/weekly/interviews/2026-W11-info-collector.md",
