@@ -1657,6 +1657,33 @@ body {
   .memory-restore-btn {
     opacity: 1;
   }
+  .memory-delete-btn {
+    display: block;
+  }
+  /* タップターゲット 44px 最小保証 */
+  .memory-delete-btn,
+  .memory-restore-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sidebar-item-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .btn-pin {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .btn-feedback {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .memory-category-tabs {
