@@ -6,7 +6,7 @@
 
 ---
 
-## 現状（2026-03-03 時点）
+## 現状（2026-03-04 時点）
 
 - チャット UI（ストリーミング対応）
 - ビルトインツール 7 種（カレンダー、Web 検索、デバイス情報、メモリ、クリッピング、RSS フィード、Web ページ監視）
@@ -24,7 +24,8 @@
 - フィードバック学習ループ（Accept/Dismiss/Snooze → 集計 → パターン認識 → 最適化ルール → 自動設定変更）
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
-- テスト 1015 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
+- ファイル添付・画像認識（マルチモーダル対応 — 画像/PDF/テキスト + クリップボードペースト + モバイルカメラ + IndexedDB 永続化）
+- テスト 1096 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -163,6 +164,16 @@
 ### ビルド最適化
 - [x] バンドルサイズ削減 — `manualChunks` でベンダーチャンク分離 + `isReadOnlyTool` 依存切断 + `React.lazy()` で SettingsModal 遅延ロード（950KB → 全チャンク 500KB 未満）
 
+### マルチモーダル対応
+- [x] ファイル添付 UI（クリップアイコン + ファイル選択 + プレビュー + 削除）
+- [x] クリップボードペースト（Ctrl+V で画像貼り付け）
+- [x] モバイルカメラ撮影（capture 属性）
+- [x] 画像認識（OpenAI Agents SDK UserContent[] / input_image 型）
+- [x] 任意ファイル対応（PDF/テキスト等、input_file 型）
+- [x] IndexedDB 永続化（attachments ストア、DB_VERSION 11）
+- [x] メッセージ表示の添付対応（サムネイル + フルサイズ表示）
+- [x] 会話削除時の添付データクリーンアップ
+
 ### オフライン対応
 - [x] オフラインフォールバック UI（オンライン状態検知 + バナー表示 + 送信無効化）
 - [x] Service Worker キャッシュ戦略の改善
@@ -243,7 +254,7 @@
 
 - エージェント間の連携（複数エージェントの協調動作）
 - プラグインシステム（ユーザーがカスタムツールを追加）
-- ファイル添付・画像認識（マルチモーダル対応）
+- ~~ファイル添付・画像認識（マルチモーダル対応）~~ → フェーズ 3 UX 改善に移動
 - 音声入出力（Web Speech API）
 - 他ユーザーとのエージェント共有
 
@@ -306,3 +317,4 @@
 - [x] コードベースレビュー指摘5件修正 — Heartbeat 応答パース堅牢化（try-catch + スキーマ検証）、taskLastRun 先制更新（パース失敗時の再実行ループ防止）、送信失敗時エラーメッセージ DB 永続化、stopStreaming タイムアウト付き completed 待機（2秒）、Layer1 Heartbeat Agent ツール不足解消（Worker 20 ツールに合わせて 14 ツール追加、計 21 ツール）。テスト 1015→1031 件。（2026-03-03）
 - [x] コードベースレビュー（Full）指摘5件対応 — (1) getConfig JSON.parse 例外処理追加（設定破損時のクラッシュ防止、localStorage 自動リセット）、(2) stopStreaming を AbortController ベースに変更（SDK signal オプションで実際にネットワーク処理をキャンセル）、(3) handleSend try-catch 追加（未処理 Promise rejection 防止、エラーメッセージ UI 表示）、(4) Heartbeat 履歴 pinned 上限超過時に古い pinned を切り捨て（IndexedDB 無限増加防止）、(5) Lint エラー全 18 件修正（react-hooks/set-state-in-effect をレンダー中ステート調整に変更、react-hooks/immutability を useState 宣言順序修正、no-unused-vars/no-explicit-any/no-unsafe-function-type をテストコード含めて解消）。Lint 0 errors。（2026-03-03）
 - [x] オフラインフォールバック UI — useOnlineStatus フック（navigator.onLine + online/offline イベント）、OfflineBanner コンポーネント（role="alert" + WiFi オフ SVG）、ChatView/InputBar オフライン時送信無効化 + placeholder 変更 + サジェストボタン disabled、SW NavigationRoute（オフライン時 index.html フォールバック）。テスト 1051→1061 件。（2026-03-04）
+- [x] ファイル添付・画像認識（マルチモーダル対応）— Attachment/PendingAttachment 型定義、attachmentStore（IndexedDB attachments ストア、DB_VERSION 10→11）、fileUtils（fileToDataUri/generateThumbnail/validateFile）、InputBar 拡張（クリップアイコン + ファイル選択 + ペーストハンドラ + カメラ capture + プレビュー UI）、useAgentChat 拡張（sendMessage に PendingAttachment[] 対応 + OpenAI Agents SDK UserContent[] 変換: input_image/input_file）、MessageBubble 添付表示（サムネイル + フルサイズ表示 + ファイルアイコン）、ChatView 添付遅延ロード、会話削除時 attachments クリーンアップ。テスト 1061→1096 件。（2026-03-04）

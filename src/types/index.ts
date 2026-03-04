@@ -6,6 +6,7 @@ export interface ChatMessage {
   toolCalls?: ToolCallInfo[];
   source?: 'chat' | 'heartbeat';
   conversationId?: string;
+  attachmentIds?: string[];
 }
 
 export interface Conversation {

@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { isImageMimeType, formatFileSize } from '../core/fileUtils';
 import type { ChatMessage } from '../types';
+import type { Attachment } from '../types/attachment';
 
 marked.setOptions({
   breaks: true,
@@ -16,9 +18,10 @@ function renderMarkdown(text: string): string {
 
 interface Props {
   message: ChatMessage;
+  attachments?: Attachment[];
 }
 
-export function MessageBubble({ message }: Props) {
+export function MessageBubble({ message, attachments }: Props) {
   const isUser = message.role === 'user';
 
   const html = useMemo(() => {
@@ -37,6 +40,28 @@ export function MessageBubble({ message }: Props) {
               <span key={tc.id} className={`tool-badge tool-${tc.status}`}>
                 {tc.name}
               </span>
+            ))}
+          </div>
+        )}
+        {attachments && attachments.length > 0 && (
+          <div className="message-attachments">
+            {attachments.map((att) => (
+              <div key={att.id} className="message-attachment">
+                {isImageMimeType(att.mimeType) ? (
+                  <img
+                    src={att.thumbnailUri ?? att.dataUri}
+                    alt={att.filename}
+                    className="message-attachment-image"
+                    onClick={() => window.open(att.dataUri, '_blank')}
+                  />
+                ) : (
+                  <div className="message-attachment-file">
+                    <span className="message-attachment-icon">&#128206;</span>
+                    <span className="message-attachment-name">{att.filename}</span>
+                    <span className="message-attachment-size">{formatFileSize(att.size)}</span>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

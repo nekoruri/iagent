@@ -4,12 +4,15 @@ import { setDefaultOpenAIClient } from '@openai/agents-openai';
 import OpenAI from 'openai';
 import type { AgentInputItem, RunStreamEvent } from '@openai/agents';
 import { createAgent } from '../core/agent';
+import { isImageMimeType } from '../core/fileUtils';
 import { getConfigValue } from '../core/config';
 import { mcpManager } from '../core/mcpManager';
+import { saveAttachment } from '../store/attachmentStore';
 import { loadMessages, saveMessage } from '../store/conversationStore';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, TOOL_ATTRS } from '../telemetry/semantics';
 import type { ChatMessage, ToolCallInfo } from '../types';
+import type { PendingAttachment } from '../types/attachment';
 
 function ensureOpenAIClient(apiKey: string): void {
   const client = new OpenAI({
@@ -43,8 +46,10 @@ export function useAgentChat(conversationId: string | null) {
     });
   }, [conversationId]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || isStreaming || !conversationId) return;
+  const sendMessage = useCallback(async (text: string, pendingAttachments?: PendingAttachment[]) => {
+    const hasText = text.trim().length > 0;
+    const hasAttachments = pendingAttachments && pendingAttachments.length > 0;
+    if ((!hasText && !hasAttachments) || isStreaming || !conversationId) return;
 
     const apiKey = getConfigValue('openaiApiKey');
     if (!apiKey) {
@@ -60,9 +65,26 @@ export function useAgentChat(conversationId: string | null) {
       content: text,
       timestamp: Date.now(),
       conversationId,
+      attachmentIds: hasAttachments ? pendingAttachments.map((a) => a.id) : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
     await saveMessage(userMsg);
+
+    // 添付ファイルを IndexedDB に保存
+    if (hasAttachments) {
+      for (const att of pendingAttachments) {
+        await saveAttachment({
+          id: att.id,
+          messageId: userMsg.id,
+          conversationId,
+          filename: att.file.name,
+          mimeType: att.file.type,
+          size: att.file.size,
+          dataUri: att.dataUri,
+          thumbnailUri: att.thumbnailUri,
+        });
+      }
+    }
 
     // アシスタントメッセージ（ストリーミング用）
     const assistantMsg: ChatMessage = {
@@ -90,7 +112,24 @@ export function useAgentChat(conversationId: string | null) {
     try {
       const mcpServers = mcpManager.getActiveServers();
       const agent = await createAgent(mcpServers, text);
-      historyRef.current.push(user(text));
+
+      // 添付がある場合は UserContent[] 形式で送信
+      if (hasAttachments) {
+        const contents: { type: string; text?: string; image?: string; detail?: string; file?: string; filename?: string }[] = [];
+        if (hasText) {
+          contents.push({ type: 'input_text', text });
+        }
+        for (const att of pendingAttachments) {
+          if (isImageMimeType(att.file.type)) {
+            contents.push({ type: 'input_image', image: att.dataUri, detail: 'auto' });
+          } else {
+            contents.push({ type: 'input_file', file: att.dataUri, filename: att.file.name });
+          }
+        }
+        historyRef.current.push(user(contents as Parameters<typeof user>[0]));
+      } else {
+        historyRef.current.push(user(text));
+      }
 
       const result = await run(agent, historyRef.current, {
         stream: true,

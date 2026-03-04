@@ -7,9 +7,14 @@ import { useAgentChat } from './useAgentChat';
 const mockRun = vi.fn();
 const mockSetDefaultOpenAIClient = vi.fn();
 
+const mockUser = vi.fn().mockImplementation((input: unknown) => ({
+  role: 'user',
+  content: input,
+}));
+
 vi.mock('@openai/agents', () => ({
   run: (...args: unknown[]) => mockRun(...args),
-  user: (text: string) => ({ role: 'user', content: text }),
+  user: (...args: unknown[]) => mockUser(...args),
 }));
 
 vi.mock('@openai/agents-openai', () => ({
@@ -39,6 +44,15 @@ const mockSaveMessage = vi.fn();
 vi.mock('../store/conversationStore', () => ({
   loadMessages: (...args: unknown[]) => mockLoadMessages(...args),
   saveMessage: (...args: unknown[]) => mockSaveMessage(...args),
+}));
+
+const mockSaveAttachment = vi.fn().mockResolvedValue({});
+vi.mock('../store/attachmentStore', () => ({
+  saveAttachment: (...args: unknown[]) => mockSaveAttachment(...args),
+}));
+
+vi.mock('../core/fileUtils', () => ({
+  isImageMimeType: (mime: string) => mime.startsWith('image/'),
 }));
 
 // テレメトリモック
@@ -297,6 +311,115 @@ describe('useAgentChat', () => {
       expect(result.current.messages).toHaveLength(2);
       const assistantMsg = result.current.messages[1];
       expect(assistantMsg.content).toBe('エラー: 不明なエラーが発生しました');
+    });
+
+    it('添付画像付きメッセージで user() に UserContent[] が渡される', async () => {
+      const stream = createMockStream([textDelta('画像を確認しました')]);
+      stream.finalOutput = '画像を確認しました';
+      mockRun.mockResolvedValue(stream);
+
+      const { result } = await setupHook('conv-1');
+
+      const pendingAttachments = [
+        {
+          id: 'att-1',
+          file: new File(['img'], 'photo.jpg', { type: 'image/jpeg' }),
+          dataUri: 'data:image/jpeg;base64,abc',
+          thumbnailUri: 'data:image/jpeg;base64,thumb',
+        },
+      ];
+
+      await act(async () => {
+        await result.current.sendMessage('この画像は何ですか？', pendingAttachments);
+      });
+
+      // user() が UserContent[] 形式で呼ばれる
+      expect(mockUser).toHaveBeenCalledTimes(1);
+      const userArg = mockUser.mock.calls[0][0];
+      expect(Array.isArray(userArg)).toBe(true);
+      expect(userArg).toHaveLength(2);
+      expect(userArg[0]).toEqual({ type: 'input_text', text: 'この画像は何ですか？' });
+      expect(userArg[1]).toEqual({ type: 'input_image', image: 'data:image/jpeg;base64,abc', detail: 'auto' });
+
+      // saveAttachment が呼ばれる
+      expect(mockSaveAttachment).toHaveBeenCalledTimes(1);
+      expect(mockSaveAttachment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'att-1',
+          messageId: expect.any(String),
+          filename: 'photo.jpg',
+          mimeType: 'image/jpeg',
+        }),
+      );
+
+      // ユーザーメッセージに attachmentIds が含まれる
+      const savedUserMsg = mockSaveMessage.mock.calls[0][0];
+      expect(savedUserMsg.attachmentIds).toEqual(['att-1']);
+    });
+
+    it('添付ファイル（非画像）で input_file 型が使われる', async () => {
+      const stream = createMockStream([textDelta('PDFを読みました')]);
+      stream.finalOutput = 'PDFを読みました';
+      mockRun.mockResolvedValue(stream);
+
+      const { result } = await setupHook('conv-1');
+
+      const pendingAttachments = [
+        {
+          id: 'att-pdf',
+          file: new File(['pdf'], 'doc.pdf', { type: 'application/pdf' }),
+          dataUri: 'data:application/pdf;base64,xyz',
+        },
+      ];
+
+      await act(async () => {
+        await result.current.sendMessage('このPDFを要約して', pendingAttachments);
+      });
+
+      const userArg = mockUser.mock.calls[0][0];
+      expect(Array.isArray(userArg)).toBe(true);
+      expect(userArg[1]).toEqual({ type: 'input_file', file: 'data:application/pdf;base64,xyz', filename: 'doc.pdf' });
+    });
+
+    it('添付のみ（テキスト空）でも送信できる', async () => {
+      const stream = createMockStream([textDelta('画像の説明')]);
+      stream.finalOutput = '画像の説明';
+      mockRun.mockResolvedValue(stream);
+
+      const { result } = await setupHook('conv-1');
+
+      const pendingAttachments = [
+        {
+          id: 'att-only',
+          file: new File(['img'], 'photo.png', { type: 'image/png' }),
+          dataUri: 'data:image/png;base64,abc',
+        },
+      ];
+
+      await act(async () => {
+        await result.current.sendMessage('', pendingAttachments);
+      });
+
+      // user() が呼ばれる（テキストなし、画像のみ）
+      const userArg = mockUser.mock.calls[0][0];
+      expect(Array.isArray(userArg)).toBe(true);
+      expect(userArg).toHaveLength(1);
+      expect(userArg[0].type).toBe('input_image');
+    });
+
+    it('添付なしの場合は従来通り user(text) が呼ばれる', async () => {
+      const stream = createMockStream([textDelta('OK')]);
+      stream.finalOutput = 'OK';
+      mockRun.mockResolvedValue(stream);
+
+      const { result } = await setupHook('conv-1');
+
+      await act(async () => {
+        await result.current.sendMessage('テキストのみ');
+      });
+
+      expect(mockUser).toHaveBeenCalledWith('テキストのみ');
+      expect(mockSaveAttachment).not.toHaveBeenCalled();
     });
 
     it('finalOutput が fullText より長い場合はフォールバックする', async () => {
