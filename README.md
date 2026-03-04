@@ -200,7 +200,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push /
 npm run metrics:poc
 ```
 
-`iagent-db`（IndexedDB）から PoC KPI（Accept率 / 7日アクティブ率 / proxy再訪率）を収集する。
+`iagent-db`（IndexedDB）から PoC KPI（Accept率 / 7日アクティブ率 / 通知再訪率）と 24h SLO を収集する。
 継続観測では `--user-data-dir` 指定で同一プロファイルを使う。
 
 ## ライセンス

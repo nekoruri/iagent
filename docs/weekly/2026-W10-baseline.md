@@ -10,6 +10,7 @@
 - 実施日:
   - 2026-03-05 03:11 JST（初回: 一時プロファイル）
   - 2026-03-05 03:13 JST（再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
+  - 2026-03-05 03:26 JST（厳密KPI3/SLO 自動集計版で再計測）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
@@ -34,32 +35,36 @@
 - activeRate: 0.0% (0.0000)
 - days: (なし)
 
-## 3) 通知経由再訪率（proxy, 7日）
+## 3) 通知経由再訪率（7日）
 
-- totalHasChanges: 0
-- hasFeedback: 0
-- proxyRevisitRate: 0.0% (0.0000)
+- notificationShown: 0
+- notificationClicked: 0
+- revisitRate: 0.0% (0.0000)
+- shownByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
+- clickedByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
 
 ---
 
-## SLO Baseline（暫定）
+## SLO Baseline（24h）
 
 ## 1) Heartbeat 実行成功率（24h）
 
-- 試行回数: 未計測
-- 成功回数: 未計測
-- 成功率: 未計測
+- 試行回数: 0
+- 成功回数: 0
+- 失敗回数: 0
+- 成功率: 0.0% (0.0000)
 
 ## 2) Push wake 実行成功率（24h）
 
-- 試行回数: 未計測
-- 成功回数: 未計測
-- 成功率: 未計測
+- 試行回数: 0
+- 成功回数: 0
+- 失敗回数: 0
+- 成功率: 0.0% (0.0000)
 
 ## 3) Heartbeat 遅延 p95（24h）
 
-- p95: 未計測
-- 観測メモ: PoC 初回は KPI 収集パイプライン確認を優先
+- p95: n/a（サンプル数 0）
+- 観測メモ: 計測基盤は稼働済み。実運用データ投入後に値が出る想定
 
 ---
 
@@ -67,4 +72,4 @@
 
 1. 固定プロファイルでの baseline 再計測は完了
 2. 実運用データ（インタビュー対象者利用データ）を入れた状態で再取得し、実質 baseline を確定する
-3. SLO は W11 でログベース集計を開始する
+3. W11 では通知表示/クリックと Heartbeat 実行イベントのサンプル数を増やして再計測する

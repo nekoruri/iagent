@@ -126,10 +126,11 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 
 ## KPI 3: 通知経由の再訪率（7日）
 
-現状は厳密トラッキング未実装のため、PoC 期間は暫定 proxy を使う。
-
-- proxy 定義: `feedback が付いた hasChanges 通知数 / hasChanges 通知総数`
-- 注意: 通知クリック起因かを厳密に区別できないため、参考値として扱う
+- 定義: `通知クリック数 / 通知表示数`
+- 取得元: `heartbeat` ストアの `ops-events` 行
+- 対象イベント:
+  - 表示: `type = notification-shown`
+  - クリック: `type = notification-clicked`
 
 ```javascript
 (() => {
@@ -139,18 +140,18 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
   req.onsuccess = () => {
     const db = req.result;
     const tx = db.transaction('heartbeat', 'readonly');
-    const getReq = tx.objectStore('heartbeat').get('state');
+    const getReq = tx.objectStore('heartbeat').get('ops-events');
     getReq.onsuccess = () => {
-      const results = getReq.result?.recentResults ?? [];
-      let totalHasChanges = 0;
-      let hasFeedback = 0;
-      for (const r of results) {
-        if (r.timestamp < cutoff || !r.hasChanges) continue;
-        totalHasChanges++;
-        if (r.feedback) hasFeedback++;
+      const events = getReq.result?.events ?? [];
+      let shown = 0;
+      let clicked = 0;
+      for (const e of events) {
+        if (typeof e.timestamp !== 'number' || e.timestamp < cutoff) continue;
+        if (e.type === 'notification-shown') shown++;
+        if (e.type === 'notification-clicked') clicked++;
       }
-      const proxyRate = totalHasChanges > 0 ? hasFeedback / totalHasChanges : 0;
-      console.table([{ totalHasChanges, hasFeedback, proxyRevisitRate: proxyRate }]);
+      const revisitRate = shown > 0 ? clicked / shown : 0;
+      console.table([{ notificationShown: shown, notificationClicked: clicked, revisitRate }]);
       db.close();
     };
   };
@@ -159,12 +160,18 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 
 ---
 
-## SLO 収集（暫定）
+## SLO 収集（自動）
 
-PoC 期間はまず運用ログから週次確認:
+`npm run metrics:poc` は以下の 24h SLO を同時に出力する:
 
-1. Heartbeat 例外ログ件数  
-2. push/periodic 実行失敗ログ件数  
-3. 明らかな遅延ケース（体感 45 秒超）の件数  
+- Heartbeat 実行成功率: `slo24h.heartbeatRunSuccess.rate`
+- Push wake 実行成功率: `slo24h.pushWakeSuccess.rate`
+- Heartbeat 処理遅延 p95: `slo24h.heartbeatDurationP95.p95Ms`
 
-SLO を数値自動化する場合は、次フェーズでイベントカウンタを実装する。
+取得元は `heartbeat` ストアの `ops-events`（`type = heartbeat-run`）。
+
+週次レビューには `Markdown Paste Helper` の下記項目を転記する:
+
+- `slo24hHeartbeatSuccessRate`
+- `slo24hPushSuccessRate`
+- `slo24hHeartbeatP95Ms` / `slo24hHeartbeatP95Sec`

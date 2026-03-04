@@ -19,6 +19,7 @@ PoC で価値に直結する 3 つのみ管理する。
 
 - SLI: `成功実行回数 / 実行試行回数`
 - 成功定義: Heartbeat 実行が例外終了せず完了する
+- 取得元: `heartbeat` ストア `ops-events`（`type=heartbeat-run`, `source=tab|worker|push|periodic-sync`）
 - 目標 SLO:
   - Target: 99%
   - Alert: 97% 未満
@@ -26,6 +27,7 @@ PoC で価値に直結する 3 つのみ管理する。
 ## 2) Push wake 実行成功率（24h）
 
 - SLI: `push/periodic 起点の成功実行回数 / push/periodic 試行回数`
+- 取得元: `heartbeat` ストア `ops-events`（`type=heartbeat-run`, `source=push|periodic-sync`）
 - 目標 SLO:
   - Target: 95%
   - Alert: 90% 未満
@@ -33,6 +35,7 @@ PoC で価値に直結する 3 つのみ管理する。
 ## 3) Heartbeat 処理遅延 p95（24h）
 
 - SLI: Heartbeat 1 実行あたりの処理時間
+- 取得元: `heartbeat` ストア `ops-events`（`durationMs` の p95）
 - 目標 SLO:
   - Target: p95 <= 30 秒
   - Alert: p95 > 45 秒
@@ -52,6 +55,7 @@ PoC で価値に直結する 3 つのみ管理する。
 
 - 失敗ログの件数と再現手順を確認
 - 重大失敗（連続失敗、完全停止）を即日切り分け
+- 収集コマンド: `npm run metrics:poc -- --days 7 --user-data-dir /tmp/iagent-metrics-profile`
 
 ## 週次
 
@@ -74,4 +78,3 @@ PoC で価値に直結する 3 つのみ管理する。
 
 PoC では「完璧な監視基盤」より「継続的に改善できる運用リズム」を優先する。  
 まずは 3 SLO を毎週欠かさず観測し、必要な計測の追加は後追いで行う。
-

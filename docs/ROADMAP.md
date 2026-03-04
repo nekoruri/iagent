@@ -112,7 +112,7 @@
 - [x] KPI 収集手順整備（DevTools Console スニペット）— `docs/POC-METRICS-COLLECTION.md`
 - [x] 初回週次レビュー作成（W10）— `docs/weekly/2026-W10.md`
 - [x] W10 baseline/インタビュー実体ファイル作成 — `docs/weekly/2026-W10-baseline.md`, `docs/weekly/interviews/*`
-- [x] KPI 半自動収集 CLI 追加（Playwright）— `npm run metrics:poc`, `scripts/collect-poc-metrics.mjs`
+- [x] KPI/SLO 自動収集 CLI 追加（Playwright）— `npm run metrics:poc`, `scripts/collect-poc-metrics.mjs`
 
 ---
 
