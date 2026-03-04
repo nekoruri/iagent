@@ -49,7 +49,7 @@ jobs:
               /\bcritical\b/i,
               /\bblocker\b/i,
               /\bsev(?:erity)?\s*[:=]?\s*(critical|high)\b/i,
-              /\bhigh(?:\s+severity)?\b/i,
+              /\bhigh\s+severity\b/i,
               /\b(vulnerability|security issue|security risk)\b/i,
               /\b(ssrf|xss|sql injection|rce)\b/i,
               /重大(?:な)?(?:問題|不具合|バグ|脆弱性|セキュリティ)/i,
@@ -74,6 +74,10 @@ jobs:
               return `${value.slice(0, maxLength - 1)}…`;
             };
             const shortSha = (sha) => (sha ? sha.slice(0, 7) : 'unknown');
+            const TERMINAL_STATUS_STATES = new Set(['success', 'failure', 'error']);
+            const SIGNAL_REFRESH_OVERLAP_MS = 30000;
+            const SIGNAL_CACHE_LIMIT = 600;
+            const HEAD_FRESH_GRACE_MS = 30000;
             const COPILOT_LOGIN_SET = new Set(COPILOT_LOGIN_CANDIDATES.map(normalize));
 
             const isCopilotLogin = (login) => {
@@ -96,6 +100,9 @@ jobs:
               if (!value) {
                 return 0;
               }
+              if (typeof value === 'number') {
+                return Number.isFinite(value) ? value : 0;
+              }
               const ts = Date.parse(value);
               return Number.isFinite(ts) ? ts : 0;
             };
@@ -112,6 +119,33 @@ jobs:
                 description: description.slice(0, 140),
                 target_url: targetUrl,
               });
+            };
+
+            const getCurrentContextStatusState = async (sha) => {
+              try {
+                const { data } = await github.rest.repos.getCombinedStatusForRef({
+                  owner,
+                  repo,
+                  ref: sha,
+                  per_page: 100,
+                });
+                const current = (data.statuses || []).find((status) => status.context === statusContext);
+                return current?.state || null;
+              } catch (error) {
+                const status = error?.status || 'unknown';
+                const message = error?.message || 'unknown';
+                core.info(`getCombinedStatusForRef failed sha="${sha}" status=${status} message=${message}`);
+                return null;
+              }
+            };
+
+            const setPendingStatusSafely = async (sha, description) => {
+              const currentState = await getCurrentContextStatusState(sha);
+              if (TERMINAL_STATUS_STATES.has(currentState)) {
+                core.info(`Skip pending update: context already terminal state=${currentState}`);
+                return;
+              }
+              await setStatus(sha, 'pending', description);
             };
 
             let reportCommentId = null;
@@ -171,6 +205,86 @@ jobs:
                 const message = error?.message || 'unknown';
                 core.info(`upsertReportComment failed status=${status} message=${message}`);
               }
+            };
+
+            const newSignalCache = () => ({
+              items: [],
+              ids: new Set(),
+              sinceTs: 0,
+            });
+            const reviewSignalCache = newSignalCache();
+            const reviewCommentSignalCache = newSignalCache();
+            const issueCommentSignalCache = newSignalCache();
+            const headObservedAtCache = new Map();
+
+            const trimSignalCache = (cache) => {
+              if (cache.items.length <= SIGNAL_CACHE_LIMIT) {
+                return;
+              }
+              const overflow = cache.items.length - SIGNAL_CACHE_LIMIT;
+              const removed = cache.items.splice(0, overflow);
+              for (const item of removed) {
+                if (item?.id) {
+                  cache.ids.delete(item.id);
+                }
+              }
+            };
+
+            const mergeSignalCache = (cache, incomingItems) => {
+              for (const item of incomingItems) {
+                const id = item?.id;
+                if (id && cache.ids.has(id)) {
+                  continue;
+                }
+                cache.items.push(item);
+                if (id) {
+                  cache.ids.add(id);
+                }
+              }
+              trimSignalCache(cache);
+            };
+
+            const buildSinceIso = (sinceTs) =>
+              new Date(Math.max(0, sinceTs - SIGNAL_REFRESH_OVERLAP_MS)).toISOString();
+
+            const refreshReviewSignalCache = async () => {
+              const params = { owner, repo, pull_number: prNumber, per_page: 100 };
+              if (reviewSignalCache.sinceTs > 0) {
+                params.since = buildSinceIso(reviewSignalCache.sinceTs);
+              }
+              const reviews = await github.paginate(github.rest.pulls.listReviews, params);
+              mergeSignalCache(reviewSignalCache, reviews);
+              reviewSignalCache.sinceTs = Date.now();
+            };
+
+            const refreshReviewCommentSignalCache = async () => {
+              const params = { owner, repo, pull_number: prNumber, per_page: 100 };
+              if (reviewCommentSignalCache.sinceTs > 0) {
+                params.since = buildSinceIso(reviewCommentSignalCache.sinceTs);
+              }
+              const comments = await github.paginate(github.rest.pulls.listReviewComments, params);
+              mergeSignalCache(reviewCommentSignalCache, comments);
+              reviewCommentSignalCache.sinceTs = Date.now();
+            };
+
+            const refreshIssueCommentSignalCache = async () => {
+              const params = { owner, repo, issue_number: prNumber, per_page: 100 };
+              if (issueCommentSignalCache.sinceTs > 0) {
+                params.since = buildSinceIso(issueCommentSignalCache.sinceTs);
+              }
+              const comments = await github.paginate(github.rest.issues.listComments, params);
+              mergeSignalCache(issueCommentSignalCache, comments);
+              issueCommentSignalCache.sinceTs = Date.now();
+            };
+
+            const getHeadObservedAt = (sha) => {
+              if (!sha) {
+                return Date.now();
+              }
+              if (!headObservedAtCache.has(sha)) {
+                headObservedAtCache.set(sha, Date.now());
+              }
+              return headObservedAtCache.get(sha);
             };
 
             const headCommitTimestampCache = new Map();
@@ -320,21 +434,16 @@ jobs:
               await upsertReportComment(body);
             };
 
-            const collectCopilotSignals = async (headSha, headCommitTs) => {
-              const reviews = await github.paginate(
-                github.rest.pulls.listReviews,
-                { owner, repo, pull_number: prNumber, per_page: 100 },
-              );
+            const collectCopilotSignals = async (headSha, headCommitTs, headObservedAtTs) => {
+              await Promise.all([
+                refreshReviewSignalCache(),
+                refreshReviewCommentSignalCache(),
+                refreshIssueCommentSignalCache(),
+              ]);
 
-              const reviewComments = await github.paginate(
-                github.rest.pulls.listReviewComments,
-                { owner, repo, pull_number: prNumber, per_page: 100 },
-              );
-
-              const issueComments = await github.paginate(
-                github.rest.issues.listComments,
-                { owner, repo, issue_number: prNumber, per_page: 100 },
-              );
+              const reviews = reviewSignalCache.items;
+              const reviewComments = reviewCommentSignalCache.items;
+              const issueComments = issueCommentSignalCache.items;
 
               const copilotReviews = reviews.filter((review) =>
                 isCopilotLogin(review?.user?.login)
@@ -349,8 +458,13 @@ jobs:
                 if (!itemTs) {
                   return false;
                 }
-                // commit_id が空・不一致でも、HEAD更新直後のレビューは拾う
-                return itemTs >= headCommitTs - 2 * 60 * 1000;
+                // commit_id が空でも、今回の HEAD を監視し始めた後の信号だけ許可する
+                const freshnessFloorTs = Math.max(
+                  0,
+                  headCommitTs,
+                  headObservedAtTs - HEAD_FRESH_GRACE_MS,
+                );
+                return itemTs >= freshnessFloorTs;
               };
 
               const headReviews = copilotReviews
@@ -378,7 +492,10 @@ jobs:
 
               const copilotIssueComments = issueComments.filter((comment) =>
                 isCopilotLogin(comment?.user?.login)
-                && toTimestamp(comment.created_at || comment.updated_at) >= headCommitTs - 2 * 60 * 1000,
+                && isHeadOrFresh(
+                  toTimestamp(comment.created_at || comment.updated_at),
+                  null,
+                ),
               );
 
               const hasAnyCopilotSignal =
@@ -416,15 +533,16 @@ jobs:
 
             if (shouldRequestReview) {
               const initialSnapshot = await fetchPrSnapshot();
-              await setStatus(initialSnapshot.pr.head.sha, 'pending', 'Copilot レビュー待機中');
+              await setPendingStatusSafely(initialSnapshot.pr.head.sha, 'Copilot レビュー待機中');
             }
 
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
               const { pr, headCommitTs } = await fetchPrSnapshot();
               const headSha = pr.head.sha;
+              const headObservedAtTs = getHeadObservedAt(headSha);
               core.info(`Attempt ${attempt}/${maxAttempts} head=${headSha} draft=${pr.draft}`);
 
-              const signals = await collectCopilotSignals(headSha, headCommitTs);
+              const signals = await collectCopilotSignals(headSha, headCommitTs, headObservedAtTs);
 
               if (shouldRequestReview && (attempt === 1 || attempt % 6 === 1)) {
                 const requestResult = await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
@@ -450,9 +568,9 @@ jobs:
               }
 
               if (pr.draft) {
-                await setStatus(headSha, 'pending', 'Draft PR: ready_for_review 待ち');
+                await setPendingStatusSafely(headSha, 'Draft PR: ready_for_review 待ち');
               } else {
-                await setStatus(headSha, 'pending', 'Copilot レビュー待機中');
+                await setPendingStatusSafely(headSha, 'Copilot レビュー待機中');
               }
 
               if (attempt < maxAttempts) {
