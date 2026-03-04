@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -120,6 +120,66 @@ describe('PoC CLI scripts', () => {
       '2026-12-31',
     ]);
     expect(afterDue.status).toBe(2);
+
+    await rm(workDir, { recursive: true, force: true });
+  });
+
+  it('check-poc-week: completed interview with blank required fields is warn/non-strict and error/strict', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-check-completed-'));
+    const week = '2026-W21';
+    const interviewPath = join(workDir, 'interviews', `${week}-info-collector.md`);
+    const reportWarnPath = join(workDir, 'check-warn.json');
+    const reportStrictPath = join(workDir, 'check-strict.json');
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const raw = await readFile(interviewPath, 'utf8');
+    const updated = raw.replace('ステータス: 未実施', 'ステータス: 実施済み');
+    await writeFile(interviewPath, updated);
+
+    const nonStrict = runCli('scripts/check-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--report-json',
+      reportWarnPath,
+    ]);
+    expect(nonStrict.status).toBe(0);
+
+    const warnJson = JSON.parse(await readFile(reportWarnPath, 'utf8')) as {
+      issues: Array<{ severity: string; path: string; message: string }>;
+    };
+    expect(
+      warnJson.issues.some(
+        (issue) => issue.severity === 'warn'
+          && issue.path === interviewPath
+          && issue.message.includes('実施済みだが必須項目が未入力です'),
+      ),
+    ).toBe(true);
+
+    const strict = runCli('scripts/check-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--strict',
+      '--report-json',
+      reportStrictPath,
+    ]);
+    expect(strict.status).toBe(2);
+
+    const strictJson = JSON.parse(await readFile(reportStrictPath, 'utf8')) as {
+      issues: Array<{ severity: string; path: string; message: string }>;
+    };
+    expect(
+      strictJson.issues.some(
+        (issue) => issue.severity === 'error'
+          && issue.path === interviewPath
+          && issue.message.includes('実施済みだが必須項目が未入力です'),
+      ),
+    ).toBe(true);
 
     await rm(workDir, { recursive: true, force: true });
   });
