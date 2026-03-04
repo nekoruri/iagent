@@ -24,19 +24,32 @@ export function useSpeechInput(
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const onResultRef = useRef(onResult);
-  onResultRef.current = onResult;
+  const mountedRef = useRef(true);
+
+  // ref 更新はレンダー中ではなく useEffect で行う（React Strict Mode 対応）
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   const isSupported = isSpeechRecognitionSupported();
 
   // アンマウント時 or enabled=false 時にクリーンアップ
   useEffect(() => {
+    mountedRef.current = true;
+
+    if (!enabled && recognitionRef.current) {
+      recognitionRef.current.abort();
+      recognitionRef.current = null;
+    }
+
     return () => {
+      mountedRef.current = false;
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
       }
     };
-  }, []);
+  }, [enabled]);
 
   const startListening = useCallback(() => {
     if (!isSupported || !enabled) return;
@@ -60,6 +73,7 @@ export function useSpeechInput(
           }
         }
 
+        if (!mountedRef.current) return;
         if (finalTranscript) {
           onResultRef.current(finalTranscript);
           setInterimText('');
@@ -69,6 +83,7 @@ export function useSpeechInput(
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (!mountedRef.current) return;
         if (event.error === 'not-allowed') {
           setError('マイクの使用が許可されていません。ブラウザの設定を確認してください。');
         } else if (event.error === 'no-speech') {
@@ -82,6 +97,7 @@ export function useSpeechInput(
       };
 
       recognition.onend = () => {
+        if (!mountedRef.current) return;
         setIsListening(false);
         setInterimText('');
         recognitionRef.current = null;
