@@ -87,6 +87,7 @@ npm run test:watch     # テスト監視モード
 npm run test:coverage  # カバレッジ測定（vitest --coverage）
 npm run lint           # ESLint
 npm run preview        # ビルド結果プレビュー
+npm run poc:init-week -- --week 2026-W11  # PoC週次ドキュメント雛形を一括生成
 ```
 
 ## プロジェクト構成

@@ -43,6 +43,31 @@
 
 - インタビュー記録: `docs/templates/USER-INTERVIEW-NOTE.md`
 - 週次統合レビュー: `docs/templates/WEEKLY-REVIEW.md`
+- 週次 baseline: `docs/templates/WEEKLY-BASELINE.md`
+
+---
+
+## 週次ファイル初期化（自動）
+
+新しい週の雛形は以下で一括作成できる:
+
+```bash
+npm run poc:init-week -- --week 2026-W11
+```
+
+生成対象:
+
+- `docs/weekly/<week>.md`
+- `docs/weekly/<week>-baseline.md`
+- `docs/weekly/<week>-interview-plan.md`
+- `docs/weekly/interviews/<week>-info-collector.md`
+- `docs/weekly/interviews/<week>-pm.md`
+- `docs/weekly/interviews/<week>-learner.md`
+
+補足:
+
+- 既存ファイルは上書きしない（`--force` 指定時のみ上書き）
+- 週次レビューの `担当:` は `--owner` で指定可能
 
 ---
 
@@ -59,4 +84,3 @@
 - 3 ペルソナすべてで「明確に助かった体験」の実例が各 3 件以上ある。  
 - 「通知が邪魔」という定性コメントが週次で減少傾向になる。  
 - KPI（`docs/POC-KPI.md`）と定性評価が矛盾した場合、原因を説明できる。  
-
