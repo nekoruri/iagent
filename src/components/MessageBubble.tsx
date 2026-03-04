@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { isImageMimeType, formatFileSize } from '../core/fileUtils';
@@ -25,7 +25,7 @@ interface Props {
   ttsSupported?: boolean;
 }
 
-export function MessageBubble({ message, attachments, onSpeak, onStopSpeak, isSpeaking, ttsSupported }: Props) {
+export const MessageBubble = memo(function MessageBubble({ message, attachments, onSpeak, onStopSpeak, isSpeaking, ttsSupported }: Props) {
   const isUser = message.role === 'user';
 
   const html = useMemo(() => {
@@ -116,4 +116,4 @@ export function MessageBubble({ message, attachments, onSpeak, onStopSpeak, isSp
       </div>
     </div>
   );
-}
+});
