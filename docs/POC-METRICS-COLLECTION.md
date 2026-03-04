@@ -44,6 +44,7 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 ```
 
 ※ `--weekly-review` / `--baseline` を明示した場合は、明示値を優先する。
+※ 解決先ファイルが未作成の場合はテンプレートから自動生成する。
 
 `--weekly-review` を指定すると、週次レビューMarkdownの以下行を自動更新する:
 
@@ -62,6 +63,11 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 - 実施ログ（`- 実施日:` に最新実行を追記）
 - KPI Baseline 各項目
 - SLO Baseline 各項目
+
+生成テンプレート:
+
+- 週次レビュー: `docs/templates/WEEKLY-REVIEW.md`
+- baseline: `docs/templates/WEEKLY-BASELINE.md`
 
 注意:
 
