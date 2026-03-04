@@ -17,6 +17,7 @@ Options:
   --week <YYYY-W##> Auto-resolve weekly and baseline file paths
   --weekly-review   Update weekly review markdown file in-place
   --baseline        Update baseline markdown file in-place
+  --fail-on-action  Exit with code 2 when KPI or SLO overall status is Action
   --headed          Run browser in headed mode
   --help            Show this help
 
@@ -28,6 +29,7 @@ Examples:
   npm run metrics:poc -- --weekly-review /tmp/WEEKLY.md --baseline /tmp/WEEKLY-baseline.md
   npm run metrics:poc -- --weekly-review docs/weekly/2026-W10.md
   npm run metrics:poc -- --baseline docs/weekly/2026-W10-baseline.md
+  npm run metrics:poc -- --week 2026-W10 --fail-on-action
 `);
 }
 
@@ -39,6 +41,7 @@ function parseArgs(argv) {
     week: '',
     weeklyReview: '',
     baseline: '',
+    failOnAction: false,
     headed: false,
     help: false,
   };
@@ -51,6 +54,10 @@ function parseArgs(argv) {
     }
     if (a === '--headed') {
       args.headed = true;
+      continue;
+    }
+    if (a === '--fail-on-action') {
+      args.failOnAction = true;
       continue;
     }
     if (a === '--url') {
@@ -690,6 +697,13 @@ async function main() {
     }
     if (!opts.userDataDir) {
       console.log('- note: デフォルトは一時プロファイルで実行されるため、既存ブラウザの利用データは含まれません');
+    }
+    if (
+      opts.failOnAction
+      && (result.assessment.kpi.overall === 'Action' || result.assessment.slo24h.overall === 'Action')
+    ) {
+      console.error('- gate: fail-on-action triggered (overall status includes Action)');
+      process.exitCode = 2;
     }
   } finally {
     await context.close();
