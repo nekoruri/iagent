@@ -30,6 +30,7 @@ npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-prof
 
 - `--skip-metrics` / `--skip-validation` で段階実行できる
 - `--weekly-dir` 指定時は対象ディレクトリへ出力される
+- `--strict` を付けると KPI/SLO のいずれかが `Action` の場合に非0終了する
 
 ---
 
@@ -49,6 +50,7 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --weekly-review docs/weekly/2026-W10.md
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --baseline docs/weekly/2026-W10-baseline.md
+npm run metrics:poc -- --week 2026-W10 --fail-on-action
 ```
 
 出力された `Markdown Paste Helper` を `docs/weekly/2026-W10-baseline.md` に転記する。
@@ -66,6 +68,7 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 
 ※ `--weekly-review` / `--baseline` を明示した場合は、明示値を優先する。
 ※ 解決先ファイルが未作成の場合はテンプレートから自動生成する。
+※ `--fail-on-action` 指定時は、KPI/SLO の overall 判定に `Action` を含むと exit code 2 で終了する。
 
 `--weekly-review` を指定すると、週次レビューMarkdownの以下行を自動更新する:
 
