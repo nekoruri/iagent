@@ -346,6 +346,7 @@ export default function App() {
             onStop={stopStreaming}
             webSpeechLang={webSpeech.lang}
             webSpeechSttEnabled={webSpeech.sttEnabled}
+            webSpeechTtsEnabled={webSpeech.ttsEnabled}
             speechOutput={speechOutput}
           />
         </main>

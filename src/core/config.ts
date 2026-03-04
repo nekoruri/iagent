@@ -1,4 +1,5 @@
 import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode, WebSpeechConfig } from '../types';
+import { VALID_SPEECH_LANGS } from './speechService';
 import { saveConfigToIDB } from '../store/configStore';
 
 const STORAGE_KEY = 'iagent-config';
@@ -190,8 +191,6 @@ function mergeBuiltinTasks(savedTasks: HeartbeatTask[]): HeartbeatTask[] {
     .map((t) => ({ ...t }));
   return [...savedTasks, ...missing];
 }
-
-const VALID_SPEECH_LANGS = ['ja-JP', 'en-US', 'en-GB', 'zh-CN', 'ko-KR'];
 
 /** WebSpeechConfig の値を安全な範囲にクランプ・検証する */
 function sanitizeWebSpeechConfig(config: WebSpeechConfig): WebSpeechConfig {

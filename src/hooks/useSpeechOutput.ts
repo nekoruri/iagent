@@ -40,7 +40,7 @@ export function useSpeechOutput(
 
     window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
     return () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices);
     };
   }, [isSupported]);
 
@@ -65,10 +65,13 @@ export function useSpeechOutput(
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => {
+      // 遅延発火した古い utterance のイベントで state が上書きされないようガード
+      if (utteranceRef.current !== utterance) return;
       setIsSpeaking(false);
       utteranceRef.current = null;
     };
     utterance.onerror = () => {
+      if (utteranceRef.current !== utterance) return;
       setIsSpeaking(false);
       utteranceRef.current = null;
     };

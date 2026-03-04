@@ -52,7 +52,11 @@ describe('useSpeechOutput', () => {
   });
 
   afterEach(() => {
-    // speechSynthesis をクリーンアップ（フックの cleanup が先に走るので null ではなくダミーオブジェクトを残す）
+    // speechSynthesis をクリーンアップ（テスト間リーク防止）
+    Object.defineProperty(window, 'speechSynthesis', {
+      value: undefined,
+      configurable: true,
+    });
   });
 
   it('API 対応環境では isSupported=true', () => {

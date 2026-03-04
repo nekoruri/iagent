@@ -18,6 +18,11 @@ describe('speechService', () => {
     // グローバルのクリーンアップ
     delete (window as Record<string, unknown>).SpeechRecognition;
     delete (window as Record<string, unknown>).webkitSpeechRecognition;
+    // speechSynthesis も元に戻す（テスト間リーク防止）
+    Object.defineProperty(window, 'speechSynthesis', {
+      value: undefined,
+      configurable: true,
+    });
   });
 
   describe('isSpeechRecognitionSupported', () => {

@@ -13,7 +13,7 @@ export function isSpeechSynthesisSupported(): boolean {
   return !!window.speechSynthesis;
 }
 
-const VALID_SPEECH_LANGS = ['ja-JP', 'en-US', 'en-GB', 'zh-CN', 'ko-KR'];
+export const VALID_SPEECH_LANGS = ['ja-JP', 'en-US', 'en-GB', 'zh-CN', 'ko-KR'];
 
 /** SpeechRecognition インスタンスを生成 */
 export function createSpeechRecognition(lang: string): SpeechRecognition {

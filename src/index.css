@@ -2518,10 +2518,12 @@ body {
   50% { transform: scale(1.3); opacity: 0; }
 }
 
-/* TTS ボタン（ホバー表示） */
+/* TTS ボタン（ホバー/フォーカス表示） */
 .btn-tts {
   opacity: 0;
-  transition: opacity 0.15s;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s, visibility 0.15s;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -2539,12 +2541,17 @@ body {
   color: var(--text);
 }
 
-.message-bubble:hover .btn-tts {
+.message-bubble:hover .btn-tts,
+.message-bubble:focus-within .btn-tts {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .btn-tts.tts-active {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
   color: var(--accent);
 }
 
