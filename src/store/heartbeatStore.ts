@@ -1,5 +1,5 @@
 import { getDB } from './db';
-import type { HeartbeatState, HeartbeatResult, FeedbackType } from '../types';
+import type { HeartbeatState, HeartbeatResult, FeedbackType, HeartbeatSource } from '../types';
 
 const STORE_NAME = 'heartbeat';
 const STATE_KEY = 'state';
@@ -16,6 +16,82 @@ export async function loadHeartbeatState(): Promise<HeartbeatState> {
     };
   }
   return { lastChecked: 0, recentResults: [] };
+}
+
+// --- Ops Events ---
+
+const OPS_EVENTS_KEY = 'ops-events';
+const MAX_OPS_EVENTS = 2000;
+const OPS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type OpsEventType = 'notification-shown' | 'notification-clicked' | 'heartbeat-run';
+export type OpsEventStatus = 'success' | 'failure' | 'skipped';
+export type OpsChannel = 'desktop' | 'push' | 'periodic-sync';
+
+export interface OpsEvent {
+  type: OpsEventType;
+  timestamp: number;
+  source?: HeartbeatSource | 'unknown';
+  channel?: OpsChannel;
+  notificationTag?: string;
+  status?: OpsEventStatus;
+  reason?: string;
+  durationMs?: number;
+  taskCount?: number;
+  resultCount?: number;
+  changedCount?: number;
+  errorMessage?: string;
+}
+
+function isOpsEvent(value: unknown): value is OpsEvent {
+  if (!value || typeof value !== 'object') return false;
+  const entry = value as Partial<OpsEvent>;
+  return (
+    (entry.type === 'notification-shown'
+      || entry.type === 'notification-clicked'
+      || entry.type === 'heartbeat-run')
+    && typeof entry.timestamp === 'number'
+  );
+}
+
+function normalizeOpsEvents(raw: unknown[]): OpsEvent[] {
+  const now = Date.now();
+  return raw
+    .filter(isOpsEvent)
+    .filter((event) => event.timestamp >= now - OPS_RETENTION_MS)
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/** 運用イベントを読み込む（古い順） */
+export async function loadOpsEvents(): Promise<OpsEvent[]> {
+  const db = await getDB();
+  const row = await db.get(STORE_NAME, OPS_EVENTS_KEY);
+  const raw = Array.isArray(row?.events) ? row.events : [];
+  return normalizeOpsEvents(raw);
+}
+
+/** 運用イベントを追記する（保持上限 + 保持期間でトリム） */
+export async function appendOpsEvents(events: OpsEvent[]): Promise<void> {
+  if (events.length === 0) return;
+  const db = await getDB();
+  const row = await db.get(STORE_NAME, OPS_EVENTS_KEY);
+  const existing = Array.isArray(row?.events) ? row.events : [];
+  const merged = normalizeOpsEvents([
+    ...existing,
+    ...events.map((event) => ({
+      ...event,
+      timestamp: Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
+    })),
+  ]);
+  const trimmed = merged.length > MAX_OPS_EVENTS
+    ? merged.slice(merged.length - MAX_OPS_EVENTS)
+    : merged;
+  await db.put(STORE_NAME, { key: OPS_EVENTS_KEY, events: trimmed });
+}
+
+/** 単一イベントを追記する */
+export async function appendOpsEvent(event: OpsEvent): Promise<void> {
+  await appendOpsEvents([event]);
 }
 
 export async function saveHeartbeatState(state: HeartbeatState): Promise<void> {

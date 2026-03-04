@@ -101,6 +101,7 @@ async function main() {
 
     const result = await page.evaluate(async ({ days, dayMs }) => {
       const cutoff = Date.now() - days * dayMs;
+      const sloCutoff = Date.now() - dayMs;
 
       function openDb() {
         return new Promise((resolve, reject) => {
@@ -128,19 +129,26 @@ async function main() {
         });
       }
 
+      async function readOpsEvents() {
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction('heartbeat', 'readonly');
+          const req = tx.objectStore('heartbeat').get('ops-events');
+          req.onerror = () => reject(req.error ?? new Error('Failed to read ops events'));
+          req.onsuccess = () => resolve(req.result?.events ?? []);
+        });
+      }
+
       const db = await openDb();
 
       try {
         const heartbeatState = await readHeartbeatState();
         const recentResults = heartbeatState?.recentResults ?? [];
         const conversations = await readAll('conversations');
+        const opsEvents = await readOpsEvents();
 
         let accepted = 0;
         let dismissed = 0;
         let snoozed = 0;
-        let totalHasChanges = 0;
-        let hasFeedback = 0;
-
         const activeDays = new Set();
 
         for (const msg of conversations) {
@@ -151,11 +159,6 @@ async function main() {
 
         for (const r of recentResults) {
           if (typeof r?.timestamp !== 'number' || r.timestamp < cutoff) continue;
-
-          if (r.hasChanges) {
-            totalHasChanges++;
-            if (r.feedback) hasFeedback++;
-          }
 
           if (r.feedback) {
             if (r.feedback.type === 'accepted') accepted++;
@@ -170,7 +173,56 @@ async function main() {
         const feedbackTotal = accepted + dismissed + snoozed;
         const acceptRate = feedbackTotal > 0 ? accepted / feedbackTotal : 0;
         const activeRate = activeDays.size / days;
-        const proxyRevisitRate = totalHasChanges > 0 ? hasFeedback / totalHasChanges : 0;
+
+        const kpiOpsEvents = Array.isArray(opsEvents)
+          ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= cutoff)
+          : [];
+        const shown = kpiOpsEvents.filter((e) => e?.type === 'notification-shown');
+        const clicked = kpiOpsEvents.filter((e) => e?.type === 'notification-clicked');
+        const revisitRate = shown.length > 0 ? clicked.length / shown.length : 0;
+
+        const shownByChannel = { desktop: 0, push: 0, periodicSync: 0, unknown: 0 };
+        const clickedByChannel = { desktop: 0, push: 0, periodicSync: 0, unknown: 0 };
+        for (const e of shown) {
+          if (e?.channel === 'desktop') shownByChannel.desktop++;
+          else if (e?.channel === 'push') shownByChannel.push++;
+          else if (e?.channel === 'periodic-sync') shownByChannel.periodicSync++;
+          else shownByChannel.unknown++;
+        }
+        for (const e of clicked) {
+          if (e?.channel === 'desktop') clickedByChannel.desktop++;
+          else if (e?.channel === 'push') clickedByChannel.push++;
+          else if (e?.channel === 'periodic-sync') clickedByChannel.periodicSync++;
+          else clickedByChannel.unknown++;
+        }
+
+        const sloEvents = Array.isArray(opsEvents)
+          ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= sloCutoff && e?.type === 'heartbeat-run')
+          : [];
+        const heartbeatAttempts = sloEvents.filter((e) => e?.status === 'success' || e?.status === 'failure');
+        const heartbeatSuccess = heartbeatAttempts.filter((e) => e?.status === 'success').length;
+        const heartbeatFailure = heartbeatAttempts.length - heartbeatSuccess;
+        const heartbeatSkipped = sloEvents.filter((e) => e?.status === 'skipped').length;
+        const heartbeatSuccessRate = heartbeatAttempts.length > 0 ? heartbeatSuccess / heartbeatAttempts.length : 0;
+
+        const pushAttempts = heartbeatAttempts.filter((e) => e?.source === 'push' || e?.source === 'periodic-sync');
+        const pushSuccess = pushAttempts.filter((e) => e?.status === 'success').length;
+        const pushFailure = pushAttempts.length - pushSuccess;
+        const pushSkipped = sloEvents.filter(
+          (e) => (e?.source === 'push' || e?.source === 'periodic-sync') && e?.status === 'skipped',
+        ).length;
+        const pushSuccessRate = pushAttempts.length > 0 ? pushSuccess / pushAttempts.length : 0;
+
+        const durationSamples = heartbeatAttempts
+          .map((e) => Number(e?.durationMs))
+          .filter((n) => Number.isFinite(n) && n >= 0);
+        const p95DurationMs = durationSamples.length > 0
+          ? (() => {
+              const sorted = [...durationSamples].sort((a, b) => a - b);
+              const index = Math.ceil(sorted.length * 0.95) - 1;
+              return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
+            })()
+          : null;
 
         return {
           windowDays: days,
@@ -187,13 +239,34 @@ async function main() {
               rate: activeRate,
               days: Array.from(activeDays).sort(),
             },
-            proxyRevisitRate: {
-              totalHasChanges,
-              hasFeedback,
-              rate: proxyRevisitRate,
+            revisitRate: {
+              shown: shown.length,
+              clicked: clicked.length,
+              rate: revisitRate,
+              shownByChannel,
+              clickedByChannel,
             },
           },
-          note: 'SLO baseline は運用ログから別途記録してください',
+          slo24h: {
+            heartbeatRunSuccess: {
+              attempts: heartbeatAttempts.length,
+              success: heartbeatSuccess,
+              failure: heartbeatFailure,
+              skipped: heartbeatSkipped,
+              rate: heartbeatSuccessRate,
+            },
+            pushWakeSuccess: {
+              attempts: pushAttempts.length,
+              success: pushSuccess,
+              failure: pushFailure,
+              skipped: pushSkipped,
+              rate: pushSuccessRate,
+            },
+            heartbeatDurationP95: {
+              p95Ms: p95DurationMs,
+              sampleSize: durationSamples.length,
+            },
+          },
         };
       } finally {
         db.close();
@@ -211,9 +284,26 @@ async function main() {
     console.log(`- activeDays: ${result.kpi.activeRate.activeDays}`);
     console.log(`- activeRate: ${toPercent(result.kpi.activeRate.rate)} (${result.kpi.activeRate.rate.toFixed(4)})`);
     console.log(`- days: ${result.kpi.activeRate.days.join(', ')}`);
-    console.log(`- totalHasChanges: ${result.kpi.proxyRevisitRate.totalHasChanges}`);
-    console.log(`- hasFeedback: ${result.kpi.proxyRevisitRate.hasFeedback}`);
-    console.log(`- proxyRevisitRate: ${toPercent(result.kpi.proxyRevisitRate.rate)} (${result.kpi.proxyRevisitRate.rate.toFixed(4)})`);
+    console.log(`- notificationShown: ${result.kpi.revisitRate.shown}`);
+    console.log(`- notificationClicked: ${result.kpi.revisitRate.clicked}`);
+    console.log(`- revisitRate: ${toPercent(result.kpi.revisitRate.rate)} (${result.kpi.revisitRate.rate.toFixed(4)})`);
+    console.log(`- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
+    console.log(`- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
+    console.log(`- slo24hHeartbeatAttempts: ${result.slo24h.heartbeatRunSuccess.attempts}`);
+    console.log(`- slo24hHeartbeatSuccess: ${result.slo24h.heartbeatRunSuccess.success}`);
+    console.log(`- slo24hHeartbeatFailure: ${result.slo24h.heartbeatRunSuccess.failure}`);
+    console.log(`- slo24hHeartbeatSkipped: ${result.slo24h.heartbeatRunSuccess.skipped}`);
+    console.log(`- slo24hHeartbeatSuccessRate: ${toPercent(result.slo24h.heartbeatRunSuccess.rate)} (${result.slo24h.heartbeatRunSuccess.rate.toFixed(4)})`);
+    console.log(`- slo24hPushAttempts: ${result.slo24h.pushWakeSuccess.attempts}`);
+    console.log(`- slo24hPushSuccess: ${result.slo24h.pushWakeSuccess.success}`);
+    console.log(`- slo24hPushFailure: ${result.slo24h.pushWakeSuccess.failure}`);
+    console.log(`- slo24hPushSkipped: ${result.slo24h.pushWakeSuccess.skipped}`);
+    console.log(`- slo24hPushSuccessRate: ${toPercent(result.slo24h.pushWakeSuccess.rate)} (${result.slo24h.pushWakeSuccess.rate.toFixed(4)})`);
+    console.log(`- slo24hHeartbeatP95Ms: ${result.slo24h.heartbeatDurationP95.p95Ms ?? 'n/a'}`);
+    if (typeof result.slo24h.heartbeatDurationP95.p95Ms === 'number') {
+      console.log(`- slo24hHeartbeatP95Sec: ${(result.slo24h.heartbeatDurationP95.p95Ms / 1000).toFixed(2)}`);
+    }
+    console.log(`- slo24hHeartbeatDurationSamples: ${result.slo24h.heartbeatDurationP95.sampleSize}`);
     const now = Date.now();
     console.log(`- collectedAtLocal: ${localDateTime(now)}`);
     console.log(`- collectedAtUtcDate: ${isoDate(now)}`);

@@ -79,7 +79,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     handleNotificationClick(
-      event.notification.data as { url?: string } | undefined,
+      event.notification.data as { url?: string; source?: 'push' | 'periodic-sync'; trackKpi?: boolean } | undefined,
+      event.notification.tag,
       self.location.origin,
       self.clients,
     ),
