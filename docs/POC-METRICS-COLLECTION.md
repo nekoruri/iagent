@@ -20,6 +20,12 @@
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
 ```
 
+週次レビューを締めるときは、strict + 最終チェック込みの別名コマンドを使う:
+
+```bash
+npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
+```
+
 実行内容:
 
 1. `poc:init-week`（雛形作成）

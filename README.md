@@ -92,6 +92,7 @@ npm run poc:sync-validation -- --week 2026-W11  # インタビュー結果を週
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次一括実行
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile --strict  # Action判定で非0終了
 npm run poc:run-week -- --week 2026-W11 --check --check-strict  # 実行後に週次記入漏れチェック
+npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次締め用（strict+最終チェック）
 npm run poc:check-week -- --week 2026-W11 --strict  # 週次レビュー記入漏れチェック
 ```
 
