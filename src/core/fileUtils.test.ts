@@ -63,9 +63,9 @@ describe('validateFile', () => {
     expect(validateFile(file)).toEqual({ valid: true });
   });
 
-  it('MIME タイプが空（不明）の場合は通過する', () => {
+  it('MIME タイプが空（不明）の場合は拒否する', () => {
     const file = new File(['content'], 'unknown');
-    expect(validateFile(file)).toEqual({ valid: true });
+    expect(validateFile(file)).toEqual({ valid: false, error: 'このファイル形式には対応していません' });
   });
 });
 
