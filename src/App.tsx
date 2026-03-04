@@ -152,8 +152,7 @@ export default function App() {
     if (lastMsg?.role === 'assistant' && lastMsg.content) {
       speechOutput.speak(lastMsg.content);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStreaming]);
+  }, [isStreaming, webSpeech.ttsAutoRead, speechOutput.isSupported, speechOutput.speak, messages]);
 
   // メッセージ送信時にタイトル自動設定 & touch
   const handleSend = useCallback(async (text: string, attachments?: PendingAttachment[]) => {
