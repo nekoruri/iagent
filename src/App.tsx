@@ -98,7 +98,9 @@ export default function App() {
   );
 
   // 音声入出力
-  const webSpeech = getConfig().webSpeech ?? getDefaultWebSpeechConfig();
+  const [webSpeech, setWebSpeech] = useState(
+    () => getConfig().webSpeech ?? getDefaultWebSpeechConfig(),
+  );
   const speechOutput = useSpeechOutput(webSpeech.lang, webSpeech.ttsRate, webSpeech.ttsEnabled);
 
   const { syncHeartbeatConfig, toggleFocusMode: rawToggleFocusMode } = useHeartbeat({
@@ -215,6 +217,7 @@ export default function App() {
     syncHeartbeatConfig();
     setHeartbeatEnabled(getConfig().heartbeat?.enabled ?? false);
     setFocusMode(getConfig().heartbeat?.focusMode ?? false);
+    setWebSpeech(getConfig().webSpeech ?? getDefaultWebSpeechConfig());
 
     // 初回設定完了時に heartbeat の案内を表示
     const config = getConfig();
