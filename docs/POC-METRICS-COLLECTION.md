@@ -126,11 +126,14 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 
 ## KPI 3: 通知経由の再訪率（7日）
 
-- 定義: `通知クリック数 / 通知表示数`
+- 定義: `通知表示（shown）に紐づいたクリック数 / 通知表示数`
 - 取得元: `heartbeat` ストアの `ops-events` 行
 - 対象イベント:
   - 表示: `type = notification-shown`
   - クリック: `type = notification-clicked`
+- 補足:
+  - `notificationId` で shown/clicked を突合する
+  - shown に対応しない click は `unmatchedClicks` として別カウント（分母には含めない）
 
 ```javascript
 (() => {
@@ -143,15 +146,33 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
     const getReq = tx.objectStore('heartbeat').get('ops-events');
     getReq.onsuccess = () => {
       const events = getReq.result?.events ?? [];
+      const shownIds = new Set();
       let shown = 0;
       let clicked = 0;
+      let unmatchedClicks = 0;
       for (const e of events) {
         if (typeof e.timestamp !== 'number' || e.timestamp < cutoff) continue;
-        if (e.type === 'notification-shown') shown++;
-        if (e.type === 'notification-clicked') clicked++;
+        if (e.type === 'notification-shown') {
+          shown++;
+          if (typeof e.notificationId === 'string' && e.notificationId) {
+            shownIds.add(e.notificationId);
+          }
+        }
+      }
+      const clickedIds = new Set();
+      for (const e of events) {
+        if (typeof e.timestamp !== 'number' || e.timestamp < cutoff) continue;
+        if (e.type !== 'notification-clicked') continue;
+        const id = typeof e.notificationId === 'string' ? e.notificationId : '';
+        if (id && shownIds.has(id) && !clickedIds.has(id)) {
+          clicked++;
+          clickedIds.add(id);
+        } else if (!id || !shownIds.has(id)) {
+          unmatchedClicks++;
+        }
       }
       const revisitRate = shown > 0 ? clicked / shown : 0;
-      console.table([{ notificationShown: shown, notificationClicked: clicked, revisitRate }]);
+      console.table([{ notificationShown: shown, notificationClicked: clicked, unmatchedClicks, revisitRate }]);
       db.close();
     };
   };

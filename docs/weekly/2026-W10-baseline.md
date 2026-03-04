@@ -11,6 +11,7 @@
   - 2026-03-05 03:11 JST（初回: 一時プロファイル）
   - 2026-03-05 03:13 JST（再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
   - 2026-03-05 03:26 JST（厳密KPI3/SLO 自動集計版で再計測）
+  - 2026-03-05 03:31 JST（notificationId 突合版で再計測）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
@@ -39,6 +40,7 @@
 
 - notificationShown: 0
 - notificationClicked: 0
+- unmatchedClicks: 0
 - revisitRate: 0.0% (0.0000)
 - shownByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
 - clickedByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
