@@ -13,6 +13,7 @@ Options:
   --days <n>        Rolling window days (default: 7)
   --user-data-dir   Chromium user data directory for persistent profile
   --weekly-review   Update weekly review markdown file in-place
+  --baseline        Update baseline markdown file in-place
   --headed          Run browser in headed mode
   --help            Show this help
 
@@ -21,6 +22,7 @@ Examples:
   npm run metrics:poc -- --url http://localhost:4173 --days 7
   npm run metrics:poc -- --user-data-dir /tmp/iagent-metrics-profile
   npm run metrics:poc -- --weekly-review docs/weekly/2026-W10.md
+  npm run metrics:poc -- --baseline docs/weekly/2026-W10-baseline.md
 `);
 }
 
@@ -30,6 +32,7 @@ function parseArgs(argv) {
     days: 7,
     userDataDir: '',
     weeklyReview: '',
+    baseline: '',
     headed: false,
     help: false,
   };
@@ -56,6 +59,11 @@ function parseArgs(argv) {
     }
     if (a === '--weekly-review') {
       args.weeklyReview = argv[i + 1] ?? '';
+      i++;
+      continue;
+    }
+    if (a === '--baseline') {
+      args.baseline = argv[i + 1] ?? '';
       i++;
       continue;
     }
@@ -142,6 +150,47 @@ function localDate(ts) {
   }).format(new Date(ts)).replaceAll('/', '-');
 }
 
+function localDateTimeMinute(ts) {
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tokyo',
+  }).format(new Date(ts)).replaceAll('/', '-');
+}
+
+function replaceSection(content, header, transformFn) {
+  const marker = `## ${header}`;
+  const start = content.indexOf(marker);
+  if (start < 0) return content;
+  const next = content.indexOf('\n## ', start + marker.length);
+  const end = next >= 0 ? next + 1 : content.length;
+  const section = content.slice(start, end);
+  const updated = transformFn(section);
+  return `${content.slice(0, start)}${updated}${content.slice(end)}`;
+}
+
+function appendExecutionDateLog(content, line) {
+  const marker = '- 実施日:';
+  const start = content.indexOf(marker);
+  if (start < 0) return content;
+  const blockStart = start + marker.length;
+  const blockEnd = content.indexOf('\n- 実施者:', blockStart);
+  if (blockEnd < 0) return content;
+  const block = content.slice(blockStart, blockEnd);
+  if (block.includes(line.trim())) return content;
+  let normalizedBlock = block.replace(/\n+$/, '\n');
+  if (!normalizedBlock.endsWith('\n')) {
+    normalizedBlock = `${normalizedBlock}\n`;
+  }
+  const nextBlock = `${normalizedBlock}${line}\n`;
+  const rest = content.slice(blockEnd).replace(/^\n+/, '');
+  return `${content.slice(0, blockStart)}${nextBlock}${rest}`;
+}
+
 async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   const raw = await readFile(filePath, 'utf8');
   const kpiAcceptLine = `- 提案 Accept 率（7日）: ${toPercent(result.kpi.acceptRate.rate)}（accepted=${result.kpi.acceptRate.accepted}, dismissed=${result.kpi.acceptRate.dismissed}, snoozed=${result.kpi.acceptRate.snoozed}）`;
@@ -166,6 +215,72 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   next = lineReplace(next, /^- Heartbeat 遅延 p95（24h平均）:.*$/m, sloLatencyLine);
   next = lineReplace(next, /^- SLO 判定:.*$/m, sloStatusLine);
   next = lineReplace(next, /^レビュー日:\s.*$/m, reviewDateLine);
+
+  await writeFile(filePath, next);
+}
+
+async function updateBaselineFile(filePath, result, collectedAtTs, userDataDir) {
+  const raw = await readFile(filePath, 'utf8');
+  const runNote = userDataDir
+    ? `自動再計測: 固定プロファイル \`${userDataDir}\``
+    : '自動再計測: 一時プロファイル';
+  const logLine = `  - ${localDateTimeMinute(collectedAtTs)} JST（${runNote}）`;
+  const activeDaysLine = result.kpi.activeRate.days.length > 0
+    ? result.kpi.activeRate.days.join(', ')
+    : '(なし)';
+  const latencyLine = typeof result.slo24h.heartbeatDurationP95.p95Ms === 'number'
+    ? `- p95: ${(result.slo24h.heartbeatDurationP95.p95Ms / 1000).toFixed(2)}s（${result.slo24h.heartbeatDurationP95.p95Ms}ms, サンプル数 ${result.slo24h.heartbeatDurationP95.sampleSize}）`
+    : `- p95: n/a（サンプル数 ${result.slo24h.heartbeatDurationP95.sampleSize}）`;
+
+  let next = raw;
+  next = appendExecutionDateLog(next, logLine);
+
+  next = lineReplace(next, /^- accepted:.*$/m, `- accepted: ${result.kpi.acceptRate.accepted}`);
+  next = lineReplace(next, /^- dismissed:.*$/m, `- dismissed: ${result.kpi.acceptRate.dismissed}`);
+  next = lineReplace(next, /^- snoozed:.*$/m, `- snoozed: ${result.kpi.acceptRate.snoozed}`);
+  next = lineReplace(next, /^- total:.*$/m, `- total: ${result.kpi.acceptRate.total}`);
+  next = lineReplace(next, /^- acceptRate:.*$/m, `- acceptRate: ${toPercent(result.kpi.acceptRate.rate)} (${result.kpi.acceptRate.rate.toFixed(4)})`);
+  next = lineReplace(next, /^- activeDays:.*$/m, `- activeDays: ${result.kpi.activeRate.activeDays}`);
+  next = lineReplace(next, /^- activeRate:.*$/m, `- activeRate: ${toPercent(result.kpi.activeRate.rate)} (${result.kpi.activeRate.rate.toFixed(4)})`);
+  next = lineReplace(next, /^- days:.*$/m, `- days: ${activeDaysLine}`);
+  next = lineReplace(next, /^- notificationShown:.*$/m, `- notificationShown: ${result.kpi.revisitRate.shown}`);
+  next = lineReplace(next, /^- notificationClicked:.*$/m, `- notificationClicked: ${result.kpi.revisitRate.clicked}`);
+  next = lineReplace(next, /^- unmatchedClicks:.*$/m, `- unmatchedClicks: ${result.kpi.revisitRate.unmatchedClicks}`);
+  next = lineReplace(next, /^- revisitRate:.*$/m, `- revisitRate: ${toPercent(result.kpi.revisitRate.rate)} (${result.kpi.revisitRate.rate.toFixed(4)})`);
+  next = lineReplace(next, /^- shownByChannel:.*$/m, `- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
+  next = lineReplace(next, /^- clickedByChannel:.*$/m, `- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
+  next = lineReplace(next, /^- kpiAcceptStatus:.*$/m, `- kpiAcceptStatus: ${result.assessment.kpi.acceptRate}`);
+  next = lineReplace(next, /^- kpiActiveStatus:.*$/m, `- kpiActiveStatus: ${result.assessment.kpi.activeRate}`);
+  next = lineReplace(next, /^- kpiRevisitStatus:.*$/m, `- kpiRevisitStatus: ${result.assessment.kpi.revisitRate}`);
+  next = lineReplace(next, /^- kpiOverallStatus:.*$/m, `- kpiOverallStatus: ${result.assessment.kpi.overall}`);
+
+  next = replaceSection(next, '1) Heartbeat 実行成功率（24h）', (section) => {
+    let updated = section;
+    updated = lineReplace(updated, /^- 試行回数:.*$/m, `- 試行回数: ${result.slo24h.heartbeatRunSuccess.attempts}`);
+    updated = lineReplace(updated, /^- 成功回数:.*$/m, `- 成功回数: ${result.slo24h.heartbeatRunSuccess.success}`);
+    updated = lineReplace(updated, /^- 失敗回数:.*$/m, `- 失敗回数: ${result.slo24h.heartbeatRunSuccess.failure}`);
+    updated = lineReplace(updated, /^- 成功率:.*$/m, `- 成功率: ${toPercent(result.slo24h.heartbeatRunSuccess.rate)} (${result.slo24h.heartbeatRunSuccess.rate.toFixed(4)})`);
+    return updated;
+  });
+
+  next = replaceSection(next, '2) Push wake 実行成功率（24h）', (section) => {
+    let updated = section;
+    updated = lineReplace(updated, /^- 試行回数:.*$/m, `- 試行回数: ${result.slo24h.pushWakeSuccess.attempts}`);
+    updated = lineReplace(updated, /^- 成功回数:.*$/m, `- 成功回数: ${result.slo24h.pushWakeSuccess.success}`);
+    updated = lineReplace(updated, /^- 失敗回数:.*$/m, `- 失敗回数: ${result.slo24h.pushWakeSuccess.failure}`);
+    updated = lineReplace(updated, /^- 成功率:.*$/m, `- 成功率: ${toPercent(result.slo24h.pushWakeSuccess.rate)} (${result.slo24h.pushWakeSuccess.rate.toFixed(4)})`);
+    return updated;
+  });
+
+  next = replaceSection(next, '3) Heartbeat 遅延 p95（24h）', (section) => {
+    let updated = section;
+    updated = lineReplace(updated, /^- p95:.*$/m, latencyLine);
+    updated = lineReplace(updated, /^- slo24hHeartbeatStatus:.*$/m, `- slo24hHeartbeatStatus: ${result.assessment.slo24h.heartbeatRunSuccess}`);
+    updated = lineReplace(updated, /^- slo24hPushStatus:.*$/m, `- slo24hPushStatus: ${result.assessment.slo24h.pushWakeSuccess}`);
+    updated = lineReplace(updated, /^- slo24hLatencyStatus:.*$/m, `- slo24hLatencyStatus: ${result.assessment.slo24h.heartbeatDurationP95}`);
+    updated = lineReplace(updated, /^- slo24hOverallStatus:.*$/m, `- slo24hOverallStatus: ${result.assessment.slo24h.overall}`);
+    return updated;
+  });
 
   await writeFile(filePath, next);
 }
@@ -480,6 +595,10 @@ async function main() {
     if (opts.weeklyReview) {
       await updateWeeklyReviewFile(opts.weeklyReview, result, now);
       console.log(`- weeklyReviewUpdated: ${opts.weeklyReview}`);
+    }
+    if (opts.baseline) {
+      await updateBaselineFile(opts.baseline, result, now, opts.userDataDir);
+      console.log(`- baselineUpdated: ${opts.baseline}`);
     }
     if (!opts.userDataDir) {
       console.log('- note: デフォルトは一時プロファイルで実行されるため、既存ブラウザの利用データは含まれません');
