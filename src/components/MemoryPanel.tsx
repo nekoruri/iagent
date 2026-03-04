@@ -40,7 +40,7 @@ const CATEGORY_COLORS: Record<MemoryCategory, string> = {
   other: '#6b7280',
 };
 
-const ARCHIVE_REASON_LABELS: Record<string, string> = {
+const ARCHIVE_REASON_LABELS: Record<ArchivedMemory['archiveReason'], string> = {
   'low-score': '低スコア',
   'manual': '手動',
   'consolidation': '統合',

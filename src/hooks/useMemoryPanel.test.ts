@@ -6,9 +6,14 @@ vi.mock('../store/db');
 
 import { useMemoryPanel } from './useMemoryPanel';
 import { saveMemory, cleanupLowScoredMemories } from '../store/memoryStore';
+import * as memoryStore from '../store/memoryStore';
 
 beforeEach(() => {
   __resetStores();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('useMemoryPanel', () => {
@@ -130,6 +135,46 @@ describe('useMemoryPanel', () => {
     });
 
     expect(result.current.archivedMemories).toHaveLength(archiveCount - 1);
+  });
+
+  it('refresh の連続呼び出しで先に開始した応答が後から解決しても state を上書きしない', async () => {
+    const staleMemory = await saveMemory('古いデータ', 'other');
+    await saveMemory('メモリ2', 'fact');
+
+    const { result } = renderHook(() => useMemoryPanel());
+
+    // 初回 refresh 完了を待つ
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    // listMemories をスパイして遅延制御
+    type ListResult = Awaited<ReturnType<typeof memoryStore.listMemories>>;
+    let resolveSlow!: (v: ListResult) => void;
+    const slowCall = new Promise<ListResult>((r) => { resolveSlow = r; });
+    vi.spyOn(memoryStore, 'listMemories').mockImplementationOnce(() => slowCall);
+
+    // 1回目の refresh（遅延される）
+    let p1: Promise<void>;
+    act(() => {
+      p1 = result.current.refresh();
+    });
+
+    // 2回目の refresh（即座に解決 → 最新データ）
+    await act(async () => {
+      await result.current.refresh('fact');
+    });
+    const afterSecond = result.current.memories;
+
+    // 1回目が遅延して解決 → 古いデータで上書きされないこと
+    await act(async () => {
+      resolveSlow([{ ...staleMemory, content: '古い遅延応答' }]);
+      await p1!;
+    });
+
+    // 2回目の結果が維持されていること
+    expect(result.current.memories).toEqual(afterSecond);
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('handleDeleteArchived でアーカイブを完全削除できる', async () => {
