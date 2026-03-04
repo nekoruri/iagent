@@ -111,6 +111,11 @@ describe('handlePush', () => {
       expect.objectContaining({
         body: 'ニュース更新あり\nカレンダー通知',
         tag: 'heartbeat-result',
+        data: expect.objectContaining({
+          source: 'push',
+          trackKpi: true,
+          notificationId: expect.stringMatching(/^heartbeat-push-\d+$/),
+        }),
       }),
     );
     expect(mockAppendOpsEvent).toHaveBeenCalledWith(
@@ -119,6 +124,7 @@ describe('handlePush', () => {
         source: 'push',
         channel: 'push',
         notificationTag: 'heartbeat-result',
+        notificationId: expect.stringMatching(/^heartbeat-push-\d+$/),
       }),
     );
   });
@@ -210,6 +216,11 @@ describe('handlePeriodicSync', () => {
       expect.objectContaining({
         body: '定期チェック結果',
         tag: 'heartbeat-result',
+        data: expect.objectContaining({
+          source: 'periodic-sync',
+          trackKpi: true,
+          notificationId: expect.stringMatching(/^heartbeat-periodic-sync-\d+$/),
+        }),
       }),
     );
     expect(mockAppendOpsEvent).toHaveBeenCalledWith(
@@ -218,6 +229,7 @@ describe('handlePeriodicSync', () => {
         source: 'periodic-sync',
         channel: 'periodic-sync',
         notificationTag: 'heartbeat-result',
+        notificationId: expect.stringMatching(/^heartbeat-periodic-sync-\d+$/),
       }),
     );
   });
@@ -428,6 +440,7 @@ describe('handleNotificationClick', () => {
         source: 'push',
         channel: 'push',
         notificationTag: 'heartbeat-result',
+        notificationId: 'heartbeat-result',
       }),
     );
   });

@@ -35,6 +35,7 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
       source,
       channel: 'desktop',
       notificationTag,
+      notificationId: notificationTag,
     }).catch(() => {});
     notification.onclick = () => {
       void appendOpsEvent({
@@ -43,6 +44,7 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
         source,
         channel: 'desktop',
         notificationTag,
+        notificationId: notificationTag,
       }).catch(() => {});
       window.focus();
       notification.close();

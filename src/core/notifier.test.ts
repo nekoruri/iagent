@@ -7,6 +7,11 @@ import {
 } from './notifier';
 import type { HeartbeatResult } from '../types';
 
+const mockAppendOpsEvent = vi.fn().mockResolvedValue(undefined);
+vi.mock('../store/heartbeatStore', () => ({
+  appendOpsEvent: (...args: unknown[]) => mockAppendOpsEvent(...args),
+}));
+
 describe('isNotificationSupported', () => {
   const originalNotification = globalThis.Notification;
 
@@ -109,6 +114,7 @@ describe('sendHeartbeatNotifications', () => {
   let mockInstances: Array<{ onclick: (() => void) | null; close: ReturnType<typeof vi.fn> }>;
 
   beforeEach(() => {
+    mockAppendOpsEvent.mockClear();
     mockInstances = [];
     const MockNotification = vi.fn().mockImplementation(() => {
       const instance = { onclick: null, close: vi.fn() };
@@ -145,6 +151,13 @@ describe('sendHeartbeatNotifications', () => {
       body: 'テスト通知',
       tag: 'heartbeat-test-1-1000',
     });
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'notification-shown',
+        notificationTag: 'heartbeat-test-1-1000',
+        notificationId: 'heartbeat-test-1-1000',
+      }),
+    );
   });
 
   it('複数の結果に対して複数の通知を作成する', () => {
@@ -178,6 +191,13 @@ describe('sendHeartbeatNotifications', () => {
     mockInstances[0].onclick?.();
     expect(focusSpy).toHaveBeenCalled();
     expect(mockInstances[0].close).toHaveBeenCalled();
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'notification-clicked',
+        notificationTag: 'heartbeat-test-1-1000',
+        notificationId: 'heartbeat-test-1-1000',
+      }),
+    );
     focusSpy.mockRestore();
   });
 });

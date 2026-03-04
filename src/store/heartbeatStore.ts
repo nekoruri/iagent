@@ -34,6 +34,7 @@ export interface OpsEvent {
   source?: HeartbeatSource | 'unknown';
   channel?: OpsChannel;
   notificationTag?: string;
+  notificationId?: string;
   status?: OpsEventStatus;
   reason?: string;
   durationMs?: number;

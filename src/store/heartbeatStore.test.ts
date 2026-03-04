@@ -512,6 +512,7 @@ describe('ops events', () => {
       source: 'tab',
       channel: 'desktop',
       notificationTag: 'heartbeat-test',
+      notificationId: 'heartbeat-test-id',
     });
 
     const events = await loadOpsEvents();
@@ -521,6 +522,7 @@ describe('ops events', () => {
       source: 'tab',
       channel: 'desktop',
       notificationTag: 'heartbeat-test',
+      notificationId: 'heartbeat-test-id',
     }));
   });
 

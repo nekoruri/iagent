@@ -179,7 +179,42 @@ async function main() {
           : [];
         const shown = kpiOpsEvents.filter((e) => e?.type === 'notification-shown');
         const clicked = kpiOpsEvents.filter((e) => e?.type === 'notification-clicked');
-        const revisitRate = shown.length > 0 ? clicked.length / shown.length : 0;
+        const shownIds = new Set();
+        const fallbackShownKeys = new Set();
+        for (const e of shown) {
+          if (typeof e?.notificationId === 'string' && e.notificationId.length > 0) {
+            shownIds.add(e.notificationId);
+            continue;
+          }
+          // 旧イベント（notificationId未保存）向けフォールバック
+          fallbackShownKeys.add(`${e?.channel ?? 'unknown'}:${e?.notificationTag ?? 'n/a'}`);
+        }
+
+        let clickedMatched = 0;
+        let clickedUnmatched = 0;
+        const clickedMatchedIds = new Set();
+        const clickedMatchedFallbackKeys = new Set();
+        for (const e of clicked) {
+          const id = typeof e?.notificationId === 'string' ? e.notificationId : '';
+          if (id) {
+            if (shownIds.has(id) && !clickedMatchedIds.has(id)) {
+              clickedMatched++;
+              clickedMatchedIds.add(id);
+            } else if (!shownIds.has(id)) {
+              clickedUnmatched++;
+            }
+            continue;
+          }
+          const fallbackKey = `${e?.channel ?? 'unknown'}:${e?.notificationTag ?? 'n/a'}`;
+          if (fallbackShownKeys.has(fallbackKey) && !clickedMatchedFallbackKeys.has(fallbackKey)) {
+            clickedMatched++;
+            clickedMatchedFallbackKeys.add(fallbackKey);
+          } else if (!fallbackShownKeys.has(fallbackKey)) {
+            clickedUnmatched++;
+          }
+        }
+
+        const revisitRate = shown.length > 0 ? clickedMatched / shown.length : 0;
 
         const shownByChannel = { desktop: 0, push: 0, periodicSync: 0, unknown: 0 };
         const clickedByChannel = { desktop: 0, push: 0, periodicSync: 0, unknown: 0 };
@@ -241,7 +276,8 @@ async function main() {
             },
             revisitRate: {
               shown: shown.length,
-              clicked: clicked.length,
+              clicked: clickedMatched,
+              unmatchedClicks: clickedUnmatched,
               rate: revisitRate,
               shownByChannel,
               clickedByChannel,
@@ -286,6 +322,7 @@ async function main() {
     console.log(`- days: ${result.kpi.activeRate.days.join(', ')}`);
     console.log(`- notificationShown: ${result.kpi.revisitRate.shown}`);
     console.log(`- notificationClicked: ${result.kpi.revisitRate.clicked}`);
+    console.log(`- unmatchedClicks: ${result.kpi.revisitRate.unmatchedClicks}`);
     console.log(`- revisitRate: ${toPercent(result.kpi.revisitRate.rate)} (${result.kpi.revisitRate.rate.toFixed(4)})`);
     console.log(`- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
     console.log(`- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
