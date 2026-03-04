@@ -25,9 +25,22 @@ npm run metrics:poc
 ```bash
 npm run metrics:poc -- --url http://localhost:5173 --days 7
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile
+npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --weekly-review docs/weekly/2026-W10.md
 ```
 
 出力された `Markdown Paste Helper` を `docs/weekly/2026-W10-baseline.md` に転記する。
+
+`--weekly-review` を指定すると、週次レビューMarkdownの以下行を自動更新する:
+
+- `レビュー日`
+- `提案 Accept 率（7日）`
+- `7日アクティブ率`
+- `通知経由再訪率（7日）`
+- `KPI 判定`
+- `Heartbeat 実行成功率（24h平均）`
+- `Push wake 実行成功率（24h平均）`
+- `Heartbeat 遅延 p95（24h平均）`
+- `SLO 判定`
 
 注意:
 
