@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  issues: read
+  issues: write
   statuses: write
 
 concurrency:
@@ -36,6 +36,7 @@ jobs:
             const shouldRequestReview = context.eventName === 'pull_request';
             const targetUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
             const statusContext = 'copilot-review';
+            const reportMarker = '<!-- copilot-review-check-report -->';
 
             const COPILOT_LOGIN_CANDIDATES = [
               'github-copilot[bot]',
@@ -65,6 +66,14 @@ jobs:
             ];
 
             const normalize = (value) => (value || '').toString().trim().toLowerCase();
+            const compact = (value) => (value || '').toString().replace(/\s+/g, ' ').trim();
+            const truncate = (value, maxLength = 120) => {
+              if (!value || value.length <= maxLength) {
+                return value || '';
+              }
+              return `${value.slice(0, maxLength - 1)}…`;
+            };
+            const shortSha = (sha) => (sha ? sha.slice(0, 7) : 'unknown');
             const COPILOT_LOGIN_SET = new Set(COPILOT_LOGIN_CANDIDATES.map(normalize));
 
             const isCopilotLogin = (login) => {
@@ -103,6 +112,65 @@ jobs:
                 description: description.slice(0, 140),
                 target_url: targetUrl,
               });
+            };
+
+            let reportCommentId = null;
+            let reportCommentResolved = false;
+            let lastReportBody = '';
+
+            const ensureReportCommentId = async () => {
+              if (reportCommentResolved) {
+                return;
+              }
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                { owner, repo, issue_number: prNumber, per_page: 100 },
+              );
+              const existing = comments
+                .slice()
+                .reverse()
+                .find((comment) =>
+                  comment.user?.login === 'github-actions[bot]'
+                  && comment.body?.includes(reportMarker),
+                );
+              if (existing) {
+                reportCommentId = existing.id;
+              }
+              reportCommentResolved = true;
+            };
+
+            const upsertReportComment = async (body) => {
+              if (!shouldRequestReview) {
+                return;
+              }
+              const fullBody = `${reportMarker}\n${body}`;
+              if (fullBody === lastReportBody) {
+                return;
+              }
+              try {
+                await ensureReportCommentId();
+                if (reportCommentId) {
+                  await github.rest.issues.updateComment({
+                    owner,
+                    repo,
+                    comment_id: reportCommentId,
+                    body: fullBody,
+                  });
+                } else {
+                  const { data: created } = await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    body: fullBody,
+                  });
+                  reportCommentId = created.id;
+                }
+                lastReportBody = fullBody;
+              } catch (error) {
+                const status = error?.status || 'unknown';
+                const message = error?.message || 'unknown';
+                core.info(`upsertReportComment failed status=${status} message=${message}`);
+              }
             };
 
             const headCommitTimestampCache = new Map();
@@ -149,19 +217,25 @@ jobs:
             };
 
             const requestCopilotReviewIfNeeded = async (pr, hasHeadReview) => {
+              const attempts = [];
               if (pr.draft) {
-                return { requested: false, reason: 'draft' };
+                return { requested: false, reason: 'draft', attempts };
               }
 
               if (hasHeadReview) {
-                return { requested: false, reason: 'already-reviewed' };
+                return { requested: false, reason: 'already-reviewed', attempts };
               }
 
-              const alreadyRequested = (pr.requested_reviewers || []).some((reviewer) =>
-                isCopilotLogin(reviewer?.login),
-              );
-              if (alreadyRequested) {
-                return { requested: false, reason: 'already-requested' };
+              const alreadyRequestedReviewers = (pr.requested_reviewers || [])
+                .map((reviewer) => reviewer?.login)
+                .filter((login) => isCopilotLogin(login));
+              if (alreadyRequestedReviewers.length > 0) {
+                return {
+                  requested: false,
+                  reason: 'already-requested',
+                  requestedReviewers: alreadyRequestedReviewers,
+                  attempts,
+                };
               }
 
               for (const reviewer of COPILOT_LOGIN_CANDIDATES) {
@@ -172,16 +246,78 @@ jobs:
                     pull_number: prNumber,
                     reviewers: [reviewer],
                   });
+                  attempts.push({ reviewer, success: true });
                   core.info(`Copilot review requested via reviewer="${reviewer}"`);
-                  return { requested: true, reason: 'requested', reviewer };
+                  return { requested: true, reason: 'requested', reviewer, attempts };
                 } catch (error) {
                   const status = error?.status || 'unknown';
                   const message = error?.message || 'unknown';
+                  attempts.push({
+                    reviewer,
+                    success: false,
+                    status,
+                    message: truncate(compact(message), 120),
+                  });
                   core.info(`requestReviewers failed reviewer="${reviewer}" status=${status} message=${message}`);
                 }
               }
 
-              return { requested: false, reason: 'request-failed' };
+              return { requested: false, reason: 'request-failed', attempts };
+            };
+
+            const buildRequestReportBody = (headSha, attempt, maxAttempts, requestResult) => {
+              const reasonTextByType = {
+                requested: `reviewer request 成功 (\`${requestResult.reviewer}\`)`,
+                'already-requested': `既に reviewer request 済み (${(requestResult.requestedReviewers || []).join(', ')})`,
+                'already-reviewed': 'Copilot レビューを検出済みのため request 不要',
+                draft: 'Draft PR のため request 未実行',
+                'request-failed': '全 reviewer 候補への request が失敗',
+              };
+              const reasonText = reasonTextByType[requestResult.reason] || requestResult.reason;
+
+              const lines = [
+                '### Copilot Review Request Log',
+                `- head: \`${shortSha(headSha)}\``,
+                `- poll: ${attempt}/${maxAttempts}`,
+                `- result: ${reasonText}`,
+                '',
+                '#### Candidate Results',
+              ];
+
+              if ((requestResult.attempts || []).length === 0) {
+                lines.push('- 実行なし');
+              } else {
+                for (const candidate of requestResult.attempts) {
+                  if (candidate.success) {
+                    lines.push(`- \`${candidate.reviewer}\`: success`);
+                    continue;
+                  }
+                  const status = candidate.status || 'unknown';
+                  const message = candidate.message ? ` - ${candidate.message}` : '';
+                  lines.push(`- \`${candidate.reviewer}\`: failed (${status})${message}`);
+                }
+              }
+
+              if (!requestResult.requested) {
+                lines.push('');
+                lines.push('#### Manual Re-request');
+                lines.push('```bash');
+                for (const reviewer of COPILOT_LOGIN_CANDIDATES) {
+                  lines.push(
+                    `gh api -X POST repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers -f 'reviewers[]=${reviewer}'`,
+                  );
+                }
+                lines.push('```');
+              }
+
+              lines.push('');
+              lines.push(`_updated: ${new Date().toISOString()}_`);
+              return lines.join('\n');
+            };
+
+            const upsertRequestReport = async (headSha, attempt, maxAttempts, requestResult) => {
+              const body = buildRequestReportBody(headSha, attempt, maxAttempts, requestResult);
+              await upsertReportComment(body);
             };
 
             const collectCopilotSignals = async (headSha, headCommitTs) => {
@@ -291,7 +427,8 @@ jobs:
               const signals = await collectCopilotSignals(headSha, headCommitTs);
 
               if (shouldRequestReview && (attempt === 1 || attempt % 6 === 1)) {
-                await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
+                const requestResult = await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
+                await upsertRequestReport(headSha, attempt, maxAttempts, requestResult);
               }
 
               if (signals.hasAnyCopilotSignal) {
@@ -332,5 +469,22 @@ jobs:
               finalSnapshot.pr.head.sha,
               'success',
               'Copilot レビュー未検出 (timeout: 手動確認推奨)',
+            );
+            await upsertReportComment(
+              [
+                '### Copilot Review Request Log',
+                `- head: \`${shortSha(finalSnapshot.pr.head.sha)}\``,
+                '- result: timeout (Copilot レビュー未検出)',
+                '',
+                '#### Manual Re-request',
+                '```bash',
+                ...COPILOT_LOGIN_CANDIDATES.map(
+                  (reviewer) =>
+                    `gh api -X POST repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers -f 'reviewers[]=${reviewer}'`,
+                ),
+                '```',
+                '',
+                `_updated: ${new Date().toISOString()}_`,
+              ].join('\n'),
             );
             core.info('Copilot review polling timed out; marked success to avoid merge deadlock.');
