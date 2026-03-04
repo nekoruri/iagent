@@ -25,8 +25,8 @@ export function validateFile(file: File): FileValidationResult {
   if (file.size === 0) {
     return { valid: false, error: 'ファイルが空です' };
   }
-  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
-    return { valid: false, error: `このファイル形式（${file.type}）には対応していません` };
+  if (!file.type || !ALLOWED_MIME_TYPES.includes(file.type)) {
+    return { valid: false, error: file.type ? `このファイル形式（${file.type}）には対応していません` : 'このファイル形式には対応していません' };
   }
   return { valid: true };
 }
