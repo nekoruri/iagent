@@ -6,7 +6,14 @@ import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
-import { addHeartbeatResult, getAllTaskLastRun, updateTaskLastRun, batchUpdateTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
+import {
+  addHeartbeatResult,
+  getAllTaskLastRun,
+  updateTaskLastRun,
+  batchUpdateTaskLastRun,
+  loadHeartbeatState,
+  appendOpsEvent,
+} from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -186,6 +193,19 @@ export class HeartbeatEngine {
 
   private async executeCheck(tasks: HeartbeatTask[], remainingQuota = Infinity): Promise<void> {
     this.isExecuting = true;
+    const startedAt = Date.now();
+    const logRun = async (status: 'success' | 'failure' | 'skipped', extras: Record<string, unknown> = {}) => {
+      await appendOpsEvent({
+        type: 'heartbeat-run',
+        timestamp: Date.now(),
+        source: 'tab',
+        status,
+        durationMs: Date.now() - startedAt,
+        taskCount: tasks.length,
+        ...extras,
+      }).catch(() => {});
+    };
+
     const trace = tracer.startTrace('heartbeat.check');
     trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
     trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-nano');
@@ -195,6 +215,7 @@ export class HeartbeatEngine {
       const apiKey = getConfig().openaiApiKey;
       if (!apiKey) {
         trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_api_key' });
+        await logRun('skipped', { reason: 'no_api_key' });
         return;
       }
 
@@ -226,9 +247,16 @@ export class HeartbeatEngine {
       if (trimmed.length > 0) {
         this.notify({ results: trimmed });
       }
+      await logRun('success', {
+        resultCount: allHeartbeatResults.length,
+        changedCount: trimmed.length,
+      });
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
       trace.rootSpan.endWithError(error);
+      await logRun('failure', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       // エラー時も taskLastRun を更新して即リトライを防止
       await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now()).catch(() => {});
     } finally {

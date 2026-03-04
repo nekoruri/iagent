@@ -1,0 +1,72 @@
+name: PoC Week Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      week:
+        description: Target week id (YYYY-W##)
+        required: true
+        type: string
+      weekly_dir:
+        description: Weekly docs directory
+        required: false
+        default: docs/weekly
+        type: string
+      strict:
+        description: Enable strict completeness checks
+        required: false
+        default: true
+        type: boolean
+      require_interviews:
+        description: Require all interviews completed
+        required: false
+        default: true
+        type: boolean
+      as_of:
+        description: Optional as-of date (YYYY-MM-DD)
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  check-week:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run PoC week check
+        run: |
+          set -euo pipefail
+          report_file="poc-week-check-${{ inputs.week }}.json"
+          args=(--week "${{ inputs.week }}" --weekly-dir "${{ inputs.weekly_dir }}" --report-json "$report_file")
+
+          if [[ "${{ inputs.strict }}" == "true" ]]; then
+            args+=(--strict)
+          fi
+          if [[ "${{ inputs.require_interviews }}" == "true" ]]; then
+            args+=(--require-interviews)
+          fi
+          if [[ -n "${{ inputs.as_of }}" ]]; then
+            args+=(--as-of "${{ inputs.as_of }}")
+          fi
+
+          echo "npm run poc:check-week -- ${args[*]}"
+          npm run poc:check-week -- "${args[@]}"
+
+      - name: Upload check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: poc-week-check-${{ inputs.week }}
+          path: poc-week-check-${{ inputs.week }}.json
+          if-no-files-found: warn
+          retention-days: 30

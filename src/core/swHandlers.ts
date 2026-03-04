@@ -6,6 +6,7 @@
  */
 
 import { executeHeartbeatAndStore } from './heartbeatCommon';
+import { appendOpsEvent } from '../store/heartbeatStore';
 
 // --- テスト可能にするための最小インターフェース定義 ---
 
@@ -32,6 +33,55 @@ export interface SubscriptionLike {
   toJSON(): unknown;
 }
 
+/** Heartbeat 通知で利用する data ペイロード */
+export interface HeartbeatNotificationData {
+  url?: string;
+  source?: 'push' | 'periodic-sync';
+  trackKpi?: boolean;
+  notificationId?: string;
+}
+
+async function trackNotificationShown(
+  source: 'push' | 'periodic-sync',
+  notificationTag: string,
+  notificationId: string,
+): Promise<void> {
+  try {
+    await appendOpsEvent({
+      type: 'notification-shown',
+      timestamp: Date.now(),
+      source,
+      channel: source,
+      notificationTag,
+      notificationId,
+    });
+  } catch {
+    // 計測失敗は UX に影響させない
+  }
+}
+
+async function trackNotificationClicked(
+  notificationData: HeartbeatNotificationData | undefined,
+  notificationTag: string,
+): Promise<void> {
+  const shouldTrack = notificationData?.trackKpi === true || notificationTag === 'heartbeat-result';
+  if (!shouldTrack) return;
+  const source = notificationData?.source === 'periodic-sync' ? 'periodic-sync' : 'push';
+  const notificationId = notificationData?.notificationId ?? notificationTag;
+  try {
+    await appendOpsEvent({
+      type: 'notification-clicked',
+      timestamp: Date.now(),
+      source,
+      channel: source,
+      notificationTag,
+      notificationId,
+    });
+  } catch {
+    // 計測失敗は UX に影響させない
+  }
+}
+
 // --- Push ハンドラ ---
 
 export async function handlePush(
@@ -53,13 +103,15 @@ export async function handlePush(
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
+      const notificationId = `heartbeat-push-${Date.now()}`;
       await notifier.showNotification('iAgent Heartbeat [push]', {
         body: summaries,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: 'heartbeat-result',
-        data: { url: '/' },
+        data: { url: '/', source: 'push', trackKpi: true, notificationId } satisfies HeartbeatNotificationData,
       });
+      await trackNotificationShown('push', 'heartbeat-result', notificationId);
     } else {
       // Chrome は push 受信時に通知表示が必須 — サイレント通知を出して即閉じ
       await notifier.showNotification('iAgent [push]', {
@@ -99,13 +151,15 @@ export async function handlePeriodicSync(notifier: SwNotifier, clients?: SwClien
 
     if (results.length > 0) {
       const summaries = results.map((r) => r.summary).join('\n');
+      const notificationId = `heartbeat-periodic-sync-${Date.now()}`;
       await notifier.showNotification('iAgent Heartbeat [periodic-sync]', {
         body: summaries,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: 'heartbeat-result',
-        data: { url: '/' },
+        data: { url: '/', source: 'periodic-sync', trackKpi: true, notificationId } satisfies HeartbeatNotificationData,
       });
+      await trackNotificationShown('periodic-sync', 'heartbeat-result', notificationId);
     }
   } catch (error) {
     console.error('[SW] Periodic sync エラー:', error);
@@ -188,10 +242,12 @@ export async function handlePushSubscriptionChange(
 // --- 通知クリックハンドラ ---
 
 export async function handleNotificationClick(
-  notificationData: { url?: string } | undefined,
+  notificationData: HeartbeatNotificationData | undefined,
+  notificationTag: string,
   origin: string,
   clients: SwClients,
 ): Promise<void> {
+  await trackNotificationClicked(notificationData, notificationTag);
   const url = notificationData?.url ?? '/';
   const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
 

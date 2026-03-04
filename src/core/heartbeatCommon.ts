@@ -1,6 +1,13 @@
 import { isQuietHours, getTodayNotificationCount } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
-import { addHeartbeatResult, updateTaskLastRun, batchUpdateTaskLastRun, getAllTaskLastRun, loadHeartbeatState } from '../store/heartbeatStore';
+import {
+  addHeartbeatResult,
+  updateTaskLastRun,
+  batchUpdateTaskLastRun,
+  getAllTaskLastRun,
+  loadHeartbeatState,
+  appendOpsEvent,
+} from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
@@ -86,14 +93,33 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
  */
 export async function executeHeartbeatAndStore(apiKey: string, source?: HeartbeatSource): Promise<HeartbeatAndStoreResult> {
   const EMPTY: HeartbeatAndStoreResult = { results: [], configChanged: false };
+  const startedAt = Date.now();
+  const sourceLabel = source ?? 'unknown';
+  const logRun = async (status: 'success' | 'failure' | 'skipped', extras: Record<string, unknown> = {}) => {
+    await appendOpsEvent({
+      type: 'heartbeat-run',
+      timestamp: Date.now(),
+      source: sourceLabel,
+      status,
+      durationMs: Date.now() - startedAt,
+      ...extras,
+    }).catch(() => {});
+  };
 
   // IndexedDB から最新設定を読み込む
   const freshConfig = await loadConfigFromIDB();
   const hbConfig = freshConfig?.heartbeat;
-  if (!hbConfig || !hbConfig.enabled) return EMPTY;
-  if (isQuietHours(hbConfig)) return EMPTY;
+  if (!hbConfig || !hbConfig.enabled) {
+    await logRun('skipped', { reason: 'disabled' });
+    return EMPTY;
+  }
+  if (isQuietHours(hbConfig)) {
+    await logRun('skipped', { reason: 'quiet_hours' });
+    return EMPTY;
+  }
   if (hbConfig.focusMode) {
     console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
+    await logRun('skipped', { reason: 'focus_mode' });
     return EMPTY;
   }
 
@@ -103,16 +129,23 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     const todayCount = getTodayNotificationCount(state.recentResults);
     if (todayCount >= hbConfig.maxNotificationsPerDay) {
       console.debug(`[Heartbeat:${source ?? 'unknown'}] 日次通知上限到達 — スキップ`);
+      await logRun('skipped', { reason: 'daily_quota_reached' });
       return EMPTY;
     }
   }
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
-  if (!resolvedApiKey) return EMPTY;
+  if (!resolvedApiKey) {
+    await logRun('skipped', { reason: 'no_api_key' });
+    return EMPTY;
+  }
 
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(hbConfig);
-  if (tasks.length === 0) return EMPTY;
+  if (tasks.length === 0) {
+    await logRun('skipped', { reason: 'no_due_tasks' });
+    return EMPTY;
+  }
 
   // 先制的に taskLastRun を更新（パース失敗時の再実行ループ防止）
   await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now());
@@ -128,34 +161,46 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // persona を取得（未設定時はデフォルト）
   const persona = freshConfig?.persona ?? getDefaultPersonaConfig();
 
-  const { results, configChanged } = await executeWorkerHeartbeatCheck(
-    resolvedApiKey,
-    tasks,
-    calendarEvents,
-    memories,
-    persona,
-  );
+  try {
+    const { results, configChanged } = await executeWorkerHeartbeatCheck(
+      resolvedApiKey,
+      tasks,
+      calendarEvents,
+      memories,
+      persona,
+    );
 
-  const now = Date.now();
-  const heartbeatResults: HeartbeatResult[] = [];
-  const label = source ?? 'unknown';
+    const now = Date.now();
+    const heartbeatResults: HeartbeatResult[] = [];
 
-  console.log(`[Heartbeat:${label}] ${results.length} 件のタスクを実行`);
+    console.log(`[Heartbeat:${sourceLabel}] ${results.length} 件のタスクを実行`);
 
-  for (const r of results) {
-    const tagged = {
-      ...r,
-      source,
-      pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
-    };
-    await addHeartbeatResult(tagged);
-    await updateTaskLastRun(r.taskId, now);
-    if (r.hasChanges) {
-      heartbeatResults.push(tagged);
+    for (const r of results) {
+      const tagged = {
+        ...r,
+        source,
+        pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
+      };
+      await addHeartbeatResult(tagged);
+      await updateTaskLastRun(r.taskId, now);
+      if (r.hasChanges) {
+        heartbeatResults.push(tagged);
+      }
     }
+
+    console.log(`[Heartbeat:${sourceLabel}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
+
+    await logRun('success', {
+      taskCount: tasks.length,
+      resultCount: results.length,
+      changedCount: heartbeatResults.length,
+    });
+    return { results: heartbeatResults, configChanged };
+  } catch (error) {
+    await logRun('failure', {
+      taskCount: tasks.length,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  console.log(`[Heartbeat:${label}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
-
-  return { results: heartbeatResults, configChanged };
 }

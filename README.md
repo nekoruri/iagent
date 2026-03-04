@@ -87,6 +87,16 @@ npm run test:watch     # テスト監視モード
 npm run test:coverage  # カバレッジ測定（vitest --coverage）
 npm run lint           # ESLint
 npm run preview        # ビルド結果プレビュー
+npm run poc:init-week -- --week 2026-W11  # PoC週次ドキュメント雛形を一括生成
+npm run poc:sync-validation -- --week 2026-W11  # インタビュー結果を週次レビューへ反映
+npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次一括実行
+npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile --strict  # Action判定で非0終了
+npm run poc:run-week -- --week 2026-W11 --check --check-strict  # 実行後に週次記入漏れチェック
+npm run poc:run-week -- --week 2026-W11 --check --check-report-json /tmp/week-check.json  # チェック結果JSON出力
+npm run poc:run-week -- --week 2026-W11 --check --check-strict --check-require-interviews --check-as-of 2026-03-15  # 基準日を指定した最終チェック
+npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次締め用（strict+最終チェック+日付付きJSON）
+npm run poc:check-week -- --week 2026-W11 --strict  # 週次レビュー記入漏れチェック
+npm run poc:check-week -- --week 2026-W11 --report-json /tmp/week-check.json  # チェック結果JSON出力
 ```
 
 ## プロジェクト構成
@@ -118,7 +128,7 @@ src/
 │   ├── useHeartbeat.ts           Heartbeat ライフサイクル
 │   └── useHeartbeatPanel.ts      Heartbeat パネル状態
 ├── store/             # IndexedDB / localStorage ストア
-│   ├── db.ts                     DB 初期化（iagent-db, v10）
+│   ├── db.ts                     DB 初期化（iagent-db, v11）
 │   ├── calendarStore.ts          カレンダーイベント
 │   ├── configStore.ts            設定（IndexedDB）
 │   ├── conversationMetaStore.ts  会話メタデータ
@@ -188,6 +198,20 @@ GitHub Actions（`.github/workflows/ci.yml`）で main ブランチへの push /
 - [運用ガイド（Push/Proxy サーバー）](docs/OPERATIONS.md)
 - [アーキテクチャ詳細](docs/ARCHITECTURE.md)
 - [ロードマップ](docs/ROADMAP.md)
+- [PoC KPI 定義](docs/POC-KPI.md)
+- [PoC ユーザー検証ループ](docs/POC-USER-VALIDATION.md)
+- [PoC SLO 運用ガイド](docs/POC-SLO.md)
+- [PoC 指標の収集手順](docs/POC-METRICS-COLLECTION.md)
+- [PoC 週次レビュー（W10）](docs/weekly/2026-W10.md)
+
+### PoC 指標収集
+
+```bash
+npm run metrics:poc
+```
+
+`iagent-db`（IndexedDB）から PoC KPI（Accept率 / 7日アクティブ率 / 通知再訪率）と 24h SLO を収集する。
+継続観測では `--user-data-dir` 指定で同一プロファイルを使う。
 
 ## ライセンス
 

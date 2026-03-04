@@ -104,6 +104,20 @@
 - [x] MCP ツール許可キー server-qualified 化 — `allowedMcpTools` を `"serverName/toolName"` 形式に変更 + callable `toolFilter` でサーバー単位フィルタリング
 - [x] MCP ツール許可タスク単位制御 — `groupTasksByMcpTools` でタスクをツールセット別にグループ化、グループごとに Agent を個別実行
 
+### PoC 運用基盤（価値検証）
+- [x] KPI 定義（North Star + 週次 3 指標）— `docs/POC-KPI.md`
+- [x] ユーザー検証ループ定義（週次インタビュー運用）— `docs/POC-USER-VALIDATION.md`
+- [x] SLO 運用定義（Heartbeat / Push の 3 SLI）— `docs/POC-SLO.md`
+- [x] 週次レビュー / インタビューテンプレート整備 — `docs/templates/WEEKLY-REVIEW.md`, `docs/templates/USER-INTERVIEW-NOTE.md`
+- [x] KPI 収集手順整備（DevTools Console スニペット）— `docs/POC-METRICS-COLLECTION.md`
+- [x] 初回週次レビュー作成（W10）— `docs/weekly/2026-W10.md`
+- [x] W10 baseline/インタビュー実体ファイル作成 — `docs/weekly/2026-W10-baseline.md`, `docs/weekly/interviews/*`
+- [x] KPI/SLO 自動収集 CLI 追加（Playwright）— `npm run metrics:poc`, `scripts/collect-poc-metrics.mjs`
+- [x] 週次雛形自動生成 CLI 追加 — `npm run poc:init-week`, `scripts/init-poc-week.mjs`
+- [x] インタビュー→週次レビュー反映 CLI 追加 — `npm run poc:sync-validation`, `scripts/sync-poc-validation.mjs`
+- [x] 週次一括実行 CLI 追加（init + metrics + validation）— `npm run poc:run-week`, `scripts/run-poc-week.mjs`
+- [x] 週次レビュー記入漏れチェック CLI 追加 — `npm run poc:check-week`, `scripts/check-poc-week.mjs`
+
 ---
 
 ## フェーズ 2: エージェント体験の深化

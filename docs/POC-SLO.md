@@ -1,0 +1,80 @@
+# PoC SLO 運用ガイド（項目 4）
+
+作成日: 2026-03-05  
+対象: iAgent PoC（Heartbeat / Notification 系）
+
+---
+
+## 目的
+
+「動いているはず」をやめて、PoC でも最低限の信頼性を数値で管理する。
+
+---
+
+## SLO 対象
+
+PoC で価値に直結する 3 つのみ管理する。
+
+## 1) Heartbeat 実行成功率（24h）
+
+- SLI: `成功実行回数 / 実行試行回数`
+- 成功定義: Heartbeat 実行が例外終了せず完了する
+- 取得元: `heartbeat` ストア `ops-events`（`type=heartbeat-run`, `source=tab|worker|push|periodic-sync`）
+- 目標 SLO:
+  - Target: 99%
+  - Alert: 97% 未満
+
+## 2) Push wake 実行成功率（24h）
+
+- SLI: `push/periodic 起点の成功実行回数 / push/periodic 試行回数`
+- 取得元: `heartbeat` ストア `ops-events`（`type=heartbeat-run`, `source=push|periodic-sync`）
+- 目標 SLO:
+  - Target: 95%
+  - Alert: 90% 未満
+
+## 3) Heartbeat 処理遅延 p95（24h）
+
+- SLI: Heartbeat 1 実行あたりの処理時間
+- 取得元: `heartbeat` ストア `ops-events`（`durationMs` の p95）
+- 目標 SLO:
+  - Target: p95 <= 30 秒
+  - Alert: p95 > 45 秒
+
+---
+
+## エラーバジェット運用（PoC版）
+
+- 1 週単位で管理する。
+- いずれかの SLO が Alert 閾値を下回った週は、新機能の追加を止めて安定化対応を優先する。
+
+---
+
+## 監視とレビュー
+
+## 日次
+
+- 失敗ログの件数と再現手順を確認
+- 重大失敗（連続失敗、完全停止）を即日切り分け
+- 収集コマンド: `npm run metrics:poc -- --days 7 --user-data-dir /tmp/iagent-metrics-profile`
+
+## 週次
+
+- `docs/templates/WEEKLY-REVIEW.md` に SLO 実測値を記録
+- 前週比で悪化した SLI に対して、必ず改善タスクを 1 件以上登録
+
+---
+
+## インシデント時の簡易ランブック
+
+1. 影響範囲を特定（Layer1/2/3 のどこで失敗しているか）  
+2. 直近変更を確認（設定変更、SW 更新、Push サーバー変更）  
+3. 一時緩和策を適用（通知頻度抑制、対象タスク一時停止など）  
+4. 根本原因を修正し、再発防止のテストを追加  
+5. 週次レビューで「再発防止策」を文書化  
+
+---
+
+## 補足
+
+PoC では「完璧な監視基盤」より「継続的に改善できる運用リズム」を優先する。  
+まずは 3 SLO を毎週欠かさず観測し、必要な計測の追加は後追いで行う。

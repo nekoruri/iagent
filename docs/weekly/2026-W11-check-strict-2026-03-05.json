@@ -1,0 +1,70 @@
+{
+  "week": "2026-W11",
+  "weeklyDir": "docs/weekly",
+  "strict": true,
+  "requireInterviews": true,
+  "asOfDate": "2026-03-05",
+  "files": [
+    {
+      "path": "docs/weekly/2026-W11.md",
+      "exists": true
+    },
+    {
+      "path": "docs/weekly/2026-W11-baseline.md",
+      "exists": true
+    },
+    {
+      "path": "docs/weekly/2026-W11-interview-plan.md",
+      "exists": true
+    },
+    {
+      "path": "docs/weekly/interviews/2026-W11-info-collector.md",
+      "exists": true
+    },
+    {
+      "path": "docs/weekly/interviews/2026-W11-pm.md",
+      "exists": true
+    },
+    {
+      "path": "docs/weekly/interviews/2026-W11-learner.md",
+      "exists": true
+    }
+  ],
+  "counts": {
+    "errors": 0,
+    "warnings": 6
+  },
+  "issues": [
+    {
+      "severity": "warn",
+      "path": "docs/weekly/2026-W11.md",
+      "message": "未実施のペルソナがあります: - 情報収集型: 0（未実施）"
+    },
+    {
+      "severity": "warn",
+      "path": "docs/weekly/2026-W11.md",
+      "message": "未実施のペルソナがあります: - PM型: 0（未実施）"
+    },
+    {
+      "severity": "warn",
+      "path": "docs/weekly/2026-W11.md",
+      "message": "未実施のペルソナがあります: - 学習者型: 0（未実施）"
+    },
+    {
+      "severity": "warn",
+      "path": "docs/weekly/interviews/2026-W11-info-collector.md",
+      "message": "インタビュー未完了だが予定日未到来です（ステータス=未実施, 予定日=2026-03-10, asOf=2026-03-05）"
+    },
+    {
+      "severity": "warn",
+      "path": "docs/weekly/interviews/2026-W11-pm.md",
+      "message": "インタビュー未完了だが予定日未到来です（ステータス=未実施, 予定日=2026-03-12, asOf=2026-03-05）"
+    },
+    {
+      "severity": "warn",
+      "path": "docs/weekly/interviews/2026-W11-learner.md",
+      "message": "インタビュー未完了だが予定日未到来です（ステータス=未実施, 予定日=2026-03-13, asOf=2026-03-05）"
+    }
+  ],
+  "ok": true
+}

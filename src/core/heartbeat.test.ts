@@ -414,6 +414,7 @@ describe('HeartbeatEngine - executeCheck', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: mockBatchUpdateTaskLastRunFn,
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
   }
 
@@ -642,6 +643,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -699,6 +701,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -751,6 +754,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -804,6 +808,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -863,6 +868,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -914,6 +920,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -974,6 +981,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -1032,6 +1040,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -1092,6 +1101,7 @@ describe('HeartbeatEngine - tick', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');
@@ -1159,6 +1169,7 @@ describe('HeartbeatEngine - runNow', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
     }));
 
     const { HeartbeatEngine: FreshEngine } = await import('./heartbeat');

@@ -1,4 +1,5 @@
 import type { HeartbeatResult } from '../types';
+import { appendOpsEvent } from '../store/heartbeatStore';
 
 /** ブラウザが Notification API をサポートしているか */
 export function isNotificationSupported(): boolean {
@@ -22,11 +23,29 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
   if (getNotificationPermission() !== 'granted') return;
 
   for (const result of results) {
+    const source = result.source ?? 'tab';
+    const notificationTag = `heartbeat-${result.taskId}-${result.timestamp}`;
     const notification = new Notification('iAgent Heartbeat', {
       body: result.summary,
-      tag: `heartbeat-${result.taskId}-${result.timestamp}`,
+      tag: notificationTag,
     });
+    void appendOpsEvent({
+      type: 'notification-shown',
+      timestamp: Date.now(),
+      source,
+      channel: 'desktop',
+      notificationTag,
+      notificationId: notificationTag,
+    }).catch(() => {});
     notification.onclick = () => {
+      void appendOpsEvent({
+        type: 'notification-clicked',
+        timestamp: Date.now(),
+        source,
+        channel: 'desktop',
+        notificationTag,
+        notificationId: notificationTag,
+      }).catch(() => {});
       window.focus();
       notification.close();
     };

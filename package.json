@@ -16,7 +16,13 @@
     "test:e2e:ui": "playwright test --project=desktop-chromium --project=mobile-chromium --ui",
     "test:e2e:push": "playwright test --config playwright.push.config.ts",
     "test:e2e:vrt": "playwright test --project=vrt-desktop --project=vrt-mobile",
-    "test:e2e:vrt:update": "playwright test --project=vrt-desktop --project=vrt-mobile --update-snapshots"
+    "test:e2e:vrt:update": "playwright test --project=vrt-desktop --project=vrt-mobile --update-snapshots",
+    "metrics:poc": "node scripts/collect-poc-metrics.mjs",
+    "poc:init-week": "node scripts/init-poc-week.mjs",
+    "poc:sync-validation": "node scripts/sync-poc-validation.mjs",
+    "poc:run-week": "node scripts/run-poc-week.mjs",
+    "poc:check-week": "node scripts/check-poc-week.mjs",
+    "poc:close-week": "node scripts/close-poc-week.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

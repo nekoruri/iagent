@@ -16,6 +16,9 @@ import {
   setHeartbeatFeedback,
   filterVisibleResults,
   getHeartbeatFeedbackSummary,
+  appendOpsEvent,
+  appendOpsEvents,
+  loadOpsEvents,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
 
@@ -283,6 +286,30 @@ describe('setHeartbeatFeedback', () => {
     expect(state.recentResults[0].feedback!.timestamp).toBeGreaterThan(0);
   });
 
+  it('フィードバック設定時に heartbeat-feedback の ops-event を記録する', async () => {
+    const now = Date.now();
+    await addHeartbeatResult({
+      taskId: 'task-feedback',
+      timestamp: now - 1000,
+      hasChanges: true,
+      summary: 'テスト',
+      source: 'worker',
+    });
+
+    await setHeartbeatFeedback('task-feedback', now - 1000, 'accepted');
+
+    const events = await loadOpsEvents();
+    const feedbackEvents = events.filter((event) => event.type === 'heartbeat-feedback');
+    expect(feedbackEvents).toHaveLength(1);
+    expect(feedbackEvents[0]).toEqual(expect.objectContaining({
+      type: 'heartbeat-feedback',
+      taskId: 'task-feedback',
+      resultTimestamp: now - 1000,
+      feedbackType: 'accepted',
+      source: 'worker',
+    }));
+  });
+
   it('dismissed フィードバックを設定できる', async () => {
     await addHeartbeatResult({
       taskId: 'task-1',
@@ -497,5 +524,74 @@ describe('getHeartbeatFeedbackSummary', () => {
     expect(summary.totalWithFeedback).toBe(0);
     expect(summary.overallAcceptRate).toBe(0);
     expect(summary.taskStats).toEqual([]);
+  });
+});
+
+describe('ops events', () => {
+  it('appendOpsEvent でイベントを保存・読み込みできる', async () => {
+    const now = Date.now();
+    await appendOpsEvent({
+      type: 'notification-shown',
+      timestamp: now,
+      source: 'tab',
+      channel: 'desktop',
+      notificationTag: 'heartbeat-test',
+      notificationId: 'heartbeat-test-id',
+    });
+
+    const events = await loadOpsEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(expect.objectContaining({
+      type: 'notification-shown',
+      source: 'tab',
+      channel: 'desktop',
+      notificationTag: 'heartbeat-test',
+      notificationId: 'heartbeat-test-id',
+    }));
+  });
+
+  it('appendOpsEvents は保持期間外のイベントを除外する', async () => {
+    const now = Date.now();
+    const oldTs = now - (31 * 24 * 60 * 60 * 1000);
+    await appendOpsEvents([
+      {
+        type: 'heartbeat-run',
+        timestamp: oldTs,
+        source: 'worker',
+        status: 'success',
+      },
+      {
+        type: 'heartbeat-run',
+        timestamp: now,
+        source: 'worker',
+        status: 'failure',
+      },
+    ]);
+
+    const events = await loadOpsEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(expect.objectContaining({
+      type: 'heartbeat-run',
+      status: 'failure',
+      source: 'worker',
+    }));
+  });
+
+  it('appendOpsEvent を並列実行してもイベント欠落しない', async () => {
+    const now = Date.now();
+    const total = 20;
+    await Promise.all(
+      Array.from({ length: total }, (_, i) => appendOpsEvent({
+        type: 'heartbeat-run',
+        timestamp: now + i,
+        source: 'tab',
+        status: 'success',
+      })),
+    );
+
+    const events = await loadOpsEvents();
+    const runEvents = events.filter((event) => event.type === 'heartbeat-run');
+    expect(runEvents).toHaveLength(total);
+    expect(new Set(runEvents.map((event) => event.timestamp)).size).toBe(total);
   });
 });

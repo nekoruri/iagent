@@ -15,6 +15,12 @@ vi.mock('./heartbeatCommon', () => ({
   executeHeartbeatAndStore: (...args: unknown[]) => mockExecuteHeartbeatAndStore(...args),
 }));
 
+// --- ops event のモック ---
+const mockAppendOpsEvent = vi.fn().mockResolvedValue(undefined);
+vi.mock('../store/heartbeatStore', () => ({
+  appendOpsEvent: (...args: unknown[]) => mockAppendOpsEvent(...args),
+}));
+
 // --- fetch のモック ---
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -105,6 +111,20 @@ describe('handlePush', () => {
       expect.objectContaining({
         body: 'ニュース更新あり\nカレンダー通知',
         tag: 'heartbeat-result',
+        data: expect.objectContaining({
+          source: 'push',
+          trackKpi: true,
+          notificationId: expect.stringMatching(/^heartbeat-push-\d+$/),
+        }),
+      }),
+    );
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'notification-shown',
+        source: 'push',
+        channel: 'push',
+        notificationTag: 'heartbeat-result',
+        notificationId: expect.stringMatching(/^heartbeat-push-\d+$/),
       }),
     );
   });
@@ -196,6 +216,20 @@ describe('handlePeriodicSync', () => {
       expect.objectContaining({
         body: '定期チェック結果',
         tag: 'heartbeat-result',
+        data: expect.objectContaining({
+          source: 'periodic-sync',
+          trackKpi: true,
+          notificationId: expect.stringMatching(/^heartbeat-periodic-sync-\d+$/),
+        }),
+      }),
+    );
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'notification-shown',
+        source: 'periodic-sync',
+        channel: 'periodic-sync',
+        notificationTag: 'heartbeat-result',
+        notificationId: expect.stringMatching(/^heartbeat-periodic-sync-\d+$/),
       }),
     );
   });
@@ -396,17 +430,26 @@ describe('handleNotificationClick', () => {
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([mockClient]);
 
-    await handleNotificationClick({ url: '/' }, 'https://app.example.com', clients);
+    await handleNotificationClick({ url: '/', source: 'push', trackKpi: true }, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(mockClient.focus).toHaveBeenCalled();
     expect(clients.openWindow).not.toHaveBeenCalled();
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'notification-clicked',
+        source: 'push',
+        channel: 'push',
+        notificationTag: 'heartbeat-result',
+        notificationId: 'heartbeat-result',
+      }),
+    );
   });
 
   it('既存タブがない場合は新規タブを開く', async () => {
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([]);
 
-    await handleNotificationClick({ url: '/heartbeat' }, 'https://app.example.com', clients);
+    await handleNotificationClick({ url: '/heartbeat' }, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(clients.openWindow).toHaveBeenCalledWith('/heartbeat');
   });
@@ -416,7 +459,7 @@ describe('handleNotificationClick', () => {
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([mockClient]);
 
-    await handleNotificationClick({ url: '/' }, 'https://app.example.com', clients);
+    await handleNotificationClick({ url: '/' }, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(mockClient.focus).not.toHaveBeenCalled();
     expect(clients.openWindow).toHaveBeenCalledWith('/');
@@ -426,7 +469,7 @@ describe('handleNotificationClick', () => {
     const clients = createMockClients();
     clients.matchAll.mockResolvedValue([]);
 
-    await handleNotificationClick(undefined, 'https://app.example.com', clients);
+    await handleNotificationClick(undefined, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(clients.openWindow).toHaveBeenCalledWith('/');
   });
@@ -434,7 +477,7 @@ describe('handleNotificationClick', () => {
   it('matchAll に正しいオプションを渡す', async () => {
     const clients = createMockClients();
 
-    await handleNotificationClick(undefined, 'https://app.example.com', clients);
+    await handleNotificationClick(undefined, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(clients.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true });
   });
