@@ -20,7 +20,8 @@
     "metrics:poc": "node scripts/collect-poc-metrics.mjs",
     "poc:init-week": "node scripts/init-poc-week.mjs",
     "poc:sync-validation": "node scripts/sync-poc-validation.mjs",
-    "poc:run-week": "node scripts/run-poc-week.mjs"
+    "poc:run-week": "node scripts/run-poc-week.mjs",
+    "poc:check-week": "node scripts/check-poc-week.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
