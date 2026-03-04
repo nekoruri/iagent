@@ -89,6 +89,7 @@ npm run lint           # ESLint
 npm run preview        # ビルド結果プレビュー
 npm run poc:init-week -- --week 2026-W11  # PoC週次ドキュメント雛形を一括生成
 npm run poc:sync-validation -- --week 2026-W11  # インタビュー結果を週次レビューへ反映
+npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次一括実行
 ```
 
 ## プロジェクト構成

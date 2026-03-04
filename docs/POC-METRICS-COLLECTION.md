@@ -12,6 +12,27 @@
 
 ---
 
+## 推奨: 週次一括コマンド（項目 1 / 2 / 4）
+
+週次運用は、以下 1 コマンドで実行できる:
+
+```bash
+npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
+```
+
+実行内容:
+
+1. `poc:init-week`（雛形作成）
+2. `metrics:poc`（KPI/SLO を週次レビュー + baseline に反映）
+3. `poc:sync-validation`（インタビュー結果を週次レビューに反映）
+
+補足:
+
+- `--skip-metrics` / `--skip-validation` で段階実行できる
+- `--weekly-dir` 指定時は対象ディレクトリへ出力される
+
+---
+
 ## 推奨: 自動収集コマンド（Playwright）
 
 手動スニペットより先に、以下コマンドで KPI を取得できる:
