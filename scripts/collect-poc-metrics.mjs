@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { chromium } from '@playwright/test';
-import { readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
@@ -24,6 +25,7 @@ Examples:
   npm run metrics:poc -- --url http://localhost:4173 --days 7
   npm run metrics:poc -- --user-data-dir /tmp/iagent-metrics-profile
   npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
+  npm run metrics:poc -- --weekly-review /tmp/WEEKLY.md --baseline /tmp/WEEKLY-baseline.md
   npm run metrics:poc -- --weekly-review docs/weekly/2026-W10.md
   npm run metrics:poc -- --baseline docs/weekly/2026-W10-baseline.md
 `);
@@ -220,6 +222,48 @@ function resolveOutputPaths(opts) {
   };
 }
 
+async function fileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function inferWeekFromPath(path) {
+  if (!path) return '';
+  const m = path.match(/(\d{4}-W\d{2})(?:-baseline)?\.md$/);
+  return m?.[1] ?? '';
+}
+
+function applyTemplateValues(template, week, collectedAtTs, kind) {
+  let out = template;
+  if (week) {
+    out = out.replaceAll('YYYY-W##', week);
+    if (kind === 'weekly') {
+      out = out.replace(/^# PoC 週次レビュー テンプレート$/m, `# PoC 週次レビュー: ${week}`);
+    }
+  }
+  out = out.replaceAll('YYYY-MM-DD', localDate(collectedAtTs));
+  return out;
+}
+
+async function ensureOutputFile(filePath, kind, week, collectedAtTs) {
+  if (!filePath) return false;
+  if (await fileExists(filePath)) return false;
+
+  const templatePath = kind === 'weekly'
+    ? 'docs/templates/WEEKLY-REVIEW.md'
+    : 'docs/templates/WEEKLY-BASELINE.md';
+  const template = await readFile(templatePath, 'utf8');
+  const content = applyTemplateValues(template, week, collectedAtTs, kind);
+
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, content);
+  return true;
+}
+
 async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   const raw = await readFile(filePath, 'utf8');
   const kpiAcceptLine = `- 提案 Accept 率（7日）: ${toPercent(result.kpi.acceptRate.rate)}（accepted=${result.kpi.acceptRate.accepted}, dismissed=${result.kpi.acceptRate.dismissed}, snoozed=${result.kpi.acceptRate.snoozed}）`;
@@ -244,6 +288,9 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   next = lineReplace(next, /^- Heartbeat 遅延 p95（24h平均）:.*$/m, sloLatencyLine);
   next = lineReplace(next, /^- SLO 判定:.*$/m, sloStatusLine);
   next = lineReplace(next, /^レビュー日:\s.*$/m, reviewDateLine);
+  // 旧テンプレート由来の補助行を除去
+  next = next.replace(/^  - (Accept|Active|Revisit|Overall):.*\n/gm, '');
+  next = next.replace(/^  - (Heartbeat success|Push success|Latency|Overall):.*\n/gm, '');
 
   await writeFile(filePath, next);
 }
@@ -622,11 +669,22 @@ async function main() {
     const now = Date.now();
     console.log(`- collectedAtLocal: ${localDateTime(now)}`);
     console.log(`- collectedAtUtcDate: ${isoDate(now)}`);
+
+    const weeklyWeek = opts.week || inferWeekFromPath(outputPaths.weeklyReview);
+    const baselineWeek = opts.week || inferWeekFromPath(outputPaths.baseline);
     if (outputPaths.weeklyReview) {
+      const created = await ensureOutputFile(outputPaths.weeklyReview, 'weekly', weeklyWeek, now);
+      if (created) {
+        console.log(`- weeklyReviewCreated: ${outputPaths.weeklyReview}`);
+      }
       await updateWeeklyReviewFile(outputPaths.weeklyReview, result, now);
       console.log(`- weeklyReviewUpdated: ${outputPaths.weeklyReview}`);
     }
     if (outputPaths.baseline) {
+      const created = await ensureOutputFile(outputPaths.baseline, 'baseline', baselineWeek, now);
+      if (created) {
+        console.log(`- baselineCreated: ${outputPaths.baseline}`);
+      }
       await updateBaselineFile(outputPaths.baseline, result, now, opts.userDataDir);
       console.log(`- baselineUpdated: ${outputPaths.baseline}`);
     }
