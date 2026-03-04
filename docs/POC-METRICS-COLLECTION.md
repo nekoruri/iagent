@@ -31,6 +31,7 @@ npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-prof
 - `--skip-metrics` / `--skip-validation` で段階実行できる
 - `--weekly-dir` 指定時は対象ディレクトリへ出力される
 - `--strict` を付けると KPI/SLO のいずれかが `Action` の場合に非0終了する
+- `--check --check-strict` を付けると、実行後に週次記入漏れを自動検証できる
 - 実行後は `npm run poc:check-week -- --week <week> --strict` で記入漏れチェック推奨
 
 ---

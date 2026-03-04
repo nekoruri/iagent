@@ -86,6 +86,7 @@ npm run poc:sync-validation -- --week 2026-W11
 - 事前に `ステータス:` を更新するか、記録項目を入力すると「実施済み」と判定される
 - KPI/SLO 反映も含めた週次一括実行は `npm run poc:run-week -- --week <week>` を使う
 - レビュー締め前は `npm run poc:check-week -- --week <week> --strict --require-interviews` を実行する
+- 一括実行の中でチェックする場合は `npm run poc:run-week -- --week <week> --check --check-strict --check-require-interviews`
 
 ---
 
