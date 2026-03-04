@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
 import {
   handlePush,
   handlePeriodicSync,
@@ -12,6 +13,10 @@ declare const self: ServiceWorkerGlobalScope;
 
 // Workbox precache（vite-plugin-pwa が自動注入するマニフェスト）
 precacheAndRoute(self.__WB_MANIFEST);
+
+// SPA アプリシェルパターン — ナビゲーションリクエストに precache 済みの index.html を返す
+const navigationHandler = createHandlerBoundToURL('/index.html');
+registerRoute(new NavigationRoute(navigationHandler));
 
 // 即時アクティベーション
 self.addEventListener('install', () => {
