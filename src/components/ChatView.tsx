@@ -8,6 +8,13 @@ import type { ChatMessage, ToolCallInfo } from '../types';
 import type { Attachment } from '../types/attachment';
 import type { PendingAttachment } from '../types/attachment';
 
+interface SpeechOutputState {
+  isSupported: boolean;
+  isSpeaking: boolean;
+  speak: (text: string) => void;
+  stop: () => void;
+}
+
 interface Props {
   messages: ChatMessage[];
   isStreaming: boolean;
@@ -15,9 +22,12 @@ interface Props {
   isOnline: boolean;
   onSend: (text: string, attachments?: PendingAttachment[]) => void;
   onStop: () => void;
+  webSpeechLang?: string;
+  webSpeechSttEnabled?: boolean;
+  speechOutput?: SpeechOutputState;
 }
 
-export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop }: Props) {
+export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend, onStop, webSpeechLang, webSpeechSttEnabled, speechOutput }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [attachmentMap, setAttachmentMap] = useState<Record<string, Attachment[]>>({});
   // ロード済み or ロード中の ID を追跡（ストリーミング中の重複フェッチ防止）
@@ -87,6 +97,10 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
             key={msg.id}
             message={msg}
             attachments={attachmentMap[msg.id]}
+            onSpeak={speechOutput?.speak}
+            onStopSpeak={speechOutput?.stop}
+            isSpeaking={speechOutput?.isSpeaking}
+            ttsSupported={speechOutput?.isSupported}
           />
         ))}
         {activeTools.length >= 2 ? (
@@ -96,7 +110,7 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
         )}
         <div ref={bottomRef} />
       </div>
-      <InputBar onSend={onSend} disabled={isStreaming || !isOnline} isStreaming={isStreaming} onStop={onStop} isOnline={isOnline} />
+      <InputBar onSend={onSend} disabled={isStreaming || !isOnline} isStreaming={isStreaming} onStop={onStop} isOnline={isOnline} webSpeechLang={webSpeechLang} webSpeechSttEnabled={webSpeechSttEnabled} />
     </div>
   );
 }

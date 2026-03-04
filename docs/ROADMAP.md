@@ -25,7 +25,7 @@
 - CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止（IPv6 対応）+ レート制限）
 - セキュリティ基盤（CSP ヘッダー + URL HTTPS 強制バリデーション + プロンプトインジェクション対策）
 - ファイル添付・画像認識（マルチモーダル対応 — 画像/PDF/テキスト + クリップボードペースト + モバイルカメラ + IndexedDB 永続化）
-- テスト 1107 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
+- テスト 1154 件（クライアント）+ 31 件（サーバー）、E2E 27 テスト（desktop-chromium + mobile-chromium）、VRT 27 テスト / 54 スクリーンショット（vrt-desktop + vrt-mobile）
 - レビューコメント全件トラッカー（docs/REVIEW-TRACKER.md）
 
 ---
@@ -177,6 +177,12 @@
 - [ ] N+1 クエリ解消（`getAttachmentsByMessageIds()` バッチ関数）
 - [ ] Web Worker でサムネイル生成（メインスレッドブロック回避）
 
+### 音声入出力
+- [x] Web Speech API による音声入力（STT）— SpeechRecognition + interimResults + マイクボタン UI
+- [x] Web Speech API による音声読み上げ（TTS）— SpeechSynthesis + Markdown 除去 + メッセージバブル読み上げボタン
+- [x] TTS 自動読み上げ（ストリーミング完了後に最新 AI 応答を自動読み上げ）
+- [x] 設定 UI（STT/TTS 有効切替、言語選択、読み上げ速度スライダー）
+
 ### オフライン対応
 - [x] オフラインフォールバック UI（オンライン状態検知 + バナー表示 + 送信無効化）
 - [x] Service Worker キャッシュ戦略の改善
@@ -258,7 +264,7 @@
 - エージェント間の連携（複数エージェントの協調動作）
 - プラグインシステム（ユーザーがカスタムツールを追加）
 - ~~ファイル添付・画像認識（マルチモーダル対応）~~ → フェーズ 3 UX 改善に移動
-- 音声入出力（Web Speech API）
+- ~~音声入出力（Web Speech API）~~ → フェーズ 3 UX 改善に移動・実装済み
 - 他ユーザーとのエージェント共有
 
 ---
@@ -321,3 +327,4 @@
 - [x] コードベースレビュー（Full）指摘5件対応 — (1) getConfig JSON.parse 例外処理追加（設定破損時のクラッシュ防止、localStorage 自動リセット）、(2) stopStreaming を AbortController ベースに変更（SDK signal オプションで実際にネットワーク処理をキャンセル）、(3) handleSend try-catch 追加（未処理 Promise rejection 防止、エラーメッセージ UI 表示）、(4) Heartbeat 履歴 pinned 上限超過時に古い pinned を切り捨て（IndexedDB 無限増加防止）、(5) Lint エラー全 18 件修正（react-hooks/set-state-in-effect をレンダー中ステート調整に変更、react-hooks/immutability を useState 宣言順序修正、no-unused-vars/no-explicit-any/no-unsafe-function-type をテストコード含めて解消）。Lint 0 errors。（2026-03-03）
 - [x] オフラインフォールバック UI — useOnlineStatus フック（navigator.onLine + online/offline イベント）、OfflineBanner コンポーネント（role="alert" + WiFi オフ SVG）、ChatView/InputBar オフライン時送信無効化 + placeholder 変更 + サジェストボタン disabled、SW NavigationRoute（オフライン時 index.html フォールバック）。テスト 1051→1061 件。（2026-03-04）
 - [x] ファイル添付・画像認識（マルチモーダル対応）— Attachment/PendingAttachment 型定義、attachmentStore（IndexedDB attachments ストア、DB_VERSION 10→11）、fileUtils（fileToDataUri/generateThumbnail/validateFile）、InputBar 拡張（クリップアイコン + ファイル選択 + ペーストハンドラ + カメラ capture + プレビュー UI）、useAgentChat 拡張（sendMessage に PendingAttachment[] 対応 + OpenAI Agents SDK UserContent[] 変換: input_image/input_file）、MessageBubble 添付表示（サムネイル + フルサイズ表示 + ファイルアイコン）、ChatView 添付遅延ロード、会話削除時 attachments クリーンアップ。テスト 1061→1096 件。（2026-03-04）
+- [x] 音声入出力（Web Speech API）— WebSpeechConfig 型 + config デフォルト/パース、speechService（STT/TTS ユーティリティ: API 検出/SpeechRecognition 生成/SpeechSynthesisUtterance 生成/cancelSpeech/stripMarkdown）、useSpeechInput フック（continuous:false + interimResults + マイク権限エラー処理）、useSpeechOutput フック（Markdown 除去 TTS + voiceschanged 対応）、InputBar マイクボタン（パルスアニメーション + 中間認識テキスト placeholder）、MessageBubble TTS ボタン（ホバー表示 + 再生/停止切替）、App.tsx 自動読み上げ（ストリーミング完了トリガー）、SettingsModal 音声設定セクション（STT/TTS トグル + 自動読み上げ + 速度スライダー + 言語選択）。テスト 1107→1154 件。（2026-03-04）

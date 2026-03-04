@@ -112,6 +112,22 @@ vi.mock('./core/config', () => ({
     mcpServers: [],
     heartbeat: { enabled: false },
   })),
+  getDefaultWebSpeechConfig: vi.fn(() => ({
+    sttEnabled: true,
+    ttsEnabled: false,
+    ttsAutoRead: false,
+    lang: 'ja-JP',
+    ttsRate: 1.0,
+  })),
+}));
+vi.mock('./hooks/useSpeechOutput', () => ({
+  useSpeechOutput: () => ({
+    isSupported: false,
+    isSpeaking: false,
+    speak: vi.fn(),
+    stop: vi.fn(),
+    voices: [],
+  }),
 }));
 vi.mock('./core/mcpManager', () => ({
   mcpManager: {
