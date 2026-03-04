@@ -87,6 +87,7 @@ npm run poc:sync-validation -- --week 2026-W11
 - KPI/SLO 反映も含めた週次一括実行は `npm run poc:run-week -- --week <week>` を使う
 - レビュー締め前は `npm run poc:check-week -- --week <week> --strict --require-interviews` を実行する
 - 一括実行の中でチェックする場合は `npm run poc:run-week -- --week <week> --check --check-strict --check-require-interviews`
+- チェック結果を保存する場合は `--report-json` / `--check-report-json` を利用する
 
 ---
 
