@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InputBar } from './InputBar';
+
+// fileUtils のモック（Canvas/Image は jsdom で使えないため）
+vi.mock('../core/fileUtils', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../core/fileUtils')>();
+  return {
+    ...original,
+    fileToDataUri: vi.fn().mockResolvedValue('data:image/jpeg;base64,mock'),
+    generateThumbnail: vi.fn().mockResolvedValue('data:image/jpeg;base64,thumb'),
+  };
+});
 
 describe('InputBar', () => {
   const defaultProps = {
@@ -10,6 +20,10 @@ describe('InputBar', () => {
     isStreaming: false,
     onStop: vi.fn(),
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('テキストを入力して送信ボタンでメッセージを送信できる', async () => {
     const onSend = vi.fn();
@@ -21,7 +35,7 @@ describe('InputBar', () => {
     const sendButton = screen.getByText('送信');
     await userEvent.click(sendButton);
 
-    expect(onSend).toHaveBeenCalledWith('こんにちは');
+    expect(onSend).toHaveBeenCalledWith('こんにちは', undefined);
     expect(textarea).toHaveValue('');
   });
 
@@ -32,7 +46,7 @@ describe('InputBar', () => {
     const textarea = screen.getByPlaceholderText('メッセージを入力...');
     await userEvent.type(textarea, 'テスト{Enter}');
 
-    expect(onSend).toHaveBeenCalledWith('テスト');
+    expect(onSend).toHaveBeenCalledWith('テスト', undefined);
   });
 
   it('Shift+Enter では送信されない', async () => {
@@ -97,5 +111,104 @@ describe('InputBar', () => {
     render(<InputBar {...defaultProps} isOnline={true} />);
 
     expect(screen.getByPlaceholderText('メッセージを入力...')).toBeInTheDocument();
+  });
+
+  // ファイル添付テスト
+  describe('ファイル添付', () => {
+    it('ファイル添付ボタンが表示される', () => {
+      render(<InputBar {...defaultProps} />);
+      expect(screen.getByLabelText('ファイルを添付')).toBeInTheDocument();
+    });
+
+    it('disabled 時はファイル添付ボタンも無効化される', () => {
+      render(<InputBar {...defaultProps} disabled={true} />);
+      expect(screen.getByLabelText('ファイルを添付')).toBeDisabled();
+    });
+
+    it('画像ファイル選択でプレビューが表示される', async () => {
+      render(<InputBar {...defaultProps} />);
+
+      const file = new File(['image-data'], 'photo.jpg', { type: 'image/jpeg' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+
+      // プレビュー画像が表示される
+      const img = await screen.findByAltText('photo.jpg');
+      expect(img).toBeInTheDocument();
+    });
+
+    it('非画像ファイル選択でファイル名が表示される', async () => {
+      render(<InputBar {...defaultProps} />);
+
+      const file = new File(['pdf-data'], 'document.pdf', { type: 'application/pdf' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+
+      expect(await screen.findByText('document.pdf')).toBeInTheDocument();
+    });
+
+    it('プレビューの削除ボタンで添付を除去できる', async () => {
+      render(<InputBar {...defaultProps} />);
+
+      const file = new File(['data'], 'test.jpg', { type: 'image/jpeg' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+      expect(await screen.findByAltText('test.jpg')).toBeInTheDocument();
+
+      const removeBtn = screen.getByLabelText('test.jpg を削除');
+      await userEvent.click(removeBtn);
+
+      expect(screen.queryByAltText('test.jpg')).toBeNull();
+    });
+
+    it('添付のみ（テキストなし）でも送信できる', async () => {
+      const onSend = vi.fn();
+      render(<InputBar {...defaultProps} onSend={onSend} />);
+
+      const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+      await screen.findByAltText('photo.jpg');
+
+      // テキスト未入力でも送信ボタンが有効
+      const sendButton = screen.getByText('送信');
+      expect(sendButton).not.toBeDisabled();
+
+      await userEvent.click(sendButton);
+      expect(onSend).toHaveBeenCalledTimes(1);
+      expect(onSend.mock.calls[0][0]).toBe('');
+      expect(onSend.mock.calls[0][1]).toHaveLength(1);
+      expect(onSend.mock.calls[0][1][0].file.name).toBe('photo.jpg');
+    });
+
+    it('送信後に添付がクリアされる', async () => {
+      const onSend = vi.fn();
+      render(<InputBar {...defaultProps} onSend={onSend} />);
+
+      const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+      await screen.findByAltText('photo.jpg');
+
+      await userEvent.click(screen.getByText('送信'));
+
+      expect(screen.queryByAltText('photo.jpg')).toBeNull();
+    });
+
+    it('空ファイルはエラーメッセージが表示される', async () => {
+      render(<InputBar {...defaultProps} />);
+
+      const file = new File([], 'empty.txt', { type: 'text/plain' });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      await userEvent.upload(input, file);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('空です');
+    });
   });
 });

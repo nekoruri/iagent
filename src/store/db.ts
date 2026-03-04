@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'iagent-db';
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -79,6 +79,12 @@ export function getDB(): Promise<IDBPDatabase> {
           const archiveStore = db.createObjectStore('memories_archive', { keyPath: 'id' });
           archiveStore.createIndex('archivedAt', 'archivedAt', { unique: false });
           archiveStore.createIndex('category', 'category', { unique: false });
+        }
+        // Phase: マルチモーダル対応 — ファイル添付ストア
+        if (!db.objectStoreNames.contains('attachments')) {
+          const attachStore = db.createObjectStore('attachments', { keyPath: 'id' });
+          attachStore.createIndex('messageId', 'messageId', { unique: false });
+          attachStore.createIndex('conversationId', 'conversationId', { unique: false });
         }
         // conversations ストアに conversationId インデックス追加
         if (db.objectStoreNames.contains('conversations')) {

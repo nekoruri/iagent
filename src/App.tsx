@@ -26,6 +26,7 @@ import { mcpManager } from './core/mcpManager';
 import { saveMessage } from './store/conversationStore';
 import type { HeartbeatNotification } from './core/heartbeat';
 import type { ChatMessage } from './types';
+import type { PendingAttachment } from './types/attachment';
 
 const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
 
@@ -135,16 +136,17 @@ export default function App() {
   }, []);
 
   // メッセージ送信時にタイトル自動設定 & touch
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, attachments?: PendingAttachment[]) => {
     if (!activeConversationId) return;
 
     try {
       // 最初のメッセージならタイトルを自動設定
       if (messages.length === 0) {
-        await rename(activeConversationId, text.slice(0, 30));
+        const title = text.trim() ? text.slice(0, 30) : (attachments?.[0]?.file.name.slice(0, 30) ?? '添付ファイル');
+        await rename(activeConversationId, title);
       }
 
-      await sendMessage(text);
+      await sendMessage(text, attachments);
       // メッセージ数 +2（ユーザー + アシスタント）で touch
       await touch(activeConversationId, messages.length + 2);
     } catch (error) {

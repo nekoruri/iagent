@@ -5,6 +5,7 @@ import {
   updateConversation,
   deleteConversation,
 } from '../store/conversationMetaStore';
+import { deleteAttachmentsByConversationId } from '../store/attachmentStore';
 import { clearMessages, migrateOrphanMessages } from '../store/conversationStore';
 import type { Conversation } from '../types';
 
@@ -42,6 +43,7 @@ export function useConversations() {
 
   const remove = useCallback(async (id: string) => {
     await clearMessages(id);
+    await deleteAttachmentsByConversationId(id);
     await deleteConversation(id);
     setConversations((prev) => {
       const updated = prev.filter((c) => c.id !== id);

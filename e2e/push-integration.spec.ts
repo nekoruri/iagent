@@ -29,7 +29,7 @@ test.describe('Push 通知統合テスト', () => {
     // IndexedDB に設定を書き込む（SW が読み取る config ストア）
     await page.evaluate(() => {
       return new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open('iagent-db', 10);
+        const request = indexedDB.open('iagent-db', 11);
         request.onupgradeneeded = () => {
           const db = request.result;
           for (const [name, keyPath] of [
@@ -37,6 +37,7 @@ test.describe('Push 通知統合テスト', () => {
             ['memories', 'id'], ['conversations', 'id'], ['traces', 'traceId'],
             ['conversation-meta', 'id'], ['clips', 'id'], ['feeds', 'id'],
             ['feed-items', 'id'], ['monitors', 'id'], ['memories_archive', 'id'],
+            ['attachments', 'id'],
           ] as const) {
             if (!db.objectStoreNames.contains(name)) {
               db.createObjectStore(name, { keyPath });
