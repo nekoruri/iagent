@@ -345,6 +345,7 @@ describe('HeartbeatEngine - executeCheck', () => {
   let mockUpdateLastCheckedFn: ReturnType<typeof vi.fn>;
   let mockUpdateTaskLastRunFn: ReturnType<typeof vi.fn>;
   let mockBatchUpdateTaskLastRunFn: ReturnType<typeof vi.fn>;
+  let mockAppendOpsEvent: ReturnType<typeof vi.fn>;
 
   function setupMocks(configOverrides?: Partial<{ openaiApiKey: string; heartbeat: HeartbeatConfig }>) {
     mockRun = vi.fn();
@@ -354,6 +355,7 @@ describe('HeartbeatEngine - executeCheck', () => {
     mockUpdateLastCheckedFn = vi.fn().mockResolvedValue(undefined);
     mockUpdateTaskLastRunFn = vi.fn().mockResolvedValue(undefined);
     mockBatchUpdateTaskLastRunFn = vi.fn().mockResolvedValue(undefined);
+    mockAppendOpsEvent = vi.fn().mockResolvedValue(undefined);
 
     vi.resetModules();
 
@@ -414,7 +416,7 @@ describe('HeartbeatEngine - executeCheck', () => {
       getTaskLastRun: vi.fn().mockResolvedValue(0),
       getAllTaskLastRun: vi.fn().mockResolvedValue({}),
       batchUpdateTaskLastRun: mockBatchUpdateTaskLastRunFn,
-      appendOpsEvent: vi.fn().mockResolvedValue(undefined),
+      appendOpsEvent: mockAppendOpsEvent,
     }));
   }
 
@@ -438,6 +440,13 @@ describe('HeartbeatEngine - executeCheck', () => {
 
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockAddEvent).toHaveBeenCalledWith('heartbeat.skip', { reason: 'no_api_key' });
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'heartbeat-run',
+      source: 'tab',
+      status: 'skipped',
+      reason: 'no_api_key',
+      taskCount: 1,
+    }));
 
     engine.stop();
   });
@@ -467,6 +476,14 @@ describe('HeartbeatEngine - executeCheck', () => {
         ]),
       }),
     );
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'heartbeat-run',
+      source: 'tab',
+      status: 'success',
+      taskCount: 1,
+      resultCount: 1,
+      changedCount: 1,
+    }));
 
     engine.stop();
   });
@@ -541,6 +558,13 @@ describe('HeartbeatEngine - executeCheck', () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
     expect(mockEndWithError).toHaveBeenCalled();
     expect(mockBatchUpdateTaskLastRunFn).toHaveBeenCalled();
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'heartbeat-run',
+      source: 'tab',
+      status: 'failure',
+      taskCount: 1,
+      errorMessage: 'API エラー',
+    }));
 
     engine.stop();
     consoleErrorSpy.mockRestore();
