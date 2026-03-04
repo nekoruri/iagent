@@ -21,7 +21,8 @@
     "poc:init-week": "node scripts/init-poc-week.mjs",
     "poc:sync-validation": "node scripts/sync-poc-validation.mjs",
     "poc:run-week": "node scripts/run-poc-week.mjs",
-    "poc:check-week": "node scripts/check-poc-week.mjs"
+    "poc:check-week": "node scripts/check-poc-week.mjs",
+    "poc:close-week": "node scripts/run-poc-week.mjs --strict --check --check-strict --check-require-interviews"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
