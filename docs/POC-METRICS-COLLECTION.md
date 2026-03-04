@@ -25,11 +25,25 @@ npm run metrics:poc
 ```bash
 npm run metrics:poc -- --url http://localhost:5173 --days 7
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile
+npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --weekly-review docs/weekly/2026-W10.md
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --baseline docs/weekly/2026-W10-baseline.md
 ```
 
 出力された `Markdown Paste Helper` を `docs/weekly/2026-W10-baseline.md` に転記する。
+
+`--week` を指定すると、以下を自動解決する:
+
+- `--weekly-review docs/weekly/<week>.md`
+- `--baseline docs/weekly/<week>-baseline.md`
+
+例:
+
+```bash
+npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
+```
+
+※ `--weekly-review` / `--baseline` を明示した場合は、明示値を優先する。
 
 `--weekly-review` を指定すると、週次レビューMarkdownの以下行を自動更新する:
 

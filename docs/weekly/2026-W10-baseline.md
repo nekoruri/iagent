@@ -15,6 +15,7 @@
   - 2026-03-05 03:33 JST（Good/Watch/Action 自動判定版で再計測）
   - 2026-03-05 03:38 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
   - 2026-03-05 03:39 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
+  - 2026-03-05 03:52 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
