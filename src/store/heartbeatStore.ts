@@ -24,7 +24,11 @@ const OPS_EVENTS_KEY = 'ops-events';
 const MAX_OPS_EVENTS = 2000;
 const OPS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
-export type OpsEventType = 'notification-shown' | 'notification-clicked' | 'heartbeat-run';
+export type OpsEventType =
+  | 'notification-shown'
+  | 'notification-clicked'
+  | 'heartbeat-run'
+  | 'heartbeat-feedback';
 export type OpsEventStatus = 'success' | 'failure' | 'skipped';
 export type OpsChannel = 'desktop' | 'push' | 'periodic-sync';
 
@@ -36,6 +40,10 @@ export interface OpsEvent {
   notificationTag?: string;
   notificationId?: string;
   status?: OpsEventStatus;
+  feedbackType?: FeedbackType;
+  taskId?: string;
+  resultTimestamp?: number;
+  snoozedUntil?: number;
   reason?: string;
   durationMs?: number;
   taskCount?: number;
@@ -50,7 +58,8 @@ function isOpsEvent(value: unknown): value is OpsEvent {
   return (
     (entry.type === 'notification-shown'
       || entry.type === 'notification-clicked'
-      || entry.type === 'heartbeat-run')
+      || entry.type === 'heartbeat-run'
+      || entry.type === 'heartbeat-feedback')
     && typeof entry.timestamp === 'number'
   );
 }
@@ -173,15 +182,32 @@ export async function setHeartbeatFeedback(
   const target = state.recentResults.find(r => r.taskId === taskId && r.timestamp === timestamp);
   if (target) {
     const DEFAULT_SNOOZE_MS = 3600_000; // 1時間
+    const feedbackTimestamp = Date.now();
     target.feedback = {
       type,
-      timestamp: Date.now(),
+      timestamp: feedbackTimestamp,
       // snoozed の場合は snoozedUntil を必ず設定（欠損時は 1 時間後にフォールバック）
       ...(type === 'snoozed'
-        ? { snoozedUntil: snoozedUntil ?? Date.now() + DEFAULT_SNOOZE_MS }
+        ? { snoozedUntil: snoozedUntil ?? feedbackTimestamp + DEFAULT_SNOOZE_MS }
         : {}),
     };
     await saveHeartbeatState(state);
+    try {
+      await appendOpsEvent({
+        type: 'heartbeat-feedback',
+        timestamp: feedbackTimestamp,
+        source: target.source ?? 'unknown',
+        taskId,
+        resultTimestamp: timestamp,
+        feedbackType: type,
+        ...(type === 'snoozed'
+          ? { snoozedUntil: target.feedback.snoozedUntil }
+          : {}),
+      });
+    } catch (error) {
+      // フィードバック保存を優先し、運用イベント保存失敗では処理自体は失敗させない
+      console.warn('[heartbeatStore] failed to append heartbeat-feedback ops-event', error);
+    }
   }
 }
 

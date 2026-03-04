@@ -49,6 +49,39 @@ describe('PoC CLI scripts', () => {
     expectInvalidWeek('scripts/run-poc-week.mjs');
   });
 
+  it('run-poc-week: check-only mode is allowed when all execution steps are skipped', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-run-check-only-'));
+    const week = '2026-W22';
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const checkOnlyResult = runCli('scripts/run-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--skip-init',
+      '--skip-metrics',
+      '--skip-validation',
+      '--check',
+    ]);
+    expect(checkOnlyResult.status).toBe(0);
+
+    const allSkippedWithoutCheck = runCli('scripts/run-poc-week.mjs', [
+      '--week',
+      week,
+      '--weekly-dir',
+      workDir,
+      '--skip-init',
+      '--skip-metrics',
+      '--skip-validation',
+    ]);
+    expect(allSkippedWithoutCheck.status).toBe(1);
+
+    await rm(workDir, { recursive: true, force: true });
+  });
+
   it('close-poc-week: help and week/as-of format validation', () => {
     expectHelp('scripts/close-poc-week.mjs');
     expectInvalidWeek('scripts/close-poc-week.mjs');

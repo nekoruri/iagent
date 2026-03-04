@@ -188,7 +188,15 @@ async function main() {
   }
   assertWeek(opts.week);
 
-  if (opts.skipInit && opts.skipMetrics && opts.skipValidation) {
+  const finalCheckRequested = (
+    opts.check
+    || opts.checkStrict
+    || opts.checkRequireInterviews
+    || Boolean(opts.checkAsOf)
+    || Boolean(opts.checkReportJson)
+  );
+
+  if (opts.skipInit && opts.skipMetrics && opts.skipValidation && !finalCheckRequested) {
     throw new Error('All steps are skipped. Remove at least one --skip-* option.');
   }
 
@@ -225,7 +233,7 @@ async function main() {
     await runNodeScript('scripts/sync-poc-validation.mjs', validationArgs, 'Step 3/3: Sync user validation');
   }
 
-  if (opts.check || opts.checkStrict || opts.checkRequireInterviews) {
+  if (finalCheckRequested) {
     const checkArgs = ['--week', opts.week, '--weekly-dir', opts.weeklyDir];
     if (opts.checkStrict) {
       checkArgs.push('--strict');

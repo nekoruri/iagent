@@ -430,13 +430,11 @@ async function main() {
 
       try {
         const heartbeatState = await readHeartbeatState();
-        const recentResults = heartbeatState?.recentResults ?? [];
+        const recentResults = Array.isArray(heartbeatState?.recentResults) ? heartbeatState.recentResults : [];
         const conversations = await readAll('conversations');
         const opsEvents = await readOpsEvents();
+        const MAX_RECENT_RESULTS = 50;
 
-        let accepted = 0;
-        let dismissed = 0;
-        let snoozed = 0;
         const activeDays = new Set();
 
         for (const msg of conversations) {
@@ -445,26 +443,85 @@ async function main() {
           }
         }
 
-        for (const r of recentResults) {
-          if (typeof r?.timestamp !== 'number' || r.timestamp < cutoff) continue;
+        const kpiOpsEvents = Array.isArray(opsEvents)
+          ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= cutoff)
+          : [];
+        const feedbackOpsEvents = kpiOpsEvents.filter(
+          (e) => e?.type === 'heartbeat-feedback'
+            && (e?.feedbackType === 'accepted' || e?.feedbackType === 'dismissed' || e?.feedbackType === 'snoozed'),
+        );
+        const feedbackByResult = new Map();
 
-          if (r.feedback) {
-            if (r.feedback.type === 'accepted') accepted++;
-            if (r.feedback.type === 'dismissed') dismissed++;
-            if (r.feedback.type === 'snoozed') snoozed++;
-            if (typeof r.feedback.timestamp === 'number' && r.feedback.timestamp >= cutoff) {
-              activeDays.add(new Date(r.feedback.timestamp).toISOString().slice(0, 10));
+        // heartbeat-feedback ops-event を優先して、結果単位（taskId + resultTimestamp）で最新状態を採用する
+        for (const e of feedbackOpsEvents) {
+          const taskId = typeof e?.taskId === 'string' ? e.taskId : '';
+          const resultTimestamp = Number(e?.resultTimestamp);
+          if (!taskId || !Number.isFinite(resultTimestamp) || resultTimestamp < cutoff) continue;
+          const feedbackType = e.feedbackType;
+          const key = `${taskId}:${resultTimestamp}`;
+          const prev = feedbackByResult.get(key);
+          if (!prev || e.timestamp >= prev.feedbackTimestamp) {
+            feedbackByResult.set(key, {
+              feedbackType,
+              feedbackTimestamp: e.timestamp,
+            });
+          }
+        }
+
+        // recentResults は 50 件 cap のため、7日窓が cap を超えているときは補完に使わない
+        let recentResultsLikelyCappedForWindow = false;
+        if (recentResults.length >= MAX_RECENT_RESULTS) {
+          let oldestRecentResultTs = Number.POSITIVE_INFINITY;
+          for (const r of recentResults) {
+            if (typeof r?.timestamp !== 'number') continue;
+            if (r.timestamp < oldestRecentResultTs) oldestRecentResultTs = r.timestamp;
+          }
+          recentResultsLikelyCappedForWindow = (
+            Number.isFinite(oldestRecentResultTs) && oldestRecentResultTs >= cutoff
+          );
+        }
+
+        if (!recentResultsLikelyCappedForWindow) {
+          for (const r of recentResults) {
+            if (typeof r?.timestamp !== 'number' || r.timestamp < cutoff) continue;
+            if (!r.feedback) continue;
+            if (r.feedback.type !== 'accepted' && r.feedback.type !== 'dismissed' && r.feedback.type !== 'snoozed') {
+              continue;
             }
+            const key = `${r.taskId}:${r.timestamp}`;
+            const feedbackTimestamp = typeof r.feedback.timestamp === 'number'
+              ? r.feedback.timestamp
+              : r.timestamp;
+            const prev = feedbackByResult.get(key);
+            if (!prev || feedbackTimestamp >= prev.feedbackTimestamp) {
+              feedbackByResult.set(key, {
+                feedbackType: r.feedback.type,
+                feedbackTimestamp,
+              });
+            }
+          }
+        }
+
+        let accepted = 0;
+        let dismissed = 0;
+        let snoozed = 0;
+        for (const feedback of feedbackByResult.values()) {
+          if (feedback.feedbackType === 'accepted') accepted++;
+          if (feedback.feedbackType === 'dismissed') dismissed++;
+          if (feedback.feedbackType === 'snoozed') snoozed++;
+          if (feedback.feedbackTimestamp >= cutoff) {
+            activeDays.add(new Date(feedback.feedbackTimestamp).toISOString().slice(0, 10));
           }
         }
 
         const feedbackTotal = accepted + dismissed + snoozed;
         const acceptRate = feedbackTotal > 0 ? accepted / feedbackTotal : 0;
         const activeRate = activeDays.size / days;
+        const feedbackSource = feedbackOpsEvents.length > 0
+          ? (recentResultsLikelyCappedForWindow ? 'ops-events' : 'ops-events+recent-results')
+          : (recentResultsLikelyCappedForWindow ? 'ops-events' : 'recent-results');
+        const feedbackCoverageInsufficient = recentResultsLikelyCappedForWindow && feedbackOpsEvents.length === 0;
 
-        const kpiOpsEvents = Array.isArray(opsEvents)
-          ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= cutoff)
-          : [];
         const shown = kpiOpsEvents.filter((e) => e?.type === 'notification-shown');
         const clicked = kpiOpsEvents.filter((e) => e?.type === 'notification-clicked');
         const shownIds = new Set();
@@ -556,6 +613,9 @@ async function main() {
               snoozed,
               total: feedbackTotal,
               rate: acceptRate,
+              source: feedbackSource,
+              coverageInsufficient: feedbackCoverageInsufficient,
+              sampleCount: feedbackByResult.size,
             },
             activeRate: {
               activeDays: activeDays.size,
@@ -599,7 +659,9 @@ async function main() {
 
     const assessment = {
       kpi: {
-        acceptRate: classifyHigherBetter(result.kpi.acceptRate.rate, { good: 0.5, watch: 0.35 }),
+        acceptRate: result.kpi.acceptRate.coverageInsufficient
+          ? 'NoData'
+          : classifyHigherBetter(result.kpi.acceptRate.rate, { good: 0.5, watch: 0.35 }),
         activeRate: classifyHigherBetter(result.kpi.activeRate.rate, { good: 0.57, watch: 0.43 }),
         revisitRate: classifyHigherBetter(result.kpi.revisitRate.rate, { good: 0.2, watch: 0.1 }),
       },
@@ -641,6 +703,11 @@ async function main() {
     console.log(`- snoozed: ${result.kpi.acceptRate.snoozed}`);
     console.log(`- total: ${result.kpi.acceptRate.total}`);
     console.log(`- acceptRate: ${toPercent(result.kpi.acceptRate.rate)} (${result.kpi.acceptRate.rate.toFixed(4)})`);
+    console.log(`- acceptRateSource: ${result.kpi.acceptRate.source}`);
+    console.log(`- acceptRateSamples: ${result.kpi.acceptRate.sampleCount}`);
+    if (result.kpi.acceptRate.coverageInsufficient) {
+      console.log('- warn: 7-day feedback data may be incomplete (recentResults is capped and no heartbeat-feedback ops-events were found)');
+    }
     console.log(`- activeDays: ${result.kpi.activeRate.activeDays}`);
     console.log(`- activeRate: ${toPercent(result.kpi.activeRate.rate)} (${result.kpi.activeRate.rate.toFixed(4)})`);
     console.log(`- days: ${result.kpi.activeRate.days.join(', ')}`);

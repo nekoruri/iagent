@@ -286,6 +286,30 @@ describe('setHeartbeatFeedback', () => {
     expect(state.recentResults[0].feedback!.timestamp).toBeGreaterThan(0);
   });
 
+  it('フィードバック設定時に heartbeat-feedback の ops-event を記録する', async () => {
+    const now = Date.now();
+    await addHeartbeatResult({
+      taskId: 'task-feedback',
+      timestamp: now - 1000,
+      hasChanges: true,
+      summary: 'テスト',
+      source: 'worker',
+    });
+
+    await setHeartbeatFeedback('task-feedback', now - 1000, 'accepted');
+
+    const events = await loadOpsEvents();
+    const feedbackEvents = events.filter((event) => event.type === 'heartbeat-feedback');
+    expect(feedbackEvents).toHaveLength(1);
+    expect(feedbackEvents[0]).toEqual(expect.objectContaining({
+      type: 'heartbeat-feedback',
+      taskId: 'task-feedback',
+      resultTimestamp: now - 1000,
+      feedbackType: 'accepted',
+      source: 'worker',
+    }));
+  });
+
   it('dismissed フィードバックを設定できる', async () => {
     await addHeartbeatResult({
       taskId: 'task-1',
