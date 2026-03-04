@@ -93,6 +93,7 @@ npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-prof
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile --strict  # Action判定で非0終了
 npm run poc:run-week -- --week 2026-W11 --check --check-strict  # 実行後に週次記入漏れチェック
 npm run poc:run-week -- --week 2026-W11 --check --check-report-json /tmp/week-check.json  # チェック結果JSON出力
+npm run poc:run-week -- --week 2026-W11 --check --check-strict --check-require-interviews --check-as-of 2026-03-15  # 基準日を指定した最終チェック
 npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile  # 週次締め用（strict+最終チェック）
 npm run poc:check-week -- --week 2026-W11 --strict  # 週次レビュー記入漏れチェック
 npm run poc:check-week -- --week 2026-W11 --report-json /tmp/week-check.json  # チェック結果JSON出力
