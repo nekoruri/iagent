@@ -26,6 +26,7 @@ npm run metrics:poc
 npm run metrics:poc -- --url http://localhost:5173 --days 7
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --weekly-review docs/weekly/2026-W10.md
+npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --baseline docs/weekly/2026-W10-baseline.md
 ```
 
 出力された `Markdown Paste Helper` を `docs/weekly/2026-W10-baseline.md` に転記する。
@@ -41,6 +42,12 @@ npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp
 - `Push wake 実行成功率（24h平均）`
 - `Heartbeat 遅延 p95（24h平均）`
 - `SLO 判定`
+
+`--baseline` を指定すると、baselineファイルの以下を自動更新する:
+
+- 実施ログ（`- 実施日:` に最新実行を追記）
+- KPI Baseline 各項目
+- SLO Baseline 各項目
 
 注意:
 
