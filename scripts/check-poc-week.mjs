@@ -6,6 +6,11 @@ import { dirname } from 'node:path';
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const INTERVIEW_PLACEHOLDER_VALUES = new Set([
+  '多い / 少ない / 適切',
+  '悪い / 普通 / 良い',
+  'ある / ない',
+]);
 
 const PERSONAS = [
   { label: '情報収集型', suffix: 'info-collector' },
@@ -165,6 +170,14 @@ function hasPlaceholder(value) {
   return false;
 }
 
+function normalizeInterviewValue(raw) {
+  const value = raw.trim();
+  if (!value) return '';
+  if (/^[-\s]+$/.test(value)) return '';
+  if (INTERVIEW_PLACEHOLDER_VALUES.has(value)) return '';
+  return value;
+}
+
 function isInterviewCompleted(status) {
   return Boolean(status && !/(未実施|未入力|予定)/.test(status));
 }
@@ -288,6 +301,58 @@ function checkInterviews(interviews, opts, issues, asOfDate) {
         continue;
       }
       pushIssue(issues, 'error', interview.path, `インタビュー未完了です（ステータス=${status}）`);
+      continue;
+    }
+
+    if (completed) {
+      const positiveSection = extractSection(interview.content, '## 2. よかった提案（価値が高かったもの）');
+      const negativeSection = extractSection(interview.content, '## 3. 不要だった提案（ノイズ）');
+      const notifySection = extractSection(interview.content, '## 4. 通知評価');
+      const requestSection = extractSection(interview.content, '## 6. 次週の改善要求');
+      const requiredFields = [
+        {
+          label: 'よかった提案（提案内容）',
+          value: normalizeInterviewValue(extractLineByPrefix(positiveSection, '- 提案内容:')),
+        },
+        {
+          label: 'よかった提案（価値理由）',
+          value: normalizeInterviewValue(extractLineByPrefix(positiveSection, '- なぜ価値があったか:')),
+        },
+        {
+          label: '不要提案（提案内容）',
+          value: normalizeInterviewValue(extractLineByPrefix(negativeSection, '- 提案内容:')),
+        },
+        {
+          label: '不要提案（不要理由）',
+          value: normalizeInterviewValue(extractLineByPrefix(negativeSection, '- なぜ不要だったか:')),
+        },
+        {
+          label: '通知評価（頻度）',
+          value: normalizeInterviewValue(extractLineByPrefix(notifySection, '- 頻度:')),
+        },
+        {
+          label: '通知評価（タイミング）',
+          value: normalizeInterviewValue(extractLineByPrefix(notifySection, '- タイミング:')),
+        },
+        {
+          label: '通知評価（体験コメント）',
+          value: normalizeInterviewValue(extractLineByPrefix(notifySection, '- 体験コメント:')),
+        },
+        {
+          label: '次週改善要求（Must）',
+          value: normalizeInterviewValue(extractLineByPrefix(requestSection, '- Must:')),
+        },
+      ];
+
+      for (const field of requiredFields) {
+        if (field.value) continue;
+        pushIssue(
+          issues,
+          opts.strict ? 'error' : 'warn',
+          interview.path,
+          `実施済みだが必須項目が未入力です: ${field.label}`,
+        );
+      }
     }
   }
 }
