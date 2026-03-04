@@ -44,6 +44,21 @@ npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-pr
 
 ---
 
+## GitHub Actions（手動実行）
+
+GitHub Actions の `PoC Week Check` workflow から、`poc:check-week` を手動実行できる。
+
+入力:
+
+- `week`（必須）
+- `strict`
+- `require_interviews`
+- `as_of`
+
+実行後、チェック結果 JSON は artifact `poc-week-check-<week>` として保存される。
+
+---
+
 ## 推奨: 自動収集コマンド（Playwright）
 
 手動スニペットより先に、以下コマンドで KPI を取得できる:
