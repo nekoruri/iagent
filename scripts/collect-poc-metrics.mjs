@@ -81,6 +81,42 @@ function localDateTime(ts) {
   }).format(new Date(ts));
 }
 
+function classifyHigherBetter(value, { good, watch }) {
+  if (value >= good) return 'Good';
+  if (value >= watch) return 'Watch';
+  return 'Action';
+}
+
+function classifySloSuccessRate(rate, attempts, { target, alert }) {
+  if (attempts <= 0) return 'NoData';
+  if (rate >= target) return 'Good';
+  if (rate >= alert) return 'Watch';
+  return 'Action';
+}
+
+function classifySloLatencyMs(p95Ms, sampleSize, { targetMs, alertMs }) {
+  if (sampleSize <= 0 || typeof p95Ms !== 'number') return 'NoData';
+  if (p95Ms <= targetMs) return 'Good';
+  if (p95Ms <= alertMs) return 'Watch';
+  return 'Action';
+}
+
+function worstStatus(statuses) {
+  const rank = {
+    Action: 4,
+    Watch: 3,
+    NoData: 2,
+    Good: 1,
+  };
+  let worst = 'Good';
+  for (const status of statuses) {
+    if ((rank[status] ?? 0) > (rank[worst] ?? 0)) {
+      worst = status;
+    }
+  }
+  return worst;
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
@@ -309,6 +345,42 @@ async function main() {
       }
     }, { days: opts.days, dayMs: DAY_MS });
 
+    const assessment = {
+      kpi: {
+        acceptRate: classifyHigherBetter(result.kpi.acceptRate.rate, { good: 0.5, watch: 0.35 }),
+        activeRate: classifyHigherBetter(result.kpi.activeRate.rate, { good: 0.57, watch: 0.43 }),
+        revisitRate: classifyHigherBetter(result.kpi.revisitRate.rate, { good: 0.2, watch: 0.1 }),
+      },
+      slo24h: {
+        heartbeatRunSuccess: classifySloSuccessRate(
+          result.slo24h.heartbeatRunSuccess.rate,
+          result.slo24h.heartbeatRunSuccess.attempts,
+          { target: 0.99, alert: 0.97 },
+        ),
+        pushWakeSuccess: classifySloSuccessRate(
+          result.slo24h.pushWakeSuccess.rate,
+          result.slo24h.pushWakeSuccess.attempts,
+          { target: 0.95, alert: 0.9 },
+        ),
+        heartbeatDurationP95: classifySloLatencyMs(
+          result.slo24h.heartbeatDurationP95.p95Ms,
+          result.slo24h.heartbeatDurationP95.sampleSize,
+          { targetMs: 30_000, alertMs: 45_000 },
+        ),
+      },
+    };
+    assessment.kpi.overall = worstStatus([
+      assessment.kpi.acceptRate,
+      assessment.kpi.activeRate,
+      assessment.kpi.revisitRate,
+    ]);
+    assessment.slo24h.overall = worstStatus([
+      assessment.slo24h.heartbeatRunSuccess,
+      assessment.slo24h.pushWakeSuccess,
+      assessment.slo24h.heartbeatDurationP95,
+    ]);
+    result.assessment = assessment;
+
     console.log('=== PoC KPI Snapshot ===');
     console.log(JSON.stringify(result, null, 2));
     console.log('\n=== Markdown Paste Helper ===');
@@ -324,6 +396,10 @@ async function main() {
     console.log(`- notificationClicked: ${result.kpi.revisitRate.clicked}`);
     console.log(`- unmatchedClicks: ${result.kpi.revisitRate.unmatchedClicks}`);
     console.log(`- revisitRate: ${toPercent(result.kpi.revisitRate.rate)} (${result.kpi.revisitRate.rate.toFixed(4)})`);
+    console.log(`- kpiAcceptStatus: ${result.assessment.kpi.acceptRate}`);
+    console.log(`- kpiActiveStatus: ${result.assessment.kpi.activeRate}`);
+    console.log(`- kpiRevisitStatus: ${result.assessment.kpi.revisitRate}`);
+    console.log(`- kpiOverallStatus: ${result.assessment.kpi.overall}`);
     console.log(`- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
     console.log(`- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
     console.log(`- slo24hHeartbeatAttempts: ${result.slo24h.heartbeatRunSuccess.attempts}`);
@@ -341,6 +417,10 @@ async function main() {
       console.log(`- slo24hHeartbeatP95Sec: ${(result.slo24h.heartbeatDurationP95.p95Ms / 1000).toFixed(2)}`);
     }
     console.log(`- slo24hHeartbeatDurationSamples: ${result.slo24h.heartbeatDurationP95.sampleSize}`);
+    console.log(`- slo24hHeartbeatStatus: ${result.assessment.slo24h.heartbeatRunSuccess}`);
+    console.log(`- slo24hPushStatus: ${result.assessment.slo24h.pushWakeSuccess}`);
+    console.log(`- slo24hLatencyStatus: ${result.assessment.slo24h.heartbeatDurationP95}`);
+    console.log(`- slo24hOverallStatus: ${result.assessment.slo24h.overall}`);
     const now = Date.now();
     console.log(`- collectedAtLocal: ${localDateTime(now)}`);
     console.log(`- collectedAtUtcDate: ${isoDate(now)}`);
