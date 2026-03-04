@@ -1,15 +1,23 @@
 name: Copilot Review Check
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
 
 permissions:
-  pull-requests: read
+  pull-requests: write
+  issues: read
   statuses: write
+
+concurrency:
+  group: copilot-review-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   check-copilot-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Wait for Copilot review and update status
         uses: actions/github-script@v7
@@ -24,100 +32,262 @@ jobs:
               return;
             }
 
-            const { data: pr } = await github.rest.pulls.get({
-              owner, repo, pull_number: prNumber,
-            });
-            const headSha = pr.head.sha;
-            const copilotLogins = ['copilot', 'github-copilot[bot]', 'copilot-pull-request-reviewer'];
+            const shouldRequestReview = context.eventName === 'pull_request';
             const targetUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
+            const statusContext = 'copilot-review';
 
-            // 初期ステータス: pending
-            await github.rest.repos.createCommitStatus({
-              owner, repo,
-              sha: headSha,
-              state: 'pending',
-              context: 'copilot-review',
-              description: 'Copilot レビュー待ち',
-              target_url: targetUrl,
-            });
+            const COPILOT_LOGIN_CANDIDATES = [
+              'github-copilot[bot]',
+              'copilot-pull-request-reviewer[bot]',
+              'copilot-pull-request-reviewer',
+              'copilot',
+            ];
 
-            // Copilot レビューをポーリング（30秒間隔、最大10分）
-            const maxAttempts = 20;
-            const intervalMs = 30000;
+            const CRITICAL_KEYWORDS = [
+              'security', 'vulnerability', 'injection', 'xss', 'ssrf',
+              'critical', 'bug', 'crash', 'data loss', 'leak',
+              'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
+              'クラッシュ', 'データ損失', '漏洩',
+            ];
 
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              console.log(`Polling attempt ${attempt}/${maxAttempts}...`);
+            const normalize = (value) => (value || '').toString().trim().toLowerCase();
+            const COPILOT_LOGIN_SET = new Set(COPILOT_LOGIN_CANDIDATES.map(normalize));
 
+            const isCopilotLogin = (login) => {
+              const normalized = normalize(login);
+              if (!normalized) {
+                return false;
+              }
+              return COPILOT_LOGIN_SET.has(normalized)
+                || normalized.includes('copilot');
+            };
+
+            if (context.eventName === 'pull_request_review') {
+              const reviewAuthor = context.payload.review?.user?.login;
+              if (!isCopilotLogin(reviewAuthor)) {
+                core.info(`Skip non-Copilot review event by "${reviewAuthor || 'unknown'}"`);
+                return;
+              }
+            }
+
+            const toTimestamp = (value) => {
+              if (!value) {
+                return 0;
+              }
+              const ts = Date.parse(value);
+              return Number.isFinite(ts) ? ts : 0;
+            };
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            const setStatus = async (sha, state, description) => {
+              await github.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha,
+                state,
+                context: statusContext,
+                description: description.slice(0, 140),
+                target_url: targetUrl,
+              });
+            };
+
+            const fetchPrSnapshot = async () => {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+              const commits = await github.paginate(
+                github.rest.pulls.listCommits,
+                { owner, repo, pull_number: prNumber, per_page: 100 },
+              );
+              const headCommit = commits.find((commit) => commit.sha === pr.head.sha) || commits[commits.length - 1];
+              const headCommitTs = toTimestamp(
+                headCommit?.commit?.committer?.date
+                || headCommit?.commit?.author?.date
+                || pr.updated_at,
+              );
+              return { pr, headCommitTs };
+            };
+
+            const requestCopilotReviewIfNeeded = async (pr, hasHeadReview) => {
+              if (pr.draft) {
+                return { requested: false, reason: 'draft' };
+              }
+
+              if (hasHeadReview) {
+                return { requested: false, reason: 'already-reviewed' };
+              }
+
+              const alreadyRequested = (pr.requested_reviewers || []).some((reviewer) =>
+                isCopilotLogin(reviewer?.login),
+              );
+              if (alreadyRequested) {
+                return { requested: false, reason: 'already-requested' };
+              }
+
+              for (const reviewer of COPILOT_LOGIN_CANDIDATES) {
+                try {
+                  await github.rest.pulls.requestReviewers({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                    reviewers: [reviewer],
+                  });
+                  core.info(`Copilot review requested via reviewer="${reviewer}"`);
+                  return { requested: true, reason: 'requested', reviewer };
+                } catch (error) {
+                  const status = error?.status || 'unknown';
+                  const message = error?.message || 'unknown';
+                  core.info(`requestReviewers failed reviewer="${reviewer}" status=${status} message=${message}`);
+                }
+              }
+
+              return { requested: false, reason: 'request-failed' };
+            };
+
+            const collectCopilotSignals = async (headSha, headCommitTs) => {
               const reviews = await github.paginate(
                 github.rest.pulls.listReviews,
                 { owner, repo, pull_number: prNumber, per_page: 100 },
               );
 
-              const latestCopilotReview = reviews
-                .filter(r => copilotLogins.includes(r.user?.login) && r.commit_id === headSha)
-                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
+              const reviewComments = await github.paginate(
+                github.rest.pulls.listReviewComments,
+                { owner, repo, pull_number: prNumber, per_page: 100 },
+              );
 
-              if (latestCopilotReview) {
-                // Copilot レビューを検出 — コメント内容を解析
-                const comments = await github.paginate(
-                  github.rest.pulls.listReviewComments,
-                  { owner, repo, pull_number: prNumber, per_page: 100 },
-                );
-                const copilotComments = comments.filter(c =>
-                  copilotLogins.includes(c.user?.login)
-                  && c.pull_request_review_id === latestCopilotReview.id
-                );
+              const issueComments = await github.paginate(
+                github.rest.issues.listComments,
+                { owner, repo, issue_number: prNumber, per_page: 100 },
+              );
 
-                // Critical 指摘の検出（セキュリティ、バグ関連キーワード）
-                const criticalKeywords = [
-                  'security', 'vulnerability', 'injection', 'xss', 'ssrf',
-                  'critical', 'bug', 'crash', 'data loss', 'leak',
-                  'セキュリティ', '脆弱性', 'インジェクション', '重大', 'バグ',
-                  'クラッシュ', 'データ損失', '漏洩',
-                ];
-                const hasCritical = copilotComments.some(c =>
-                  criticalKeywords.some(kw =>
-                    c.body?.toLowerCase().includes(kw.toLowerCase())
-                  )
-                );
+              const copilotReviews = reviews.filter((review) =>
+                isCopilotLogin(review?.user?.login)
+                && review?.state
+                && review.state !== 'PENDING',
+              );
 
-                let state, description;
-                if (hasCritical) {
-                  state = 'failure';
-                  description = `Copilot: Critical 指摘あり（${copilotComments.length}件のコメント）`;
-                } else if (copilotComments.length > 0) {
-                  state = 'success';
-                  description = `Copilot レビュー完了（${copilotComments.length}件の指摘あり）`;
-                } else {
-                  state = 'success';
-                  description = 'Copilot レビュー完了（指摘なし）';
+              const isHeadOrFresh = (itemTs, itemCommitId) => {
+                if (itemCommitId && itemCommitId === headSha) {
+                  return true;
                 }
+                if (!itemTs) {
+                  return false;
+                }
+                // commit_id が空・不一致でも、HEAD更新直後のレビューは拾う
+                return itemTs >= headCommitTs - 2 * 60 * 1000;
+              };
 
-                await github.rest.repos.createCommitStatus({
-                  owner, repo,
-                  sha: headSha,
-                  state,
-                  context: 'copilot-review',
-                  description,
-                  target_url: targetUrl,
-                });
+              const headReviews = copilotReviews
+                .filter((review) =>
+                  isHeadOrFresh(
+                    toTimestamp(review.submitted_at || review.created_at || review.updated_at),
+                    review.commit_id,
+                  ),
+                )
+                .sort(
+                  (a, b) =>
+                    toTimestamp(b.submitted_at || b.created_at || b.updated_at)
+                    - toTimestamp(a.submitted_at || a.created_at || a.updated_at),
+                );
 
-                console.log(`Copilot review found: ${state} - ${description}`);
+              const latestHeadReview = headReviews[0];
+
+              const copilotReviewComments = reviewComments.filter((comment) =>
+                isCopilotLogin(comment?.user?.login)
+                && isHeadOrFresh(
+                  toTimestamp(comment.created_at || comment.updated_at),
+                  comment.commit_id || comment.original_commit_id,
+                ),
+              );
+
+              const copilotIssueComments = issueComments.filter((comment) =>
+                isCopilotLogin(comment?.user?.login)
+                && toTimestamp(comment.created_at || comment.updated_at) >= headCommitTs - 2 * 60 * 1000,
+              );
+
+              const hasAnyCopilotSignal =
+                Boolean(latestHeadReview)
+                || copilotReviewComments.length > 0
+                || copilotIssueComments.length > 0;
+
+              const textBodies = [
+                latestHeadReview?.body || '',
+                ...copilotReviewComments.map((comment) => comment.body || ''),
+                ...copilotIssueComments.map((comment) => comment.body || ''),
+              ].map((body) => normalize(body));
+
+              const hasCritical = textBodies.some((body) =>
+                CRITICAL_KEYWORDS.some((keyword) => body.includes(normalize(keyword))),
+              );
+
+              return {
+                hasAnyCopilotSignal,
+                hasHeadReview: Boolean(latestHeadReview),
+                copilotReviewComments,
+                copilotIssueComments,
+                hasCritical,
+              };
+            };
+
+            const maxAttempts = shouldRequestReview ? 30 : 1;
+            const intervalMs = 20000;
+
+            if (shouldRequestReview) {
+              const initialSnapshot = await fetchPrSnapshot();
+              await setStatus(initialSnapshot.pr.head.sha, 'pending', 'Copilot レビュー待機中');
+            }
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              const { pr, headCommitTs } = await fetchPrSnapshot();
+              const headSha = pr.head.sha;
+              core.info(`Attempt ${attempt}/${maxAttempts} head=${headSha} draft=${pr.draft}`);
+
+              const signals = await collectCopilotSignals(headSha, headCommitTs);
+
+              if (shouldRequestReview && (attempt === 1 || attempt % 6 === 1)) {
+                await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
+              }
+
+              if (signals.hasAnyCopilotSignal) {
+                const totalCommentCount =
+                  signals.copilotReviewComments.length + signals.copilotIssueComments.length;
+                const state = signals.hasCritical ? 'failure' : 'success';
+                const description = signals.hasCritical
+                  ? `Copilot: Critical 指摘あり (${totalCommentCount}件)`
+                  : `Copilot レビュー完了 (${totalCommentCount}件)`;
+
+                await setStatus(headSha, state, description);
+                core.info(`Copilot signal detected. state=${state} comments=${totalCommentCount}`);
                 return;
               }
 
+              if (!shouldRequestReview) {
+                core.info('No Copilot signal on pull_request_review event; exit without status update.');
+                return;
+              }
+
+              if (pr.draft) {
+                await setStatus(headSha, 'pending', 'Draft PR: ready_for_review 待ち');
+              } else {
+                await setStatus(headSha, 'pending', 'Copilot レビュー待機中');
+              }
+
               if (attempt < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, intervalMs));
+                await sleep(intervalMs);
               }
             }
 
-            // タイムアウト — success にしてブロックしない
-            await github.rest.repos.createCommitStatus({
-              owner, repo,
-              sha: headSha,
-              state: 'success',
-              context: 'copilot-review',
-              description: 'Copilot レビュー: タイムアウト（手動確認推奨）',
-              target_url: targetUrl,
-            });
-            console.log('Copilot review polling timed out');
+            if (!shouldRequestReview) {
+              return;
+            }
+
+            const finalSnapshot = await fetchPrSnapshot();
+            await setStatus(
+              finalSnapshot.pr.head.sha,
+              'success',
+              'Copilot レビュー未検出 (timeout: 手動確認推奨)',
+            );
+            core.info('Copilot review polling timed out; marked success to avoid merge deadlock.');
