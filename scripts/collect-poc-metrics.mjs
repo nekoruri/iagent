@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { chromium } from '@playwright/test';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -11,6 +12,7 @@ Options:
   --url <url>       Target app URL (default: http://localhost:5173)
   --days <n>        Rolling window days (default: 7)
   --user-data-dir   Chromium user data directory for persistent profile
+  --weekly-review   Update weekly review markdown file in-place
   --headed          Run browser in headed mode
   --help            Show this help
 
@@ -18,6 +20,7 @@ Examples:
   npm run metrics:poc
   npm run metrics:poc -- --url http://localhost:4173 --days 7
   npm run metrics:poc -- --user-data-dir /tmp/iagent-metrics-profile
+  npm run metrics:poc -- --weekly-review docs/weekly/2026-W10.md
 `);
 }
 
@@ -26,6 +29,7 @@ function parseArgs(argv) {
     url: 'http://localhost:5173',
     days: 7,
     userDataDir: '',
+    weeklyReview: '',
     headed: false,
     help: false,
   };
@@ -47,6 +51,11 @@ function parseArgs(argv) {
     }
     if (a === '--user-data-dir') {
       args.userDataDir = argv[i + 1] ?? '';
+      i++;
+      continue;
+    }
+    if (a === '--weekly-review') {
+      args.weeklyReview = argv[i + 1] ?? '';
       i++;
       continue;
     }
@@ -115,6 +124,50 @@ function worstStatus(statuses) {
     }
   }
   return worst;
+}
+
+function lineReplace(content, regex, line) {
+  if (regex.test(content)) {
+    return content.replace(regex, line);
+  }
+  return `${content.trimEnd()}\n${line}\n`;
+}
+
+function localDate(ts) {
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Tokyo',
+  }).format(new Date(ts)).replaceAll('/', '-');
+}
+
+async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
+  const raw = await readFile(filePath, 'utf8');
+  const kpiAcceptLine = `- 提案 Accept 率（7日）: ${toPercent(result.kpi.acceptRate.rate)}（accepted=${result.kpi.acceptRate.accepted}, dismissed=${result.kpi.acceptRate.dismissed}, snoozed=${result.kpi.acceptRate.snoozed}）`;
+  const kpiActiveLine = `- 7日アクティブ率: ${toPercent(result.kpi.activeRate.rate)}（activeDays=${result.kpi.activeRate.activeDays}）`;
+  const kpiRevisitLine = `- 通知経由再訪率（7日）: ${toPercent(result.kpi.revisitRate.rate)}（notificationShown=${result.kpi.revisitRate.shown}, notificationClicked=${result.kpi.revisitRate.clicked}, unmatchedClicks=${result.kpi.revisitRate.unmatchedClicks}）`;
+  const kpiStatusLine = `- KPI 判定: Accept=${result.assessment.kpi.acceptRate}, Active=${result.assessment.kpi.activeRate}, Revisit=${result.assessment.kpi.revisitRate}, Overall=${result.assessment.kpi.overall}`;
+  const sloHeartbeatLine = `- Heartbeat 実行成功率（24h平均）: ${toPercent(result.slo24h.heartbeatRunSuccess.rate)}（attempts=${result.slo24h.heartbeatRunSuccess.attempts}）`;
+  const sloPushLine = `- Push wake 実行成功率（24h平均）: ${toPercent(result.slo24h.pushWakeSuccess.rate)}（attempts=${result.slo24h.pushWakeSuccess.attempts}）`;
+  const sloLatencyLine = typeof result.slo24h.heartbeatDurationP95.p95Ms === 'number'
+    ? `- Heartbeat 遅延 p95（24h平均）: ${(result.slo24h.heartbeatDurationP95.p95Ms / 1000).toFixed(2)}s（${result.slo24h.heartbeatDurationP95.p95Ms}ms, sampleSize=${result.slo24h.heartbeatDurationP95.sampleSize}）`
+    : `- Heartbeat 遅延 p95（24h平均）: n/a（sampleSize=${result.slo24h.heartbeatDurationP95.sampleSize}）`;
+  const sloStatusLine = `- SLO 判定: Heartbeat=${result.assessment.slo24h.heartbeatRunSuccess}, Push=${result.assessment.slo24h.pushWakeSuccess}, Latency=${result.assessment.slo24h.heartbeatDurationP95}, Overall=${result.assessment.slo24h.overall}`;
+  const reviewDateLine = `レビュー日: ${localDate(collectedAtTs)}  `;
+
+  let next = raw;
+  next = lineReplace(next, /^- 提案 Accept 率（7日）:.*$/m, kpiAcceptLine);
+  next = lineReplace(next, /^- 7日アクティブ率:.*$/m, kpiActiveLine);
+  next = lineReplace(next, /^- 通知経由再訪率（7日）:.*$/m, kpiRevisitLine);
+  next = lineReplace(next, /^- KPI 判定:.*$/m, kpiStatusLine);
+  next = lineReplace(next, /^- Heartbeat 実行成功率（24h平均）:.*$/m, sloHeartbeatLine);
+  next = lineReplace(next, /^- Push wake 実行成功率（24h平均）:.*$/m, sloPushLine);
+  next = lineReplace(next, /^- Heartbeat 遅延 p95（24h平均）:.*$/m, sloLatencyLine);
+  next = lineReplace(next, /^- SLO 判定:.*$/m, sloStatusLine);
+  next = lineReplace(next, /^レビュー日:\s.*$/m, reviewDateLine);
+
+  await writeFile(filePath, next);
 }
 
 async function main() {
@@ -424,6 +477,10 @@ async function main() {
     const now = Date.now();
     console.log(`- collectedAtLocal: ${localDateTime(now)}`);
     console.log(`- collectedAtUtcDate: ${isoDate(now)}`);
+    if (opts.weeklyReview) {
+      await updateWeeklyReviewFile(opts.weeklyReview, result, now);
+      console.log(`- weeklyReviewUpdated: ${opts.weeklyReview}`);
+    }
     if (!opts.userDataDir) {
       console.log('- note: デフォルトは一時プロファイルで実行されるため、既存ブラウザの利用データは含まれません');
     }
