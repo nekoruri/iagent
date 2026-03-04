@@ -16,6 +16,7 @@ Options:
   --weekly-dir <dir>     Weekly docs dir (default: docs/weekly)
   --owner <name>         Weekly owner for init (default: iAgent チーム)
   --force-init           Overwrite week scaffold files on init
+  --strict               Enable fail-on-action for metrics step
   --dry-run-validation   Preview validation section without writing file
   --skip-init            Skip week scaffold initialization
   --skip-metrics         Skip KPI/SLO collection and file update
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     weeklyDir: DEFAULT_WEEKLY_DIR,
     owner: 'iAgent チーム',
     forceInit: false,
+    strict: false,
     dryRunValidation: false,
     skipInit: false,
     skipMetrics: false,
@@ -52,6 +54,10 @@ function parseArgs(argv) {
     }
     if (a === '--force-init') {
       args.forceInit = true;
+      continue;
+    }
+    if (a === '--strict') {
+      args.strict = true;
       continue;
     }
     if (a === '--dry-run-validation') {
@@ -130,7 +136,9 @@ async function runNodeScript(scriptPath, args, stepLabel) {
         resolve();
         return;
       }
-      reject(new Error(`${stepLabel} failed with exit code ${code ?? 'unknown'}`));
+      const error = new Error(`${stepLabel} failed with exit code ${code ?? 'unknown'}`);
+      error.exitCode = typeof code === 'number' ? code : 1;
+      reject(error);
     });
   });
 }
@@ -169,6 +177,9 @@ async function main() {
         `${opts.weeklyDir}/${opts.week}-baseline.md`,
       );
     }
+    if (opts.strict) {
+      metricsArgs.push('--fail-on-action');
+    }
     await runNodeScript('scripts/collect-poc-metrics.mjs', metricsArgs, 'Step 2/3: Collect KPI/SLO');
   }
 
@@ -185,5 +196,6 @@ async function main() {
 
 main().catch((error) => {
   console.error('[poc:run-week] Failed:', error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  const exitCode = typeof error?.exitCode === 'number' ? error.exitCode : 1;
+  process.exit(exitCode);
 });
