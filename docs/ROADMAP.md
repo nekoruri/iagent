@@ -152,7 +152,7 @@
 - [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
 - [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
 - [x] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
-- [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（→ フェーズ 3 スマートフォン対応強化に統合）
+- [x] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（フェーズ 3 スマートフォン対応強化で実装済み）
 - [x] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
 - [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
 
@@ -255,7 +255,7 @@
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）+ getUserActivityPatterns Worker ツール（時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）+ computeUserActivityPatterns 純粋関数（テスト容易性確保）+ reflection 保存で briefing/他タスクが自動参照
 - [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）+ getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）+ computeSuggestionOptimizations 純粋関数（テスト容易性確保）+ instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示付きで挿入）+ 結果ピン留め
 - [x] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
-- [ ] プロアクティブ提案エンジン（関連情報サジェスト）
+- [x] プロアクティブ提案エンジン（関連情報サジェスト）
 - [x] Action Planning（チェック → 判断 → アクション）
 
 ### レビュー環境整備
