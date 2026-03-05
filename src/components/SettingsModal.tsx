@@ -31,6 +31,7 @@ import {
   applyPersonaPresetToConfig,
   buildPersonaPreset,
   parsePersonaPresetFromJson,
+  PERSONA_PRESET_MAX_FILE_SIZE,
 } from '../core/personaPreset';
 import type {
   AppConfig,
@@ -789,6 +790,12 @@ export function SettingsModal({ open, onClose }: Props) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
+    if (file.size > PERSONA_PRESET_MAX_FILE_SIZE) {
+      setPersonaPresetStatus('error');
+      setPersonaPresetMessage('ファイルサイズが大きすぎます（上限 100KB）。');
+      return;
+    }
 
     try {
       const json = await readFileAsText(file);

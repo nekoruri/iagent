@@ -4,6 +4,7 @@ import {
   applyPersonaPresetToConfig,
   buildPersonaPreset,
   parsePersonaPresetFromJson,
+  PERSONA_PRESET_MAX_FILE_SIZE,
   type PersonaPreset,
 } from './personaPreset';
 import type { AppConfig } from '../types';
@@ -85,6 +86,29 @@ describe('personaPreset', () => {
       suggestionFrequency: 'always',
     });
     expect(() => parsePersonaPresetFromJson(json)).toThrow(/suggestionFrequency/);
+  });
+
+  it('上限を超えるフィールドは最大長に切り詰める', () => {
+    const longStr = 'a'.repeat(3000);
+    const json = JSON.stringify({
+      format: 'iagent-persona-preset',
+      version: 1,
+      persona: {
+        name: longStr,
+        personality: longStr,
+        tone: longStr,
+        customInstructions: longStr,
+      },
+    });
+    const parsed = parsePersonaPresetFromJson(json);
+    expect(parsed.persona.name.length).toBe(100);
+    expect(parsed.persona.personality.length).toBe(500);
+    expect(parsed.persona.tone.length).toBe(200);
+    expect(parsed.persona.customInstructions.length).toBe(2000);
+  });
+
+  it('PERSONA_PRESET_MAX_FILE_SIZE が 100KB である', () => {
+    expect(PERSONA_PRESET_MAX_FILE_SIZE).toBe(100 * 1024);
   });
 
   it('プリセットを適用すると persona と推奨タスクを更新できる', () => {

@@ -383,6 +383,21 @@ describe('SettingsModal', () => {
     }));
   });
 
+  it('ペルソナプリセットのファイルサイズが上限を超えるとエラーメッセージを表示する', async () => {
+    const { getConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue(createMockConfig());
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    // 100KB を超えるファイルを作成
+    const largeContent = 'x'.repeat(101 * 1024);
+    const file = new File([largeContent], 'large-preset.json', { type: 'application/json' });
+    const input = screen.getByTestId('persona-preset-import-input') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(await screen.findByText(/ファイルサイズが大きすぎます/)).toBeInTheDocument();
+  });
+
   it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
     const { getConfig, saveConfig } = await import('../core/config');
     const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');

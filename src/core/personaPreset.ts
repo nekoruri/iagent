@@ -5,6 +5,17 @@ const PERSONA_PRESET_FORMAT = 'iagent-persona-preset' as const;
 const PERSONA_PRESET_VERSION = 1 as const;
 const VALID_SUGGESTION_FREQUENCIES: SuggestionFrequency[] = ['high', 'medium', 'low'];
 
+/** プリセットファイルの最大サイズ（バイト） */
+export const PERSONA_PRESET_MAX_FILE_SIZE = 100 * 1024; // 100KB
+
+/** persona フィールドの最大文字数 */
+const PERSONA_FIELD_MAX_LENGTH = {
+  name: 100,
+  personality: 500,
+  tone: 200,
+  customInstructions: 2000,
+} as const;
+
 export interface PersonaPreset {
   format: typeof PERSONA_PRESET_FORMAT;
   version: typeof PERSONA_PRESET_VERSION;
@@ -23,11 +34,11 @@ function parsePersonaConfig(raw: unknown): PersonaConfig {
   }
 
   const base = getDefaultPersonaConfig();
-  const name = typeof raw.name === 'string' ? raw.name : base.name;
-  const personality = typeof raw.personality === 'string' ? raw.personality : base.personality;
-  const tone = typeof raw.tone === 'string' ? raw.tone : base.tone;
+  const name = typeof raw.name === 'string' ? raw.name.slice(0, PERSONA_FIELD_MAX_LENGTH.name) : base.name;
+  const personality = typeof raw.personality === 'string' ? raw.personality.slice(0, PERSONA_FIELD_MAX_LENGTH.personality) : base.personality;
+  const tone = typeof raw.tone === 'string' ? raw.tone.slice(0, PERSONA_FIELD_MAX_LENGTH.tone) : base.tone;
   const customInstructions = typeof raw.customInstructions === 'string'
-    ? raw.customInstructions
+    ? raw.customInstructions.slice(0, PERSONA_FIELD_MAX_LENGTH.customInstructions)
     : base.customInstructions;
 
   return {
