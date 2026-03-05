@@ -1,5 +1,5 @@
 import { getDB } from './db';
-import type { HeartbeatState, HeartbeatResult, FeedbackType, HeartbeatSource } from '../types';
+import type { HeartbeatState, HeartbeatResult, FeedbackType, HeartbeatSource, SuggestionFrequency } from '../types';
 
 const STORE_NAME = 'heartbeat';
 const STATE_KEY = 'state';
@@ -29,7 +29,8 @@ export type OpsEventType =
   | 'notification-shown'
   | 'notification-clicked'
   | 'heartbeat-run'
-  | 'heartbeat-feedback';
+  | 'heartbeat-feedback'
+  | 'setup-wizard';
 export type OpsEventStatus = 'success' | 'failure' | 'skipped';
 export type OpsChannel = 'desktop' | 'push' | 'periodic-sync';
 
@@ -60,6 +61,14 @@ export interface OpsEvent {
   pressureMode?: boolean;
   modelUsage?: Record<string, { requests: number; inputTokens: number; outputTokens: number; totalTokens: number }>;
   errorMessage?: string;
+  wizardSessionId?: string;
+  wizardAction?: 'start' | 'step-next' | 'step-back' | 'step-skip' | 'preset-applied' | 'completed';
+  wizardStep?: number;
+  wizardNextStep?: number;
+  wizardPresetLabel?: string;
+  wizardPresetRecommended?: boolean;
+  wizardSuggestionFrequency?: SuggestionFrequency;
+  wizardEnabledTaskCount?: number;
 }
 
 function isOpsEvent(value: unknown): value is OpsEvent {
@@ -69,7 +78,8 @@ function isOpsEvent(value: unknown): value is OpsEvent {
     (entry.type === 'notification-shown'
       || entry.type === 'notification-clicked'
       || entry.type === 'heartbeat-run'
-      || entry.type === 'heartbeat-feedback')
+      || entry.type === 'heartbeat-feedback'
+      || entry.type === 'setup-wizard')
     && typeof entry.timestamp === 'number'
   );
 }

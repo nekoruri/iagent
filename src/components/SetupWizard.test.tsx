@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SetupWizard } from './SetupWizard';
 
@@ -68,6 +68,11 @@ vi.mock('../core/config', () => ({
   })),
 }));
 
+vi.mock('../core/setupWizardOps', () => ({
+  createSetupWizardSessionId: vi.fn(() => 'wizard-test-session'),
+  recordSetupWizardOpsEvent: vi.fn(() => Promise.resolve()),
+}));
+
 describe('SetupWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,6 +87,19 @@ describe('SetupWizard', () => {
     render(<SetupWizard onComplete={vi.fn()} />);
     expect(screen.getByText('iAgent へようこそ')).toBeInTheDocument();
     expect(screen.getByText('はじめる')).toBeInTheDocument();
+  });
+
+  it('表示時に start イベントを記録する', async () => {
+    const { recordSetupWizardOpsEvent } = await import('../core/setupWizardOps');
+    render(<SetupWizard onComplete={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(recordSetupWizardOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'wizard-test-session',
+        action: 'start',
+        step: 0,
+      }));
+    });
   });
 
   it('「はじめる」で API Key ステップに遷移', async () => {
@@ -232,6 +250,28 @@ describe('SetupWizard', () => {
           expect.objectContaining({ id: 'weekly-summary', enabled: false }),
         ]),
       }),
+    }));
+  });
+
+  it('完了時に completed イベントを記録する', async () => {
+    const { recordSetupWizardOpsEvent } = await import('../core/setupWizardOps');
+    render(<SetupWizard onComplete={vi.fn()} />);
+
+    await userEvent.click(screen.getByText('はじめる'));
+    await userEvent.type(screen.getByPlaceholderText('sk-...'), 'sk-test');
+    await userEvent.click(screen.getByText('次へ'));
+    await userEvent.click(screen.getByText('情報収集型'));
+    await userEvent.click(screen.getByText('次へ'));
+    await userEvent.click(screen.getByText('使い始める'));
+
+    expect(recordSetupWizardOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'wizard-test-session',
+      action: 'completed',
+      step: 3,
+      presetLabel: '情報収集型',
+      presetRecommended: true,
+      suggestionFrequency: 'high',
+      enabledTaskCount: 4,
     }));
   });
 
