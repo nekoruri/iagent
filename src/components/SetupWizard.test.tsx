@@ -15,8 +15,17 @@ vi.mock('../core/config', () => ({
       intervalMinutes: 30,
       quietHoursStart: 0,
       quietHoursEnd: 6,
-      tasks: [],
+      tasks: [
+        { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
+        { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+        { id: 'web-monitor-check', name: '監視', description: '', enabled: false, type: 'builtin' },
+        { id: 'briefing-morning', name: '朝ブリ', description: '', enabled: false, type: 'builtin' },
+        { id: 'weekly-summary', name: '週次', description: '', enabled: false, type: 'builtin' },
+      ],
       desktopNotification: false,
+      quietDays: [],
+      maxNotificationsPerDay: 0,
+      focusMode: false,
     },
     otel: {
       enabled: false,
@@ -39,8 +48,17 @@ vi.mock('../core/config', () => ({
     intervalMinutes: 30,
     quietHoursStart: 0,
     quietHoursEnd: 6,
-    tasks: [],
+    tasks: [
+      { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
+      { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+      { id: 'web-monitor-check', name: '監視', description: '', enabled: false, type: 'builtin' },
+      { id: 'briefing-morning', name: '朝ブリ', description: '', enabled: false, type: 'builtin' },
+      { id: 'weekly-summary', name: '週次', description: '', enabled: false, type: 'builtin' },
+    ],
     desktopNotification: false,
+    quietDays: [],
+    maxNotificationsPerDay: 0,
+    focusMode: false,
   })),
   getDefaultPersonaConfig: vi.fn(() => ({
     name: 'iAgent',
@@ -120,13 +138,27 @@ describe('SetupWizard', () => {
     await userEvent.click(screen.getByText('次へ'));
 
     // プリセット選択
-    await userEvent.click(screen.getByText('フレンドリー'));
+    await userEvent.click(screen.getByText('PM型'));
 
     const personalityInput = screen.getByPlaceholderText('例: 丁寧で親しみやすい') as HTMLInputElement;
     const toneInput = screen.getByPlaceholderText('例: カジュアル') as HTMLInputElement;
 
-    expect(personalityInput.value).toBe('明るくカジュアルで、友達のように接する');
-    expect(toneInput.value).toBe('タメ口でフランクに');
+    expect(personalityInput.value).toBe('進行管理と優先順位付けを重視し、期限/依存関係を意識して提案する。');
+    expect(toneInput.value).toBe('実務的かつ端的に。');
+  });
+
+  it('推奨プリセットを1クリック適用できる', async () => {
+    render(<SetupWizard onComplete={vi.fn()} />);
+
+    await userEvent.click(screen.getByText('はじめる'));
+    await userEvent.type(screen.getByPlaceholderText('sk-...'), 'sk-test');
+    await userEvent.click(screen.getByText('次へ'));
+
+    await userEvent.click(screen.getByText('推奨プリセットを適用'));
+
+    expect(screen.getByRole('button', { name: /情報収集型/ })).toBeInTheDocument();
+    expect(screen.getByText(/フィード\/監視の変化を素早く要約/)).toBeInTheDocument();
+    expect(screen.getByText(/有効化タスク:/)).toBeInTheDocument();
   });
 
   it('「戻る」で前のステップに戻れる', async () => {
@@ -172,6 +204,35 @@ describe('SetupWizard', () => {
 
     expect(saveConfig).toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalled();
+  });
+
+  it('プリセット適用時に suggestionFrequency と Heartbeat 推奨タスクが保存される', async () => {
+    const { saveConfig } = await import('../core/config');
+    render(<SetupWizard onComplete={vi.fn()} />);
+
+    await userEvent.click(screen.getByText('はじめる'));
+    await userEvent.type(screen.getByPlaceholderText('sk-...'), 'sk-test');
+    await userEvent.click(screen.getByText('次へ'));
+    await userEvent.click(screen.getByText('情報収集型'));
+    await userEvent.click(screen.getByText('次へ'));
+    await userEvent.click(screen.getByText('使い始める'));
+
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      suggestionFrequency: 'high',
+      persona: expect.objectContaining({
+        personality: '情報の変化に敏感で、重要度順に要点を整理して伝える。',
+        tone: '結論先行で簡潔に。',
+      }),
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({ id: 'calendar-check', enabled: true }),
+          expect.objectContaining({ id: 'feed-check', enabled: true }),
+          expect.objectContaining({ id: 'web-monitor-check', enabled: true }),
+          expect.objectContaining({ id: 'briefing-morning', enabled: true }),
+          expect.objectContaining({ id: 'weekly-summary', enabled: false }),
+        ]),
+      }),
+    }));
   });
 
   it('ステップインジケータの active/completed 状態', async () => {

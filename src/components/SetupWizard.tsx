@@ -1,16 +1,48 @@
 import { useState } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConfig } from '../core/config';
-import type { AppConfig, PersonaConfig, HeartbeatConfig } from '../types';
+import type { AppConfig, PersonaConfig, HeartbeatConfig, SuggestionFrequency } from '../types';
 
 interface Props {
   onComplete: () => void | Promise<void>;
 }
 
-const PERSONA_PRESETS: { label: string; personality: string; tone: string }[] = [
-  { label: '丁寧アシスタント', personality: '丁寧で親しみやすく、ユーザーの意図を正確に汲み取る', tone: '敬語で穏やかに' },
-  { label: 'フレンドリー', personality: '明るくカジュアルで、友達のように接する', tone: 'タメ口でフランクに' },
-  { label: 'プロフェッショナル', personality: '簡潔で的確、専門的な知識を持つ', tone: 'ビジネスライクに端的に' },
+interface PersonaPreset {
+  label: string;
+  description: string;
+  personality: string;
+  tone: string;
+  suggestionFrequency: SuggestionFrequency;
+  recommendedTaskIds: string[];
+}
+
+const PERSONA_PRESETS: PersonaPreset[] = [
+  {
+    label: '情報収集型',
+    description: 'フィード/監視の変化を素早く要約し、重要度付きで報告します。',
+    personality: '情報の変化に敏感で、重要度順に要点を整理して伝える。',
+    tone: '結論先行で簡潔に。',
+    suggestionFrequency: 'high',
+    recommendedTaskIds: ['calendar-check', 'feed-check', 'web-monitor-check', 'briefing-morning'],
+  },
+  {
+    label: 'PM型',
+    description: '期限・会議・進捗の見落としを減らし、意思決定を支援します。',
+    personality: '進行管理と優先順位付けを重視し、期限/依存関係を意識して提案する。',
+    tone: '実務的かつ端的に。',
+    suggestionFrequency: 'medium',
+    recommendedTaskIds: ['calendar-check', 'briefing-morning', 'weekly-summary', 'monthly-review'],
+  },
+  {
+    label: '学習者型',
+    description: '学習の継続を支援し、復習ポイントと次の一歩を提案します。',
+    personality: '段階的な理解を重視し、学習内容を小さな行動に分解して支援する。',
+    tone: 'やさしく具体的に。',
+    suggestionFrequency: 'medium',
+    recommendedTaskIds: ['calendar-check', 'briefing-morning', 'reflection', 'pattern-recognition'],
+  },
 ];
+
+const RECOMMENDED_PRESET_INDEX = 0;
 
 export function SetupWizard({ onComplete }: Props) {
   const [step, setStep] = useState(0);
@@ -19,6 +51,12 @@ export function SetupWizard({ onComplete }: Props) {
 
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat: HeartbeatConfig = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const selectedPresetConfig = selectedPreset !== null ? PERSONA_PRESETS[selectedPreset] : null;
+  const selectedPresetTaskNames = selectedPresetConfig
+    ? heartbeat.tasks
+      .filter((task) => task.type === 'builtin' && selectedPresetConfig.recommendedTaskIds.includes(task.id))
+      .map((task) => task.name || task.id)
+    : [];
 
   const update = (key: keyof AppConfig, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
@@ -60,15 +98,31 @@ export function SetupWizard({ onComplete }: Props) {
     await onComplete();
   };
 
-  const selectPreset = (index: number) => {
-    if (selectedPreset === index) {
-      setSelectedPreset(null);
-      updatePersona({ personality: '', tone: '' });
-    } else {
-      setSelectedPreset(index);
-      const preset = PERSONA_PRESETS[index];
-      updatePersona({ personality: preset.personality, tone: preset.tone });
-    }
+  const applyPreset = (index: number) => {
+    const preset = PERSONA_PRESETS[index];
+    setSelectedPreset(index);
+    setConfig((prev) => {
+      const currentHeartbeat = prev.heartbeat ?? getDefaultHeartbeatConfig();
+      return {
+        ...prev,
+        persona: {
+          ...(prev.persona ?? getDefaultPersonaConfig()),
+          personality: preset.personality,
+          tone: preset.tone,
+        },
+        suggestionFrequency: preset.suggestionFrequency,
+        heartbeat: {
+          ...currentHeartbeat,
+          tasks: currentHeartbeat.tasks.map((task) => {
+            if (task.type !== 'builtin') return task;
+            return {
+              ...task,
+              enabled: preset.recommendedTaskIds.includes(task.id),
+            };
+          }),
+        },
+      };
+    });
   };
 
   return (
@@ -149,19 +203,42 @@ export function SetupWizard({ onComplete }: Props) {
               />
             </label>
             <div className="wizard-preset-group">
-              <span className="wizard-preset-label">性格プリセット</span>
+              <div className="wizard-preset-header">
+                <span className="wizard-preset-label">利用目的プリセット</span>
+                <button
+                  type="button"
+                  className="btn-secondary btn-small"
+                  onClick={() => applyPreset(RECOMMENDED_PRESET_INDEX)}
+                >
+                  推奨プリセットを適用
+                </button>
+              </div>
+              <p className="wizard-preset-hint">
+                迷ったら「{PERSONA_PRESETS[RECOMMENDED_PRESET_INDEX].label}」を選択してください（1クリックで推奨値を適用）。
+              </p>
               <div className="wizard-presets">
                 {PERSONA_PRESETS.map((preset, i) => (
                   <button
                     key={i}
                     type="button"
                     className={`wizard-preset-btn${selectedPreset === i ? ' active' : ''}`}
-                    onClick={() => selectPreset(i)}
+                    onClick={() => applyPreset(i)}
                   >
                     {preset.label}
+                    {i === RECOMMENDED_PRESET_INDEX && <span className="wizard-preset-badge">推奨</span>}
                   </button>
                 ))}
               </div>
+              {selectedPreset !== null && (
+                <>
+                  <p className="wizard-preset-description">
+                    {PERSONA_PRESETS[selectedPreset].description}
+                  </p>
+                  <p className="wizard-preset-task-summary">
+                    有効化タスク: {selectedPresetTaskNames.join(' / ')}
+                  </p>
+                </>
+              )}
             </div>
             <label>
               性格・特徴

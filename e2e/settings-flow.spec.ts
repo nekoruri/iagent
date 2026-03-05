@@ -32,6 +32,37 @@ test.describe('初回起動 → API キー設定 → チャット送信フロー
     await expect(page.locator('.wizard-modal')).toBeHidden();
   });
 
+  test('推奨プリセット適用時に suggestionFrequency と Heartbeat 推奨タスクが保存される', async ({ page }) => {
+    await page.goto('/');
+    await waitForAppReady(page);
+
+    await page.click('text=はじめる');
+    await page.fill('input[placeholder="sk-..."]', 'test-api-key-dummy');
+    await page.click('text=次へ');
+    await page.click('text=推奨プリセットを適用');
+    await page.click('text=次へ');
+    await page.click('text=使い始める');
+    await expect(page.locator('.wizard-modal')).toBeHidden();
+
+    const saved = await page.evaluate(() => {
+      const raw = localStorage.getItem('iagent-config');
+      return raw ? JSON.parse(raw) : null;
+    }) as {
+      suggestionFrequency?: string;
+      heartbeat?: { tasks?: Array<{ id: string; enabled: boolean }> };
+    } | null;
+
+    expect(saved).not.toBeNull();
+    expect(saved?.suggestionFrequency).toBe('high');
+
+    const taskMap = new Map((saved?.heartbeat?.tasks ?? []).map((task) => [task.id, task.enabled]));
+    expect(taskMap.get('calendar-check')).toBe(true);
+    expect(taskMap.get('feed-check')).toBe(true);
+    expect(taskMap.get('web-monitor-check')).toBe(true);
+    expect(taskMap.get('briefing-morning')).toBe(true);
+    expect(taskMap.get('weekly-summary')).toBe(false);
+  });
+
   test('API キー設定後にチャット画面が表示される', async ({ page }) => {
     await injectConfig(page);
     await page.goto('/');
