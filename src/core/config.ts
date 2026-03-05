@@ -46,6 +46,16 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     type: 'builtin',
   },
   {
+    id: 'rss-digest-daily',
+    name: 'RSSダイジェスト',
+    description: '分類済みフィード記事を日次で要約し、重要トピックをまとめて通知します。'
+      + '手順: 1) listClassifiedFeedItems(tier=all) で must-read/recommended の未読記事を取得 → 2) getCrossSourceTopics(periodDays=1) で複数ソース言及トピックを取得 → 3) 分類済み記事が0件の場合は listUnreadFeedItems(limit=30) を取得して暫定ヘッドライン要約を作成。'
+      + '通知には「必読件数」「おすすめ件数」「注目トピック（Nソースで言及）」を含め、何もなければ hasChanges: false を返してください。',
+    enabled: false,
+    type: 'builtin',
+    schedule: { type: 'fixed-time', hour: 8, minute: 0 },
+  },
+  {
     id: 'web-monitor-check',
     name: 'Webページ監視',
     description: '監視中のWebページに変化がないかチェックし、変化があれば通知します。',

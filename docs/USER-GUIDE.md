@@ -208,7 +208,7 @@ RSS フィード取得と Web 監視で利用します。
 | `feed` | RSS/Atom 購読・取得・一覧 | CORSプロキシ |
 | `web_monitor` | Webページ変化監視 | CORSプロキシ |
 
-## 6. Heartbeat ビルトインタスク（11種）
+## 6. Heartbeat ビルトインタスク（12種）
 
 デフォルト有効は `calendar-check` のみです。他は初期状態で無効です。
 
@@ -217,6 +217,7 @@ RSS フィード取得と Web 監視で利用します。
 | `calendar-check` | カレンダーチェック | 有効 | global | 予定と関連メモリを参照して通知 |
 | `weather-check` | 天気チェック | 無効 | global | 天気変化の確認 |
 | `feed-check` | フィードチェック | 無効 | global | 新着記事取得と3段階分類 |
+| `rss-digest-daily` | RSSダイジェスト | 無効 | 08:00 固定 | 分類済み記事の要約と注目トピック集約 |
 | `web-monitor-check` | Webページ監視 | 無効 | global | 監視ページの差分検出 |
 | `reflection` | ふりかえり | 無効 | 23:00 固定 | 記憶・フィードバック分析と保存 |
 | `info-cleanup-check` | 情報整理チェック | 無効 | 20:00 固定 | 未整理情報の閾値超過検出 |
