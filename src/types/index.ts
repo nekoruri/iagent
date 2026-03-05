@@ -53,6 +53,12 @@ export interface TaskSchedule {
   minute?: number;                // type='fixed-time' 時 (0-59)
 }
 
+export interface TaskRunCondition {
+  type: 'time-window';
+  startHour: number;              // 0-23, 含む
+  endHour: number;                // 0-23, 含まない（start=end は終日）
+}
+
 export interface HeartbeatTask {
   id: string;
   name: string;
@@ -60,6 +66,7 @@ export interface HeartbeatTask {
   enabled: boolean;
   type: 'builtin' | 'custom';
   schedule?: TaskSchedule;        // 未設定 or type='global' はグローバル間隔に従う
+  condition?: TaskRunCondition;   // 実行条件（未設定なら常時）
   allowedMcpTools?: string[];     // Heartbeat 実行時に許可する MCP ツール名リスト
 }
 

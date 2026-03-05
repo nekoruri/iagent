@@ -1,4 +1,4 @@
-import { isQuietHours, getTodayNotificationCount } from './heartbeat';
+import { isQuietHours, getTodayNotificationCount, isTaskConditionMatched } from './heartbeat';
 import { loadConfigFromIDB } from '../store/configStore';
 import {
   addHeartbeatResult,
@@ -54,6 +54,10 @@ export async function getTasksDueFromIDB(hbConfig: HeartbeatConfig): Promise<Hea
   const taskLastRunMap = await getAllTaskLastRun();
 
   for (const task of enabledTasks) {
+    if (!isTaskConditionMatched(task, currentDate)) {
+      continue;
+    }
+
     const schedule = task.schedule;
     const lastRun = taskLastRunMap[task.id] ?? 0;
 

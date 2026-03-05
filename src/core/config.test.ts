@@ -283,6 +283,80 @@ describe('getConfig / saveConfig', () => {
     const builtinCount = loaded.heartbeat!.tasks.filter((t) => t.type === 'builtin').length;
     expect(builtinCount).toBe(BUILTIN_HEARTBEAT_TASKS.length);
   });
+
+  it('タスク時間帯条件（condition）が保存データから復元される', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: {
+        enabled: true,
+        intervalMinutes: 30,
+        quietHoursStart: 0,
+        quietHoursEnd: 6,
+        quietDays: [],
+        maxNotificationsPerDay: 0,
+        desktopNotification: false,
+        focusMode: false,
+        tasks: [
+          {
+            id: 'custom-1',
+            name: '条件付き',
+            description: 'テスト',
+            enabled: true,
+            type: 'custom',
+            condition: {
+              type: 'time-window',
+              startHour: 9,
+              endHour: 18,
+            },
+          },
+        ],
+      },
+    }));
+
+    const config = getConfig();
+    expect(config.heartbeat!.tasks[0].condition).toEqual({
+      type: 'time-window',
+      startHour: 9,
+      endHour: 18,
+    });
+  });
+
+  it('タスク時間帯条件（condition）の不正値はクランプされる', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: {
+        enabled: true,
+        intervalMinutes: 30,
+        quietHoursStart: 0,
+        quietHoursEnd: 6,
+        quietDays: [],
+        maxNotificationsPerDay: 0,
+        desktopNotification: false,
+        focusMode: false,
+        tasks: [
+          {
+            id: 'custom-1',
+            name: '条件付き',
+            description: 'テスト',
+            enabled: true,
+            type: 'custom',
+            condition: {
+              type: 'time-window',
+              startHour: -5,
+              endHour: 77,
+            },
+          },
+        ],
+      },
+    }));
+
+    const config = getConfig();
+    expect(config.heartbeat!.tasks[0].condition).toEqual({
+      type: 'time-window',
+      startHour: 0,
+      endHour: 23,
+    });
+  });
 });
 
 describe('getConfigValue', () => {

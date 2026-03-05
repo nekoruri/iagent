@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
@@ -88,6 +88,15 @@ describe('getTasksDueFromIDB', () => {
     type: 'custom',
   };
 
+  const conditionTask: HeartbeatTask = {
+    id: 'condition-task',
+    name: '条件付きタスク',
+    description: 'テスト',
+    enabled: true,
+    type: 'custom',
+    condition: { type: 'time-window', startHour: 9, endHour: 18 },
+  };
+
   it('lastChecked=0 のグローバルタスクは実行される', async () => {
     const config = makeConfig({ tasks: [globalTask] });
     const due = await getTasksDueFromIDB(config);
@@ -113,6 +122,29 @@ describe('getTasksDueFromIDB', () => {
     const config = makeConfig({ tasks: [disabledTask] });
     const due = await getTasksDueFromIDB(config);
     expect(due).toHaveLength(0);
+  });
+
+  describe('時間帯条件', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('条件時間内なら実行対象になる', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-06T10:00:00'));
+      const config = makeConfig({ tasks: [conditionTask] });
+      const due = await getTasksDueFromIDB(config);
+      expect(due).toHaveLength(1);
+      expect(due[0].id).toBe('condition-task');
+    });
+
+    it('条件時間外なら実行対象にならない', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-06T20:00:00'));
+      const config = makeConfig({ tasks: [conditionTask] });
+      const due = await getTasksDueFromIDB(config);
+      expect(due).toHaveLength(0);
+    });
   });
 });
 

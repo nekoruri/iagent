@@ -4,6 +4,7 @@ import type {
   HeartbeatConfig,
   HeartbeatCostControlConfig,
   HeartbeatTask,
+  TaskRunCondition,
   OtelConfig,
   PersonaConfig,
   ProxyConfig,
@@ -242,6 +243,32 @@ function sanitizeHeartbeatCostControlConfig(
   };
 }
 
+function sanitizeTaskRunCondition(
+  condition: HeartbeatTask['condition'],
+): TaskRunCondition | undefined {
+  if (!condition || condition.type !== 'time-window') return undefined;
+  const rawStartHour = Number(condition.startHour);
+  const rawEndHour = Number(condition.endHour);
+  const startHour = Number.isFinite(rawStartHour)
+    ? Math.max(0, Math.min(23, Math.trunc(rawStartHour)))
+    : 0;
+  const endHour = Number.isFinite(rawEndHour)
+    ? Math.max(0, Math.min(23, Math.trunc(rawEndHour)))
+    : 0;
+  return {
+    type: 'time-window',
+    startHour,
+    endHour,
+  };
+}
+
+function sanitizeHeartbeatTask(task: HeartbeatTask): HeartbeatTask {
+  return {
+    ...task,
+    condition: sanitizeTaskRunCondition(task.condition),
+  };
+}
+
 function getDefaultAppConfig(): AppConfig {
   return {
     openaiApiKey: '',
@@ -279,7 +306,7 @@ export function getConfig(): AppConfig {
     : getDefaultHeartbeatCostControlConfig();
   heartbeat.costControl = sanitizeHeartbeatCostControlConfig(heartbeat.costControl);
   // 不足しているビルトインタスクを補完
-  heartbeat.tasks = mergeBuiltinTasks(heartbeat.tasks);
+  heartbeat.tasks = mergeBuiltinTasks(heartbeat.tasks).map(sanitizeHeartbeatTask);
   return {
     openaiApiKey: parsed.openaiApiKey ?? '',
     braveApiKey: parsed.braveApiKey ?? '',

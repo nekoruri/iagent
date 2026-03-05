@@ -537,6 +537,55 @@ describe('SettingsModal', () => {
     expect(screen.getByText('静寂曜日')).toBeInTheDocument();
   });
 
+  it('カスタムタスクに時間帯条件を設定して保存できる', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        tasks: [
+          {
+            id: 'custom-time-window',
+            name: '条件付きカスタム',
+            description: 'テストタスク',
+            enabled: true,
+            type: 'custom',
+            schedule: { type: 'global' },
+          },
+        ],
+      },
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const nameInput = screen.getByDisplayValue('条件付きカスタム');
+    const card = nameInput.closest('.mcp-server-card');
+    expect(card).not.toBeNull();
+    const cardElement = card as HTMLElement;
+    const initialSelects = within(cardElement).getAllByRole('combobox');
+    await userEvent.selectOptions(initialSelects[1], 'time-window');
+
+    const conditionSelects = within(cardElement).getAllByRole('combobox');
+    await userEvent.selectOptions(conditionSelects[2], '10');
+    await userEvent.selectOptions(conditionSelects[3], '16');
+    await userEvent.click(screen.getByText('保存'));
+
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'custom-time-window',
+            condition: {
+              type: 'time-window',
+              startHour: 10,
+              endHour: 16,
+            },
+          }),
+        ]),
+      }),
+    }));
+  });
+
   it('オーバーレイクリックで onClose が呼ばれる', async () => {
     const onClose = vi.fn();
     const { container } = render(<SettingsModal open={true} onClose={onClose} />);

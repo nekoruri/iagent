@@ -135,6 +135,7 @@ Heartbeat は定期チェック機能です。設定項目:
 - カスタムタスク
   - 追加・削除
   - スケジュール: `global` / `interval` / `fixed-time`
+  - 時間帯条件: `なし` / `時間帯指定`（開始時刻〜終了時刻、`start=end` は終日）
   - Heartbeat 実行時に許可する MCP read-only ツール選択
 
 ### Heartbeat の実行レイヤー
