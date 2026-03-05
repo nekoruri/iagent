@@ -31,6 +31,9 @@ npm run dev
 2. `OpenAI API Key` を入力（必須）
 3. 必要に応じて `Brave Search API Key`、`OpenWeatherMap API Key` を入力（任意）
 4. エージェント名・性格・話し方を設定
+   - 利用目的プリセットを選択（`情報収集型` / `PM型` / `学習者型`）
+   - `推奨プリセットを適用` で推奨値を 1 クリック反映
+   - プリセット適用時は `suggestionFrequency` と推奨 Heartbeat タスク（ビルトイン）が同時に初期化
 5. 任意で Heartbeat を有効化
 
 最小構成は OpenAI API キーのみです。
