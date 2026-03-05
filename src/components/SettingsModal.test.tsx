@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
 
@@ -162,6 +162,11 @@ vi.mock('../core/dataPortability', () => ({
   )),
 }));
 
+// heartbeatStore モック
+vi.mock('../store/heartbeatStore', () => ({
+  loadActionLog: vi.fn(async () => []),
+}));
+
 function mockStorage(opts: { persisted: boolean; usage: number; quota: number }) {
   Object.defineProperty(navigator, 'storage', {
     value: {
@@ -285,6 +290,52 @@ describe('SettingsModal', () => {
     await userEvent.click(recommendedButton);
 
     expect(screen.getByText('選択したプリセットはすべて追加済みです。')).toBeInTheDocument();
+  });
+
+  it('自動実行ログが空の場合に空状態メッセージを表示する', async () => {
+    const { loadActionLog } = await import('../store/heartbeatStore');
+    vi.mocked(loadActionLog).mockResolvedValue([]);
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('自動実行ログ（Action Planning）')).toBeInTheDocument();
+    expect(screen.getByText('ログはまだありません。')).toBeInTheDocument();
+  });
+
+  it('自動実行ログを新しい順で表示する', async () => {
+    const { loadActionLog } = await import('../store/heartbeatStore');
+    vi.mocked(loadActionLog).mockResolvedValue([
+      { type: 'toggle-task', reason: '古いログ', detail: 'old', timestamp: 1000 },
+      { type: 'update-task-interval', reason: '中間ログ', detail: 'mid', timestamp: 2000 },
+      { type: 'update-quiet-hours', reason: '最新ログ', detail: 'new', timestamp: 3000 },
+    ]);
+    const { container } = render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await screen.findByText('最新ログ');
+    const items = container.querySelectorAll('.hb-action-log-item');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent('最新ログ');
+    expect(items[1]).toHaveTextContent('中間ログ');
+    expect(items[2]).toHaveTextContent('古いログ');
+    expect(screen.getByText('静寂時間')).toBeInTheDocument();
+    expect(screen.getByText('間隔変更')).toBeInTheDocument();
+    expect(screen.getByText('タスク切替')).toBeInTheDocument();
+  });
+
+  it('自動実行ログの再読み込みボタンで最新ログを取得できる', async () => {
+    const { loadActionLog } = await import('../store/heartbeatStore');
+    vi.mocked(loadActionLog)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { type: 'update-quiet-days', reason: '再取得ログ', detail: '火木を追加', timestamp: 4000 },
+      ]);
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('button', { name: '再読み込み' }));
+    await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('再取得ログ')).toBeInTheDocument();
+    expect(screen.getByText('静寂曜日')).toBeInTheDocument();
   });
 
   it('オーバーレイクリックで onClose が呼ばれる', async () => {

@@ -165,3 +165,53 @@ export async function injectHeartbeatResults(
     });
   }, { results, lastChecked: options.lastChecked });
 }
+
+/**
+ * IndexedDB に Action Planning の自動実行ログを直接注入する。
+ */
+export async function injectActionLogEntries(
+  page: Page,
+  entries: Array<{
+    type: string;
+    reason: string;
+    detail: string;
+    timestamp: number;
+  }>,
+): Promise<void> {
+  await page.evaluate((data) => {
+    return new Promise<void>((resolve, reject) => {
+      function writeLog(db: IDBDatabase) {
+        const tx = db.transaction('heartbeat', 'readwrite');
+        tx.objectStore('heartbeat').put({
+          key: 'action-log',
+          entries: data,
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      }
+
+      const request = indexedDB.open('iagent-db');
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('heartbeat')) {
+          db.close();
+          const version = db.version + 1;
+          const req2 = indexedDB.open('iagent-db', version);
+          req2.onupgradeneeded = () => {
+            if (!req2.result.objectStoreNames.contains('heartbeat')) {
+              req2.result.createObjectStore('heartbeat', { keyPath: 'key' });
+            }
+          };
+          req2.onsuccess = () => writeLog(req2.result);
+          req2.onerror = () => reject(req2.error);
+          req2.onblocked = () => {
+            reject(new Error('IndexedDB upgrade for iagent-db is blocked (heartbeat store)'));
+          };
+          return;
+        }
+        writeLog(db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }, entries);
+}
