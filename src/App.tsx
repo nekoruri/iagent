@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, type TouchEvent } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { FeedPanel } from './components/FeedPanel';
@@ -30,6 +30,10 @@ import type { ChatMessage } from './types';
 import type { PendingAttachment } from './types/attachment';
 
 const HEARTBEAT_HINT_KEY = 'iagent-heartbeat-hint-shown';
+const SIDEBAR_EDGE_SWIPE_ZONE_PX = 24;
+const SIDEBAR_CLOSE_SWIPE_ZONE_PX = 320;
+const SIDEBAR_SWIPE_LOCK_PX = 24;
+const SIDEBAR_SWIPE_TRIGGER_PX = 72;
 
 export default function App() {
   useViewportHeight();
@@ -38,6 +42,13 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarSwipeRef = useRef({
+    active: false,
+    mode: null as 'open' | 'close' | null,
+    startX: 0,
+    startY: 0,
+    resolved: false,
+  });
 
   const {
     conversations,
@@ -114,6 +125,66 @@ export default function App() {
   }, [rawToggleFocusMode]);
 
   const showWizard = loaded && !isConfigured() && !wizardDismissed;
+
+  const resetSidebarSwipe = useCallback(() => {
+    sidebarSwipeRef.current.active = false;
+    sidebarSwipeRef.current.mode = null;
+    sidebarSwipeRef.current.startX = 0;
+    sidebarSwipeRef.current.startY = 0;
+    sidebarSwipeRef.current.resolved = false;
+  }, []);
+
+  const handleSidebarTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    if (
+      settingsOpen ||
+      showWizard ||
+      !window.matchMedia('(max-width: 768px)').matches ||
+      event.touches.length !== 1
+    ) {
+      resetSidebarSwipe();
+      return;
+    }
+
+    const touch = event.touches[0];
+    const mode = sidebarOpen
+      ? (touch.clientX <= SIDEBAR_CLOSE_SWIPE_ZONE_PX ? 'close' : null)
+      : (touch.clientX <= SIDEBAR_EDGE_SWIPE_ZONE_PX ? 'open' : null);
+
+    sidebarSwipeRef.current.active = mode !== null;
+    sidebarSwipeRef.current.mode = mode;
+    sidebarSwipeRef.current.startX = touch.clientX;
+    sidebarSwipeRef.current.startY = touch.clientY;
+    sidebarSwipeRef.current.resolved = false;
+  }, [sidebarOpen, settingsOpen, showWizard, resetSidebarSwipe]);
+
+  const handleSidebarTouchMove = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const swipe = sidebarSwipeRef.current;
+    if (!swipe.active || swipe.mode === null || swipe.resolved || event.touches.length !== 1) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - swipe.startX;
+    const deltaY = touch.clientY - swipe.startY;
+    if (Math.abs(deltaX) < SIDEBAR_SWIPE_LOCK_PX) return;
+
+    // 縦スクロールを優先し、明確に水平操作のときだけ開閉する。
+    if (Math.abs(deltaX) < Math.abs(deltaY) * 1.2) {
+      swipe.active = false;
+      return;
+    }
+
+    if (swipe.mode === 'open' && deltaX >= SIDEBAR_SWIPE_TRIGGER_PX) {
+      setSidebarOpen(true);
+      swipe.resolved = true;
+      return;
+    }
+
+    if (swipe.mode === 'close' && deltaX <= -SIDEBAR_SWIPE_TRIGGER_PX) {
+      setSidebarOpen(false);
+      swipe.resolved = true;
+    }
+  }, []);
 
   // 起動時にMCPサーバーに接続
   useEffect(() => {
@@ -242,7 +313,13 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div
+      className="app-container"
+      onTouchStart={handleSidebarTouchStart}
+      onTouchMove={handleSidebarTouchMove}
+      onTouchEnd={resetSidebarSwipe}
+      onTouchCancel={resetSidebarSwipe}
+    >
       <ConversationSidebar
         conversations={conversations}
         activeId={activeConversationId}
