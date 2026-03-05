@@ -347,3 +347,4 @@
 - [x] オンボーディング計測拡張（PoC-3 follow-up）— SetupWizard 操作を `setup-wizard` ops-event として記録（開始/遷移/スキップ/プリセット適用/完了）。`metrics:poc` に完了率・完了時間中央値・推奨プリセット採用率・完了後24hアクティブ率を追加し、週次レビュー/ baseline テンプレートへ自動反映。（2026-03-05）
 - [x] コスト制御レイヤー（PoC-6）— Heartbeat に `costControl` 設定（日次トークン予算・逼迫しきい値・非クリティカル次回回し）を追加。タスク別に実行ポリシー（`gpt-5-nano`/`gpt-5-mini` + 出力トークン上限）を適用し、予算逼迫時は縮退モード（出力短縮）に切替。`heartbeat-run` ops-event に token 使用量を保存し、次回実行判定で当日使用量を参照。（2026-03-05）
 - [x] 記憶品質ガバナンス（PoC-7 Phase1）— MemoryPanel で記憶の編集（内容/重要度/タグ）と手動無効化（アーカイブ）を追加。`memoryStore` に更新 API と再評価候補抽出（低重要度かつ長期間未参照）を追加し、UI 上で「再評価候補」件数と対象バッジを表示。`memory` ツールに `update/archive/reevaluate` を追加し、Heartbeat Worker には `listMemoryReevaluationCandidates` を追加。（2026-03-05）
+- [x] データポータビリティ（PoC-8）— `core/dataPortability.ts` を追加し、設定・会話・記憶・記憶アーカイブ・添付の JSON エクスポート/インポートを実装。`SettingsModal` ストレージセクションに `データをエクスポート` / `データをインポート` / `再読み込みして反映` を追加し、復元件数を表示。テスト追加（`dataPortability.test.ts`、`SettingsModal.test.tsx`）。（2026-03-05）

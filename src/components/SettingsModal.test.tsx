@@ -132,6 +132,36 @@ vi.mock('../core/notifier', () => ({
   requestNotificationPermission: vi.fn(async () => 'granted'),
 }));
 
+// data portability モック
+vi.mock('../core/dataPortability', () => ({
+  exportDataPortability: vi.fn(async () => ({
+    payload: {},
+    json: '{"format":"iagent-data-export"}',
+    filename: 'iagent-backup-20260305-120000.json',
+    bytes: 128,
+    counts: {
+      conversationMeta: 1,
+      conversations: 2,
+      memories: 3,
+      archivedMemories: 0,
+      attachments: 1,
+    },
+  })),
+  importDataPortabilityFromJson: vi.fn(async () => ({
+    importedAt: Date.now(),
+    counts: {
+      conversationMeta: 1,
+      conversations: 2,
+      memories: 3,
+      archivedMemories: 0,
+      attachments: 1,
+    },
+  })),
+  getDataPortabilityErrorMessage: vi.fn((error: unknown) => (
+    error instanceof Error ? error.message : String(error)
+  )),
+}));
+
 function mockStorage(opts: { persisted: boolean; usage: number; quota: number }) {
   Object.defineProperty(navigator, 'storage', {
     value: {
@@ -340,6 +370,40 @@ describe('SettingsModal', () => {
   });
 
   describe('ストレージ情報', () => {
+    it('ストレージセクションにデータエクスポート/インポート操作が表示される', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('永続化済み')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'データをエクスポート' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'データをインポート' })).toBeInTheDocument();
+    });
+
+    it('データをエクスポートすると完了メッセージを表示する', async () => {
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      const createObjectUrl = vi.fn(() => 'blob:mock-backup');
+      const revokeObjectUrl = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', {
+        value: createObjectUrl,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        value: revokeObjectUrl,
+        writable: true,
+        configurable: true,
+      });
+
+      const { exportDataPortability } = await import('../core/dataPortability');
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('永続化済み')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'データをエクスポート' }));
+
+      expect(exportDataPortability).toHaveBeenCalled();
+      expect(screen.getByText(/エクスポート完了:/)).toBeInTheDocument();
+      clickSpy.mockRestore();
+    });
+
     it('永続化済みの場合、ステータスバッジ「永続化済み」が表示される', async () => {
       mockStorage({ persisted: true, usage: 10 * 1024 * 1024, quota: 2 * 1024 * 1024 * 1024 });
       render(<SettingsModal open={true} onClose={vi.fn()} />);

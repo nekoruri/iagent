@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getConfig,
   saveConfig,
@@ -19,6 +19,12 @@ import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
+import {
+  exportDataPortability,
+  importDataPortabilityFromJson,
+  getDataPortabilityErrorMessage,
+  type DataPortabilityCounts,
+} from '../core/dataPortability';
 import type {
   AppConfig,
   MCPServerConfig,
@@ -68,6 +74,43 @@ function statusLabel(status: MCPConnectionStatus): { text: string; className: st
   }
 }
 
+function formatPortabilitySummary(counts: DataPortabilityCounts): string {
+  return `会話 ${counts.conversationMeta}件 / メッセージ ${counts.conversations}件 / 記憶 ${counts.memories}件 / 記憶アーカイブ ${counts.archivedMemories}件 / 添付 ${counts.attachments}件`;
+}
+
+function downloadTextFile(content: string, filename: string): void {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.rel = 'noopener';
+
+  if (typeof URL.createObjectURL === 'function') {
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    return;
+  }
+
+  link.href = `data:application/json;charset=utf-8,${encodeURIComponent(content)}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function confirmSafely(message: string): boolean {
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+    return true;
+  }
+  try {
+    return window.confirm(message);
+  } catch {
+    return true;
+  }
+}
+
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: 'ダーク' },
   { value: 'light', label: 'ライト' },
@@ -93,6 +136,10 @@ export function SettingsModal({ open, onClose }: Props) {
     quota: number;
   } | null>(null);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
+  const [portabilityStatus, setPortabilityStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
+  const [portabilityMessage, setPortabilityMessage] = useState('');
+  const [needsReloadAfterImport, setNeedsReloadAfterImport] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // MCPManager の状態変更をリッスン
   useEffect(() => {
@@ -338,6 +385,47 @@ export function SettingsModal({ open, onClose }: Props) {
       ...prev,
       mcpServers: prev.mcpServers.filter((s) => s.id !== id),
     }));
+  };
+
+  const handleExportData = async () => {
+    setPortabilityStatus('exporting');
+    setPortabilityMessage('バックアップを作成しています...');
+    setNeedsReloadAfterImport(false);
+    try {
+      const result = await exportDataPortability();
+      downloadTextFile(result.json, result.filename);
+      setPortabilityStatus('success');
+      setPortabilityMessage(`エクスポート完了: ${result.filename}（${formatBytes(result.bytes)} / ${formatPortabilitySummary(result.counts)}）`);
+    } catch (error) {
+      setPortabilityStatus('error');
+      setPortabilityMessage(getDataPortabilityErrorMessage(error));
+    }
+  };
+
+  const handlePickImportFile = () => {
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!confirmSafely('現在の設定・会話・記憶データを上書きして復元します。続行しますか？')) {
+      return;
+    }
+    setPortabilityStatus('importing');
+    setPortabilityMessage('バックアップを読み込んでいます...');
+    setNeedsReloadAfterImport(false);
+    try {
+      const json = await file.text();
+      const result = await importDataPortabilityFromJson(json);
+      setPortabilityStatus('success');
+      setPortabilityMessage(`インポート完了: ${formatPortabilitySummary(result.counts)} を復元しました。`);
+      setNeedsReloadAfterImport(true);
+    } catch (error) {
+      setPortabilityStatus('error');
+      setPortabilityMessage(getDataPortabilityErrorMessage(error));
+    }
   };
 
   if (!open) return null;
@@ -1208,6 +1296,59 @@ export function SettingsModal({ open, onClose }: Props) {
                     className="storage-bar-fill"
                     style={{ width: `${storageInfo.quota > 0 ? Math.min((storageInfo.usage / storageInfo.quota) * 100, 100) : 0}%` }}
                   />
+                </div>
+                <div className="storage-portability">
+                  <p className="mcp-hint">
+                    設定・会話・記憶（アーカイブ含む）・添付を JSON でバックアップ/復元できます。
+                  </p>
+                  <div className="storage-portability-actions">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small"
+                      onClick={handleExportData}
+                      disabled={portabilityStatus === 'exporting' || portabilityStatus === 'importing'}
+                    >
+                      {portabilityStatus === 'exporting' ? 'エクスポート中...' : 'データをエクスポート'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small"
+                      onClick={handlePickImportFile}
+                      disabled={portabilityStatus === 'exporting' || portabilityStatus === 'importing'}
+                    >
+                      {portabilityStatus === 'importing' ? 'インポート中...' : 'データをインポート'}
+                    </button>
+                    {needsReloadAfterImport && (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-small"
+                        onClick={() => window.location.reload()}
+                      >
+                        再読み込みして反映
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    aria-label="バックアップファイルを選択"
+                    style={{ display: 'none' }}
+                    onChange={handleImportFileChange}
+                  />
+                  {portabilityMessage && (
+                    <p
+                      className={`storage-portability-message ${
+                        portabilityStatus === 'error'
+                          ? 'error'
+                          : portabilityStatus === 'success'
+                            ? 'success'
+                            : ''
+                      }`}
+                    >
+                      {portabilityMessage}
+                    </p>
+                  )}
                 </div>
                 {!storageInfo.persistent && (
                   <>
