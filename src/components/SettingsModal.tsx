@@ -270,6 +270,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ApiKeyField, string>>(initApiKeyDrafts);
   const [apiKeyClearFlags, setApiKeyClearFlags] = useState<Record<ApiKeyField, boolean>>(initApiKeyClearFlags);
   const [securityPresetMessage, setSecurityPresetMessage] = useState('');
+  const [securityPresetPushRetryNeeded, setSecurityPresetPushRetryNeeded] = useState(false);
   const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
   const [actionLogError, setActionLogError] = useState('');
   const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
@@ -352,6 +353,7 @@ export function SettingsModal({ open, onClose }: Props) {
       setApiKeyDrafts(initApiKeyDrafts());
       setApiKeyClearFlags(initApiKeyClearFlags());
       setSecurityPresetMessage('');
+      setSecurityPresetPushRetryNeeded(false);
     }, 0);
     return () => window.clearTimeout(resetId);
   }, [open]);
@@ -557,6 +559,79 @@ export function SettingsModal({ open, onClose }: Props) {
     return '未設定。必要な場合のみ入力してください。';
   };
 
+  const runLeastPrivilegePushCleanup = useCallback(async (): Promise<{
+    hadSubscription: boolean;
+    serverError: string;
+    localError: string;
+  }> => {
+    const activeSubscription = await getPushSubscription();
+    const hadSubscription = hasPushSubscription || !!activeSubscription;
+    let serverError = '';
+    let localError = '';
+    let localUnsubscribeHandled = false;
+
+    setPushStatus('unsubscribing');
+    setPushError('');
+
+    if (activeSubscription && push.serverUrl) {
+      try {
+        await unsubscribePush(push.serverUrl);
+        localUnsubscribeHandled = true;
+      } catch (error) {
+        serverError = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    if (activeSubscription && !localUnsubscribeHandled) {
+      try {
+        const unsubscribed = await activeSubscription.unsubscribe();
+        if (!unsubscribed) {
+          localError = 'ローカルの Push 購読解除に失敗しました。';
+        }
+      } catch (error) {
+        localError = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    try {
+      await unregisterPeriodicSync();
+    } catch (error) {
+      const periodicError = error instanceof Error ? error.message : String(error);
+      localError = localError ? `${localError} / ${periodicError}` : periodicError;
+    }
+
+    const mergedError = [serverError, localError].filter((msg) => msg.length > 0).join(' / ');
+    if (!localError) {
+      setHasPushSubscription(false);
+      setPushStatus('idle');
+    } else {
+      setPushStatus('error');
+    }
+    setPushError(mergedError);
+
+    return { hadSubscription, serverError, localError };
+  }, [hasPushSubscription, push.serverUrl]);
+
+  const handleRetryLeastPrivilegePushCleanup = async () => {
+    const result = await runLeastPrivilegePushCleanup();
+    if (result.localError) {
+      setSecurityPresetPushRetryNeeded(true);
+      setSecurityPresetMessage('Push 購読の解除に失敗しました。時間をおいて再試行してください。');
+      return;
+    }
+
+    setConfig((prev) => ({
+      ...prev,
+      push: { ...(prev.push ?? { enabled: false, serverUrl: '' }), enabled: false },
+    }));
+    setSecurityPresetPushRetryNeeded(false);
+    setSecurityPresetMessage(
+      result.serverError
+        ? 'Push 購読のローカル解除は完了しました（サーバー側解除は失敗の可能性があります）。'
+        : 'Push 購読の解除に成功しました。',
+    );
+  };
+
   const handleApplyLeastPrivilegePreset = async () => {
     const nextHeartbeat = {
       ...heartbeat,
@@ -577,53 +652,48 @@ export function SettingsModal({ open, onClose }: Props) {
     const nextMcpServers = config.mcpServers.map((server) =>
       server.enabled ? { ...server, enabled: false } : server
     );
+    const pushCleanupResult = await runLeastPrivilegePushCleanup();
+    const pushSettingChangedCount = Number(push.enabled && !pushCleanupResult.localError);
+    const pushSubscriptionChangedCount = Number(
+      !push.enabled
+      && pushCleanupResult.hadSubscription
+      && !pushCleanupResult.localError,
+    );
     const changedCount = Number(heartbeat.enabled)
       + Number(heartbeat.desktopNotification)
       + Number(webSpeech.sttEnabled)
       + Number(webSpeech.ttsEnabled)
       + Number(webSpeech.ttsAutoRead)
       + Number(proxy.enabled)
-      + Number(push.enabled)
+      + pushSettingChangedCount
+      + pushSubscriptionChangedCount
       + disabledMcpCount;
-    let pushCleanupError = '';
-
-    const activeSubscription = await getPushSubscription();
-    if (push.enabled || hasPushSubscription || !!activeSubscription) {
-      setPushStatus('unsubscribing');
-      setPushError('');
-      try {
-        if (activeSubscription) {
-          if (push.serverUrl) {
-            await unsubscribePush(push.serverUrl);
-          } else {
-            await activeSubscription.unsubscribe();
-          }
-        }
-        await unregisterPeriodicSync();
-        setHasPushSubscription(false);
-        setPushStatus('idle');
-      } catch (error) {
-        pushCleanupError = error instanceof Error ? error.message : String(error);
-        setPushError(pushCleanupError);
-        setPushStatus('error');
-      }
-    }
 
     setConfig((prev) => ({
       ...prev,
       heartbeat: nextHeartbeat,
       webSpeech: nextWebSpeech,
       proxy: nextProxy,
-      push: { ...(prev.push ?? { enabled: false, serverUrl: '' }), enabled: false },
+      push: {
+        ...(prev.push ?? { enabled: false, serverUrl: '' }),
+        enabled: pushCleanupResult.localError ? (prev.push?.enabled ?? false) : false,
+      },
       mcpServers: nextMcpServers,
     }));
+    setSecurityPresetPushRetryNeeded(Boolean(pushCleanupResult.localError));
+
     const baseMessage = changedCount === 0
       ? '既に最小権限設定です。'
       : `最小権限プリセットを適用しました（${changedCount}項目を変更）。`;
+    const pushDetailMessage = pushCleanupResult.localError
+      ? ' Push 購読の解除に失敗しました。下の「Push 解除を再試行」で再実行してください。'
+      : pushCleanupResult.serverError
+        ? ' Push 購読のローカル解除は完了しました（サーバー側解除は失敗の可能性があります）。'
+        : (!push.enabled && pushCleanupResult.hadSubscription)
+          ? ' Push 購読も解除しました。'
+          : '';
     setSecurityPresetMessage(
-      pushCleanupError
-        ? `${baseMessage} Push 購読の解除に失敗しました。Heartbeat セクションで再度 OFF を実行してください。`
-        : baseMessage,
+      `${baseMessage}${pushDetailMessage}`,
     );
   };
 
@@ -914,9 +984,18 @@ export function SettingsModal({ open, onClose }: Props) {
                 >
                   最小権限プリセットを適用
                 </button>
+                {securityPresetPushRetryNeeded && (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={handleRetryLeastPrivilegePushCleanup}
+                  >
+                    Push 解除を再試行
+                  </button>
+                )}
                 {securityPresetMessage && <p className="mcp-hint">{securityPresetMessage}</p>}
                 <p className="mcp-hint">
-                  Push 購読が存在する場合、プリセット適用時に自動解除します（失敗時は Heartbeat セクションで再実行）。
+                  Push 購読が存在する場合、プリセット適用時に自動解除します（失敗時は「Push 解除を再試行」を使用）。
                 </p>
               </div>
             </div>
