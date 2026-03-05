@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SetupWizard } from './SetupWizard';
 
@@ -89,17 +89,18 @@ describe('SetupWizard', () => {
     expect(screen.getByText('はじめる')).toBeInTheDocument();
   });
 
-  it('表示時に start イベントを記録する', async () => {
+  it('「はじめる」操作時に start イベントを記録する', async () => {
     const { recordSetupWizardOpsEvent } = await import('../core/setupWizardOps');
     render(<SetupWizard onComplete={vi.fn()} />);
 
-    await waitFor(() => {
-      expect(recordSetupWizardOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
-        sessionId: 'wizard-test-session',
-        action: 'start',
-        step: 0,
-      }));
-    });
+    await userEvent.click(screen.getByText('はじめる'));
+
+    expect(recordSetupWizardOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'wizard-test-session',
+      action: 'start',
+      step: 0,
+      nextStep: 1,
+    }));
   });
 
   it('「はじめる」で API Key ステップに遷移', async () => {

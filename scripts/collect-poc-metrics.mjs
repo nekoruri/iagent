@@ -636,20 +636,21 @@ async function main() {
           onboardingBySession.set(e.wizardSessionId, session);
         }
         const onboardingSessions = Array.from(onboardingBySession.values());
-        const onboardingStartedSessions = onboardingSessions.filter((s) => Number.isFinite(s.startedAt)).length;
-        const onboardingCompletedSessions = onboardingSessions.filter((s) => Number.isFinite(s.completedAt)).length;
-        const onboardingCompletedWithRecommended = onboardingSessions.filter(
-          (s) => Number.isFinite(s.completedAt) && s.completedWithRecommended,
-        ).length;
+        const onboardingStarted = onboardingSessions.filter((s) => Number.isFinite(s.startedAt));
+        const onboardingCompleted = onboardingStarted.filter((s) => Number.isFinite(s.completedAt));
+        const onboardingStartedSessions = onboardingStarted.length;
+        const onboardingCompletedSessions = onboardingCompleted.length;
+        const onboardingCompletedWithRecommended = onboardingCompleted
+          .filter((s) => s.completedWithRecommended)
+          .length;
         const onboardingCompletionRate = onboardingStartedSessions > 0
           ? onboardingCompletedSessions / onboardingStartedSessions
           : 0;
         const onboardingRecommendedRate = onboardingCompletedSessions > 0
           ? onboardingCompletedWithRecommended / onboardingCompletedSessions
           : 0;
-        const onboardingCompletionDurationsMs = onboardingSessions
+        const onboardingCompletionDurationsMs = onboardingCompleted
           .map((s) => {
-            if (!Number.isFinite(s.startedAt) || !Number.isFinite(s.completedAt)) return null;
             const duration = s.completedAt - s.startedAt;
             return duration >= 0 ? duration : null;
           })
@@ -675,9 +676,7 @@ async function main() {
           }
         }
         activityTimestamps.sort((a, b) => a - b);
-        const onboardingCompletedAt = onboardingSessions
-          .map((s) => (Number.isFinite(s.completedAt) ? s.completedAt : null))
-          .filter((ts) => typeof ts === 'number');
+        const onboardingCompletedAt = onboardingCompleted.map((s) => s.completedAt);
         let onboardingActiveWithin24h = 0;
         for (const completedAt of onboardingCompletedAt) {
           const cutoff24h = completedAt + dayMs;

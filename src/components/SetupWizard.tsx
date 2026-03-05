@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConfig } from '../core/config';
 import type { AppConfig, PersonaConfig, HeartbeatConfig, SuggestionFrequency } from '../types';
 import { createSetupWizardSessionId, recordSetupWizardOpsEvent } from '../core/setupWizardOps';
@@ -85,12 +85,21 @@ export function SetupWizard({ onComplete }: Props) {
 
   const handleNext = () => {
     if (step < 3) {
-      void recordSetupWizardOpsEvent({
-        sessionId: sessionIdRef.current,
-        action: 'step-next',
-        step,
-        nextStep: step + 1,
-      });
+      if (step === 0) {
+        void recordSetupWizardOpsEvent({
+          sessionId: sessionIdRef.current,
+          action: 'start',
+          step: 0,
+          nextStep: 1,
+        });
+      } else {
+        void recordSetupWizardOpsEvent({
+          sessionId: sessionIdRef.current,
+          action: 'step-next',
+          step,
+          nextStep: step + 1,
+        });
+      }
       setStep(step + 1);
     }
   };
@@ -174,14 +183,6 @@ export function SetupWizard({ onComplete }: Props) {
       };
     });
   };
-
-  useEffect(() => {
-    void recordSetupWizardOpsEvent({
-      sessionId: sessionIdRef.current,
-      action: 'start',
-      step: 0,
-    });
-  }, []);
 
   return (
     <div className="modal-overlay">
