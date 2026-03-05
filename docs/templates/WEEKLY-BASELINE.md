@@ -45,6 +45,19 @@
 - kpiRevisitStatus: Action
 - kpiOverallStatus: Action
 
+## 4) オンボーディング最適化（7日）
+
+- onboardingStartedSessions: 0
+- onboardingCompletedSessions: 0
+- onboardingCompletionRate: 0.0% (0.0000)
+- onboardingMedianCompletionSec: n/a
+- onboardingRecommendedCompletions: 0
+- onboardingRecommendedRate: 0.0% (0.0000)
+- onboardingCompletionStatus: NoData
+- onboardingRecommendedStatus: NoData
+- onboardingMedianStatus: NoData
+- onboardingOverallStatus: NoData
+
 ---
 
 ## SLO Baseline（24h）
