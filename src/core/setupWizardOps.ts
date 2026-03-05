@@ -24,7 +24,12 @@ function randomSuffix(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID().slice(0, 8);
   }
-  return Math.random().toString(36).slice(2, 10);
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(4);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  return Date.now().toString(36).slice(-8);
 }
 
 export function createSetupWizardSessionId(nowTs = Date.now()): string {
