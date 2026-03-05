@@ -84,6 +84,8 @@ iOS Safari かつ未インストール時は、ホーム画面追加の案内バ
   - `OpenAI API Key`（必須）
   - `Brave Search API Key`（Web検索で使用）
   - `OpenWeatherMap API Key`（天気取得で使用）
+  - 保存済みキーは直接再表示されず、変更時のみ再入力
+  - 各キーで `保存済みキーを削除` / `削除を取り消す` が可能
 
 ### 4.2 エージェント設定
 
