@@ -3,6 +3,7 @@ import {
   isImageMimeType,
   validateFile,
   validateAttachmentCount,
+  readFileAsText,
   sanitizeFilename,
   formatFileSize,
 } from './fileUtils';
@@ -79,6 +80,21 @@ describe('validateAttachmentCount', () => {
     const result = validateAttachmentCount(5);
     expect(result.valid).toBe(false);
     expect(result.error).toContain('5件');
+  });
+});
+
+describe('readFileAsText', () => {
+  it('file.text が利用可能ならそれを使う', async () => {
+    const text = await readFileAsText({
+      text: async () => 'hello-from-text',
+    } as Blob);
+    expect(text).toBe('hello-from-text');
+  });
+
+  it('file.text が未対応でも FileReader で読める', async () => {
+    const file = new File(['hello-from-file-reader'], 'sample.txt', { type: 'text/plain' });
+    const text = await readFileAsText(file);
+    expect(text).toBe('hello-from-file-reader');
   });
 });
 

@@ -20,12 +20,18 @@ import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
+import { readFileAsText } from '../core/fileUtils';
 import {
   exportDataPortability,
   importDataPortabilityFromJson,
   getDataPortabilityErrorMessage,
   type DataPortabilityCounts,
 } from '../core/dataPortability';
+import {
+  applyPersonaPresetToConfig,
+  buildPersonaPreset,
+  parsePersonaPresetFromJson,
+} from '../core/personaPreset';
 import type {
   AppConfig,
   MCPServerConfig,
@@ -272,12 +278,15 @@ export function SettingsModal({ open, onClose }: Props) {
   const [apiKeyClearFlags, setApiKeyClearFlags] = useState<Record<ApiKeyField, boolean>>(initApiKeyClearFlags);
   const [securityPresetMessage, setSecurityPresetMessage] = useState('');
   const [securityPresetPushRetryNeeded, setSecurityPresetPushRetryNeeded] = useState(false);
+  const [personaPresetStatus, setPersonaPresetStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [personaPresetMessage, setPersonaPresetMessage] = useState('');
   const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
   const [actionLogError, setActionLogError] = useState('');
   const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
   const [portabilityStatus, setPortabilityStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
   const [portabilityMessage, setPortabilityMessage] = useState('');
   const [needsReloadAfterImport, setNeedsReloadAfterImport] = useState(false);
+  const personaPresetImportInputRef = useRef<HTMLInputElement | null>(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // MCPManager の状態変更をリッスン
@@ -355,6 +364,8 @@ export function SettingsModal({ open, onClose }: Props) {
       setApiKeyClearFlags(initApiKeyClearFlags());
       setSecurityPresetMessage('');
       setSecurityPresetPushRetryNeeded(false);
+      setPersonaPresetStatus('idle');
+      setPersonaPresetMessage('');
     }, 0);
     return () => window.clearTimeout(resetId);
   }, [open]);
@@ -749,6 +760,52 @@ export function SettingsModal({ open, onClose }: Props) {
     setMcpPresetMessage(`${addedLabels} を追加しました。${skippedText}`.trim());
   };
 
+  const handleExportPersonaPreset = () => {
+    try {
+      const preset = buildPersonaPreset(config);
+      const now = new Date();
+      const stamp = [
+        now.getFullYear().toString().padStart(4, '0'),
+        (now.getMonth() + 1).toString().padStart(2, '0'),
+        now.getDate().toString().padStart(2, '0'),
+        now.getHours().toString().padStart(2, '0'),
+        now.getMinutes().toString().padStart(2, '0'),
+      ].join('');
+      const filename = `iagent-persona-preset-${stamp}.json`;
+      downloadTextFile(JSON.stringify(preset, null, 2), filename);
+      setPersonaPresetStatus('success');
+      setPersonaPresetMessage(`ペルソナプリセットをエクスポートしました（${filename}）。`);
+    } catch (error) {
+      setPersonaPresetStatus('error');
+      setPersonaPresetMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handlePickPersonaPresetFile = () => {
+    personaPresetImportInputRef.current?.click();
+  };
+
+  const handleImportPersonaPresetFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const json = await readFileAsText(file);
+      const preset = parsePersonaPresetFromJson(json);
+      setConfig((prev) => applyPersonaPresetToConfig(prev, preset));
+      setPersonaPresetStatus('success');
+      if (preset.recommendedTaskIds && preset.recommendedTaskIds.length > 0) {
+        setPersonaPresetMessage(`ペルソナプリセットを適用しました（推奨タスク ${preset.recommendedTaskIds.length} 件）。`);
+      } else {
+        setPersonaPresetMessage('ペルソナプリセットを適用しました。');
+      }
+    } catch (error) {
+      setPersonaPresetStatus('error');
+      setPersonaPresetMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const handleExportData = async () => {
     setPortabilityStatus('exporting');
     setPortabilityMessage('バックアップを作成しています...');
@@ -785,7 +842,7 @@ export function SettingsModal({ open, onClose }: Props) {
     setPortabilityMessage('バックアップを読み込んでいます...');
     setNeedsReloadAfterImport(false);
     try {
-      const json = await file.text();
+      const json = await readFileAsText(file);
       const result = await importDataPortabilityFromJson(json);
       setPortabilityStatus('success');
       setPortabilityMessage(`インポート完了: ${formatPortabilitySummary(result.counts)} を復元しました。`);
@@ -1059,6 +1116,42 @@ export function SettingsModal({ open, onClose }: Props) {
                   <option value="low">低（最小限）</option>
                 </select>
               </label>
+
+              <div className="security-preset-section">
+                <h4>ペルソナプリセット（配布 / インポート）</h4>
+                <p className="mcp-hint">
+                  現在の persona・提案頻度・有効なビルトインタスクを JSON として書き出し、別環境へ読み込めます。
+                </p>
+                <div className="storage-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={handleExportPersonaPreset}
+                  >
+                    ペルソナプリセットをエクスポート
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={handlePickPersonaPresetFile}
+                  >
+                    ペルソナプリセットをインポート
+                  </button>
+                </div>
+                {personaPresetMessage && (
+                  <p className={`mcp-hint ${personaPresetStatus === 'error' ? 'mcp-error-text' : ''}`}>
+                    {personaPresetMessage}
+                  </p>
+                )}
+                <input
+                  ref={personaPresetImportInputRef}
+                  data-testid="persona-preset-import-input"
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={handleImportPersonaPresetFileChange}
+                />
+              </div>
             </div>
           </details>
 

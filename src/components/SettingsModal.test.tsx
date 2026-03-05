@@ -287,6 +287,157 @@ describe('SettingsModal', () => {
     }));
   });
 
+  it('ペルソナプリセットをエクスポートできる', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const createObjectUrl = vi.fn(() => 'blob:mock-persona');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: createObjectUrl,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: revokeObjectUrl,
+      writable: true,
+      configurable: true,
+    });
+
+    const { getConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        tasks: [
+          { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
+          { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+        ],
+      },
+      persona: {
+        name: 'Preset Agent',
+        personality: '要点重視',
+        tone: '簡潔',
+        customInstructions: '箇条書きで',
+      },
+      suggestionFrequency: 'high',
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'ペルソナプリセットをエクスポート' }));
+
+    expect(createObjectUrl).toHaveBeenCalled();
+    expect(screen.getByText(/ペルソナプリセットをエクスポートしました/)).toBeInTheDocument();
+    clickSpy.mockRestore();
+  });
+
+  it('ペルソナプリセットをインポートして保存できる', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        tasks: [
+          { id: 'calendar-check', name: 'カレンダー', description: '', enabled: false, type: 'builtin' },
+          { id: 'feed-check', name: 'フィード', description: '', enabled: true, type: 'builtin' },
+          { id: 'custom-task', name: 'カスタム', description: '', enabled: true, type: 'custom' },
+        ],
+      },
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const presetJson = JSON.stringify({
+      format: 'iagent-persona-preset',
+      version: 1,
+      persona: {
+        name: 'Imported Agent',
+        personality: '分析重視',
+        tone: 'フォーマル',
+        customInstructions: '根拠を示す',
+      },
+      suggestionFrequency: 'medium',
+      recommendedTaskIds: ['calendar-check'],
+    });
+
+    const file = new File([presetJson], 'persona-preset.json', { type: 'application/json' });
+    const input = screen.getByTestId('persona-preset-import-input') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(await screen.findByText(/ペルソナプリセットを適用しました/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      persona: expect.objectContaining({
+        name: 'Imported Agent',
+        personality: '分析重視',
+        tone: 'フォーマル',
+        customInstructions: '根拠を示す',
+      }),
+      suggestionFrequency: 'medium',
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({ id: 'calendar-check', enabled: true }),
+          expect.objectContaining({ id: 'feed-check', enabled: false }),
+          expect.objectContaining({ id: 'custom-task', enabled: true }),
+        ]),
+      }),
+    }));
+  });
+
+  it('不正なペルソナプリセットJSONをインポートした場合はエラー表示して既存設定を保持する', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      persona: {
+        name: 'Current Agent',
+        personality: '既存',
+        tone: '既存',
+        customInstructions: '既存',
+      },
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        tasks: [
+          { id: 'calendar-check', name: 'カレンダー', description: '', enabled: false, type: 'builtin' },
+          { id: 'feed-check', name: 'フィード', description: '', enabled: true, type: 'builtin' },
+        ],
+      },
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const invalidJson = JSON.stringify({
+      format: 'wrong-format',
+      version: 1,
+      persona: {
+        name: 'Imported Agent',
+        personality: '分析重視',
+        tone: 'フォーマル',
+        customInstructions: '根拠を示す',
+      },
+    });
+
+    const file = new File([invalidJson], 'invalid-persona-preset.json', { type: 'application/json' });
+    const input = screen.getByTestId('persona-preset-import-input') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(await screen.findByText(/format が不正/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      persona: expect.objectContaining({
+        name: 'Current Agent',
+        personality: '既存',
+        tone: '既存',
+        customInstructions: '既存',
+      }),
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({ id: 'calendar-check', enabled: false }),
+          expect.objectContaining({ id: 'feed-check', enabled: true }),
+        ]),
+      }),
+    }));
+  });
+
   it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
     const { getConfig, saveConfig } = await import('../core/config');
     const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');
