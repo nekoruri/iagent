@@ -59,6 +59,25 @@ export function fileToDataUri(file: File): Promise<string> {
   });
 }
 
+/** File/Blob → テキスト変換（File.text 未対応環境は FileReader を使用） */
+export function readFileAsText(file: Blob): Promise<string> {
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    if (typeof FileReader === 'undefined') {
+      reject(new Error('テキストファイルの読み込みに失敗しました'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('テキストファイルの読み込みに失敗しました'));
+    reader.readAsText(file);
+  });
+}
+
 function supportsThumbnailWorker(): boolean {
   return (
     typeof Worker !== 'undefined' &&
