@@ -223,7 +223,7 @@
 - [x] Instruction Builder — buildMainInstructions/buildHeartbeatInstructions/buildWorkerHeartbeatPrompt（全 7 ツールガイド + メモリ管理ガイドライン + プロアクティブ行動）
 - [x] Integration — agent.ts/heartbeatOpenAI.ts/heartbeatCommon.ts に persona + instructionBuilder 統合
 - [x] DB_VERSION 8→9（memories ストアに importance/tags インデックス追加）
-- [ ] ペルソナプリセット配布 + インポート機能
+- [x] ペルソナプリセット配布 + インポート機能
 
 ### 認知的記憶アーキテクチャ（Phase E）
 - [x] 指数減衰スコアリング — カテゴリ別半減期（personality:1年 〜 other:2週間）+ アクセス頻度ブースト
@@ -360,3 +360,4 @@
 - [x] サムネイル生成の Worker 化（フェーズ3）— `thumbnail.worker.ts` を追加し、`fileUtils.generateThumbnail()` で Web Worker 経由のサムネイル生成を実装。`OffscreenCanvas/createImageBitmap` 非対応時や Worker 失敗時は既存のメインスレッド実装へ自動フォールバック。（2026-03-05）
 - [x] Heartbeat 条件付き実行（時間帯）— `HeartbeatTask.condition`（time-window）を追加し、`getTasksDue` / `getTasksDueFromIDB` で時間帯条件に合致するタスクのみ実行。`SettingsModal` のカスタムタスクに時間帯条件 UI（なし/時間帯指定）を追加し、`heartbeat.test.ts` / `heartbeatCommon.test.ts` / `config.test.ts` / `SettingsModal.test.tsx` を更新。（2026-03-06）
 - [x] 情報収集ワークフロー拡張（RSS ダイジェスト）— `rss-digest-daily` ビルトインタスクを追加（08:00 固定スケジュール）。`listClassifiedFeedItems` + `getCrossSourceTopics` を軸に日次要約し、分類済み記事がない場合は `listUnreadFeedItems` でヘッドライン要約にフォールバック。`heartbeatCost` で standard モデル実行に設定し、`config.test.ts` / `heartbeatCost.test.ts` を更新。（2026-03-06）
+- [x] ペルソナプリセット配布 + インポート（Phase D）— `core/personaPreset.ts` を追加し、`persona/suggestionFrequency/有効なビルトインタスク` の JSON プリセット生成・検証・適用を実装。`SettingsModal` のエージェント設定に `ペルソナプリセットをエクスポート` / `ペルソナプリセットをインポート` を追加。`readFileAsText`（`fileUtils`）を導入し、`File.text()` 非対応環境でもインポート可能化。`personaPreset.test.ts` / `SettingsModal.test.tsx` / `fileUtils.test.ts` を更新。（2026-03-06）

@@ -101,6 +101,9 @@ iOS Safari かつ未インストール時は、ホーム画面追加の案内バ
   - `high`: memory + clip + feed を参照
   - `medium`: memory のみ参照
   - `low`: memory を最小件数で参照
+- ペルソナプリセット（配布 / インポート）
+  - `ペルソナプリセットをエクスポート`: 現在の `persona` + `suggestionFrequency` + 有効なビルトインタスクを JSON 出力
+  - `ペルソナプリセットをインポート`: JSON から上記設定を一括反映（推奨タスクIDが含まれる場合はビルトインタスクの ON/OFF を更新）
 
 ### 4.3 MCP Servers
 
