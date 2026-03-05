@@ -15,6 +15,7 @@
 - 2026-03-05: 項目 7 の実装着手（MemoryPanel で記憶編集/手動無効化、長期未参照・低重要度の再評価候補表示）
 - 2026-03-05: 項目 7 を拡張（`memory` ツールに update/archive/reevaluate を追加、Heartbeat Worker ツールに `listMemoryReevaluationCandidates` を追加）
 - 2026-03-05: 項目 8 の実装着手（`SettingsModal` ストレージセクションに JSON エクスポート/インポート導線を追加。対象: 設定・会話・記憶・記憶アーカイブ・添付）
+- 2026-03-05: 項目 9 の実装着手（`SettingsModal` の MCP セクションにカテゴリ別プリセット + 推奨セット一括追加を追加）
 
 ---
 
@@ -113,6 +114,11 @@
   - MCP プリセットをカテゴリ別に整備。
   - 最低限の推奨セット（例: GitHub/Notion/RSS）を即時導入可能にする。
 - 成功判定: 外部連携を使った利用シナリオの再現率が上がる。
+- 実装メモ（2026-03-05）:
+  - `SettingsModal` の MCP セクションに「クイック追加（MCPプリセット）」を追加。
+  - プリセットをカテゴリ表示付きで実装（GitHub / Notion / RSS Reader / Slack / Gmail / Google Calendar）。
+  - `推奨セットを追加` で GitHub・Notion・RSS Reader を一括追加可能化。
+  - 重複追加は名前/URL ベースで自動スキップし、追加結果（成功/スキップ）を UI に表示。
 
 ## 10. セキュリティの次段階
 

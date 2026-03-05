@@ -214,7 +214,7 @@
 
 ### MCP エコシステム活用
 - [x] MCP ツールの Heartbeat 対応（read-only ツール許可リスト + 設定 UI）
-- [ ] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
+- [x] MCP プリセット UI（Notion, GitHub 等の人気サーバーをワンクリック追加）
 - [x] MCP ツールフィルタリング — SDK ネイティブ `toolFilter` によるツール単位アクセス制御（instruction + SDK の二重防御）
 
 ### エージェントアイデンティティ + 記憶フレームワーク（Phase D）
@@ -348,3 +348,4 @@
 - [x] コスト制御レイヤー（PoC-6）— Heartbeat に `costControl` 設定（日次トークン予算・逼迫しきい値・非クリティカル次回回し）を追加。タスク別に実行ポリシー（`gpt-5-nano`/`gpt-5-mini` + 出力トークン上限）を適用し、予算逼迫時は縮退モード（出力短縮）に切替。`heartbeat-run` ops-event に token 使用量を保存し、次回実行判定で当日使用量を参照。（2026-03-05）
 - [x] 記憶品質ガバナンス（PoC-7 Phase1）— MemoryPanel で記憶の編集（内容/重要度/タグ）と手動無効化（アーカイブ）を追加。`memoryStore` に更新 API と再評価候補抽出（低重要度かつ長期間未参照）を追加し、UI 上で「再評価候補」件数と対象バッジを表示。`memory` ツールに `update/archive/reevaluate` を追加し、Heartbeat Worker には `listMemoryReevaluationCandidates` を追加。（2026-03-05）
 - [x] データポータビリティ（PoC-8）— `core/dataPortability.ts` を追加し、設定・会話・記憶・記憶アーカイブ・添付の JSON エクスポート/インポートを実装。`SettingsModal` ストレージセクションに `データをエクスポート` / `データをインポート` / `再読み込みして反映` を追加し、復元件数を表示。テスト追加（`dataPortability.test.ts`、`SettingsModal.test.tsx`）。（2026-03-05）
+- [x] MCP プリセット UI（PoC-9 Phase1）— `SettingsModal` の MCP セクションにカテゴリ別プリセットを追加（GitHub / Notion / RSS Reader / Slack / Gmail / Google Calendar）。`推奨セットを追加` で GitHub・Notion・RSS Reader を一括追加可能化し、重複追加は自動スキップ。`SettingsModal.test.tsx` にプリセット追加/重複スキップのテストを追加。（2026-03-05）
