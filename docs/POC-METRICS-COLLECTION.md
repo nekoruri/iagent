@@ -20,6 +20,12 @@
 npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile
 ```
 
+PoC 用の最低限サンプルを固定プロファイルへ投入して評価を開始したい場合:
+
+```bash
+npm run poc:run-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-profile --seed-sample
+```
+
 週次レビューを締めるときは、strict + 最終チェック込みの専用コマンドを使う:
 
 ```bash
@@ -42,6 +48,7 @@ npm run poc:close-week -- --week 2026-W11 --user-data-dir /tmp/iagent-metrics-pr
 補足:
 
 - `--skip-metrics` / `--skip-validation` で段階実行できる
+- `--seed-sample` を付けると、実利用データ不足時に固定プロファイルへフォールバックサンプルを投入して初回評価できる
 - `--weekly-dir` 指定時は対象ディレクトリへ出力される
 - `--strict` を付けると KPI/SLO のいずれかが `Action` の場合に非0終了する
 - `--check --check-strict` を付けると、実行後に週次記入漏れを自動検証できる
@@ -80,6 +87,7 @@ npm run metrics:poc
 ```bash
 npm run metrics:poc -- --url http://localhost:5173 --days 7
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile
+npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --seed-sample
 npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profile
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --weekly-review docs/weekly/2026-W10.md
 npm run metrics:poc -- --url http://localhost:5173 --days 7 --user-data-dir /tmp/iagent-metrics-profile --baseline docs/weekly/2026-W10-baseline.md
@@ -101,6 +109,7 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 
 ※ `--weekly-review` / `--baseline` を明示した場合は、明示値を優先する。
 ※ 解決先ファイルが未作成の場合はテンプレートから自動生成する。
+※ `--seed-sample` は実利用データがまだ無いPoC初期週向けのフォールバック用途。
 ※ `--fail-on-action` 指定時は、KPI/SLO の overall 判定に `Action` を含むと exit code 2 で終了する。
 
 `--weekly-review` を指定すると、週次レビューMarkdownの以下行を自動更新する:

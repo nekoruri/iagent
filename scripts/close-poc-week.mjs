@@ -16,6 +16,7 @@ Options:
   --url <url>            Metrics target URL (default: http://localhost:5173)
   --days <n>             Metrics window days (default: 7)
   --user-data-dir <dir>  Persistent Chromium profile for metrics
+  --seed-sample          Seed fallback PoC sample before metrics collection
   --owner <name>         Weekly owner for init
   --force-init           Overwrite week scaffold files on init
   --skip-init            Skip week scaffold initialization
@@ -38,6 +39,7 @@ function parseArgs(argv) {
     url: DEFAULT_URL,
     days: 7,
     userDataDir: '',
+    seedSample: false,
     owner: '',
     forceInit: false,
     skipInit: false,
@@ -109,6 +111,10 @@ function parseArgs(argv) {
     if (a === '--report-json') {
       args.reportJson = argv[i + 1] ?? '';
       i++;
+      continue;
+    }
+    if (a === '--seed-sample') {
+      args.seedSample = true;
       continue;
     }
   }
@@ -196,6 +202,9 @@ async function main() {
 
   if (opts.userDataDir) {
     runWeekArgs.push('--user-data-dir', opts.userDataDir);
+  }
+  if (opts.seedSample) {
+    runWeekArgs.push('--seed-sample');
   }
   if (opts.owner) {
     runWeekArgs.push('--owner', opts.owner);

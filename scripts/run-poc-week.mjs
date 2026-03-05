@@ -13,6 +13,7 @@ Options:
   --url <url>            Metrics target URL (default: http://localhost:5173)
   --days <n>             Metrics window days (default: 7)
   --user-data-dir <dir>  Persistent Chromium profile for metrics
+  --seed-sample          Seed fallback PoC sample before metrics collection
   --weekly-dir <dir>     Weekly docs dir (default: docs/weekly)
   --owner <name>         Weekly owner for init (default: iAgent チーム)
   --force-init           Overwrite week scaffold files on init
@@ -42,6 +43,7 @@ function parseArgs(argv) {
     url: 'http://localhost:5173',
     days: 7,
     userDataDir: '',
+    seedSample: false,
     weeklyDir: DEFAULT_WEEKLY_DIR,
     owner: 'iAgent チーム',
     forceInit: false,
@@ -108,6 +110,10 @@ function parseArgs(argv) {
     }
     if (a === '--skip-validation') {
       args.skipValidation = true;
+      continue;
+    }
+    if (a === '--seed-sample') {
+      args.seedSample = true;
       continue;
     }
     if (a === '--week') {
@@ -210,6 +216,9 @@ async function main() {
     const metricsArgs = ['--week', opts.week, '--url', opts.url, '--days', String(opts.days)];
     if (opts.userDataDir) {
       metricsArgs.push('--user-data-dir', opts.userDataDir);
+    }
+    if (opts.seedSample) {
+      metricsArgs.push('--seed-sample');
     }
     if (opts.weeklyDir !== DEFAULT_WEEKLY_DIR) {
       metricsArgs.push(
