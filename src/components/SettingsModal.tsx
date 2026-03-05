@@ -57,8 +57,10 @@ interface MCPPreset {
 }
 
 type SectionId = 'basic' | 'agent' | 'mcp' | 'heartbeat' | 'speech' | 'proxy' | 'otel' | 'storage';
+type ApiKeyField = 'openaiApiKey' | 'braveApiKey' | 'openWeatherMapApiKey';
 
 const ALL_SECTIONS: SectionId[] = ['basic', 'agent', 'mcp', 'heartbeat', 'speech', 'proxy', 'otel', 'storage'];
+const API_KEY_FIELDS: ApiKeyField[] = ['openaiApiKey', 'braveApiKey', 'openWeatherMapApiKey'];
 
 const MCP_PRESETS: MCPPreset[] = [
   {
@@ -115,6 +117,14 @@ const RECOMMENDED_MCP_PRESET_IDS = ['github', 'notion', 'rss-reader'];
 
 function initOpenSections(): Record<SectionId, boolean> {
   return Object.fromEntries(ALL_SECTIONS.map((id) => [id, true])) as Record<SectionId, boolean>;
+}
+
+function initApiKeyDrafts(): Record<ApiKeyField, string> {
+  return Object.fromEntries(API_KEY_FIELDS.map((key) => [key, ''])) as Record<ApiKeyField, string>;
+}
+
+function initApiKeyClearFlags(): Record<ApiKeyField, boolean> {
+  return Object.fromEntries(API_KEY_FIELDS.map((key) => [key, false])) as Record<ApiKeyField, boolean>;
 }
 
 function formatBytes(bytes: number): string {
@@ -257,6 +267,8 @@ export function SettingsModal({ open, onClose }: Props) {
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [mcpPresetMessage, setMcpPresetMessage] = useState('');
   const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ApiKeyField, string>>(initApiKeyDrafts);
+  const [apiKeyClearFlags, setApiKeyClearFlags] = useState<Record<ApiKeyField, boolean>>(initApiKeyClearFlags);
   const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
   const [actionLogError, setActionLogError] = useState('');
   const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
@@ -332,6 +344,15 @@ export function SettingsModal({ open, onClose }: Props) {
     }, 0);
     return () => window.clearTimeout(refreshId);
   }, [open, loadActionLogEntries]);
+
+  useEffect(() => {
+    if (!open) return;
+    const resetId = window.setTimeout(() => {
+      setApiKeyDrafts(initApiKeyDrafts());
+      setApiKeyClearFlags(initApiKeyClearFlags());
+    }, 0);
+    return () => window.clearTimeout(resetId);
+  }, [open]);
 
   // ストレージ情報を取得
   useEffect(() => {
@@ -486,6 +507,21 @@ export function SettingsModal({ open, onClose }: Props) {
     updateHeartbeat({ tasks: heartbeat.tasks.filter((t) => t.id !== taskId) });
   };
 
+  const applyApiKeyDrafts = useCallback((currentConfig: AppConfig): AppConfig => {
+    const nextConfig = { ...currentConfig };
+    for (const key of API_KEY_FIELDS) {
+      if (apiKeyClearFlags[key]) {
+        nextConfig[key] = '';
+        continue;
+      }
+      const draft = apiKeyDrafts[key].trim();
+      if (draft.length > 0) {
+        nextConfig[key] = draft;
+      }
+    }
+    return nextConfig;
+  }, [apiKeyDrafts, apiKeyClearFlags]);
+
   const handleSave = useCallback(async () => {
     // 有効な MCP サーバーの URL をバリデーション
     const invalidServer = config.mcpServers.find(
@@ -494,13 +530,29 @@ export function SettingsModal({ open, onClose }: Props) {
     if (invalidServer) {
       return; // URL バリデーションエラーがある場合は保存しない
     }
-    saveConfig(config);
-    await mcpManager.syncWithConfig(config.mcpServers);
+    const nextConfig = applyApiKeyDrafts(config);
+    saveConfig(nextConfig);
+    await mcpManager.syncWithConfig(nextConfig.mcpServers);
     onClose();
-  }, [config, onClose]);
+  }, [applyApiKeyDrafts, config, onClose]);
 
-  const update = (key: keyof AppConfig, value: string) => {
-    setConfig((prev) => ({ ...prev, [key]: value }));
+  const updateApiKeyDraft = (key: ApiKeyField, value: string) => {
+    setApiKeyDrafts((prev) => ({ ...prev, [key]: value }));
+    if (value.trim().length > 0) {
+      setApiKeyClearFlags((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const toggleApiKeyClearFlag = (key: ApiKeyField) => {
+    setApiKeyDrafts((prev) => ({ ...prev, [key]: '' }));
+    setApiKeyClearFlags((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const getApiKeyStatusText = (key: ApiKeyField): string => {
+    if (apiKeyClearFlags[key]) return '保存時に削除されます。';
+    if (apiKeyDrafts[key].trim().length > 0) return '保存時に更新されます。';
+    if (config[key].trim().length > 0) return '保存済み。変更しない場合は再入力不要です。';
+    return '未設定。必要な場合のみ入力してください。';
   };
 
   const addMCPServer = () => {
@@ -698,30 +750,84 @@ export function SettingsModal({ open, onClose }: Props) {
                 OpenAI API Key <span className="required">*必須</span>
                 <input
                   type="password"
-                  value={config.openaiApiKey}
-                  onChange={(e) => update('openaiApiKey', e.target.value)}
-                  placeholder="sk-..."
+                  value={apiKeyDrafts.openaiApiKey}
+                  onChange={(e) => updateApiKeyDraft('openaiApiKey', e.target.value)}
+                  placeholder={config.openaiApiKey && !apiKeyClearFlags.openaiApiKey
+                    ? '保存済み（変更する場合のみ入力）'
+                    : 'sk-...'}
+                  autoComplete="off"
+                  spellCheck={false}
                 />
+                <div className="api-key-actions">
+                  <p className={`mcp-hint api-key-status ${apiKeyClearFlags.openaiApiKey ? 'api-key-status-danger' : ''}`}>
+                    {getApiKeyStatusText('openaiApiKey')}
+                  </p>
+                  {config.openaiApiKey && (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small api-key-clear-btn"
+                      onClick={() => toggleApiKeyClearFlag('openaiApiKey')}
+                    >
+                      {apiKeyClearFlags.openaiApiKey ? '削除を取り消す' : '保存済みキーを削除'}
+                    </button>
+                  )}
+                </div>
               </label>
 
               <label>
                 Brave Search API Key
                 <input
                   type="password"
-                  value={config.braveApiKey}
-                  onChange={(e) => update('braveApiKey', e.target.value)}
-                  placeholder="BSA..."
+                  value={apiKeyDrafts.braveApiKey}
+                  onChange={(e) => updateApiKeyDraft('braveApiKey', e.target.value)}
+                  placeholder={config.braveApiKey && !apiKeyClearFlags.braveApiKey
+                    ? '保存済み（変更する場合のみ入力）'
+                    : 'BSA...'}
+                  autoComplete="off"
+                  spellCheck={false}
                 />
+                <div className="api-key-actions">
+                  <p className={`mcp-hint api-key-status ${apiKeyClearFlags.braveApiKey ? 'api-key-status-danger' : ''}`}>
+                    {getApiKeyStatusText('braveApiKey')}
+                  </p>
+                  {config.braveApiKey && (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small api-key-clear-btn"
+                      onClick={() => toggleApiKeyClearFlag('braveApiKey')}
+                    >
+                      {apiKeyClearFlags.braveApiKey ? '削除を取り消す' : '保存済みキーを削除'}
+                    </button>
+                  )}
+                </div>
               </label>
 
               <label>
                 OpenWeatherMap API Key
                 <input
                   type="password"
-                  value={config.openWeatherMapApiKey}
-                  onChange={(e) => update('openWeatherMapApiKey', e.target.value)}
-                  placeholder="..."
+                  value={apiKeyDrafts.openWeatherMapApiKey}
+                  onChange={(e) => updateApiKeyDraft('openWeatherMapApiKey', e.target.value)}
+                  placeholder={config.openWeatherMapApiKey && !apiKeyClearFlags.openWeatherMapApiKey
+                    ? '保存済み（変更する場合のみ入力）'
+                    : '...'}
+                  autoComplete="off"
+                  spellCheck={false}
                 />
+                <div className="api-key-actions">
+                  <p className={`mcp-hint api-key-status ${apiKeyClearFlags.openWeatherMapApiKey ? 'api-key-status-danger' : ''}`}>
+                    {getApiKeyStatusText('openWeatherMapApiKey')}
+                  </p>
+                  {config.openWeatherMapApiKey && (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small api-key-clear-btn"
+                      onClick={() => toggleApiKeyClearFlag('openWeatherMapApiKey')}
+                    >
+                      {apiKeyClearFlags.openWeatherMapApiKey ? '削除を取り消す' : '保存済みキーを削除'}
+                    </button>
+                  )}
+                </div>
               </label>
             </div>
           </details>

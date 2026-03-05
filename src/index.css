@@ -1168,6 +1168,26 @@ body {
   font-size: 12px !important;
 }
 
+.api-key-actions {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.api-key-status {
+  margin: 0;
+}
+
+.api-key-status-danger {
+  color: var(--status-error);
+}
+
+.api-key-clear-btn {
+  flex-shrink: 0;
+}
+
 .btn-danger {
   background: transparent;
   color: var(--status-error);

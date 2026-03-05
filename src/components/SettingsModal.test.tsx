@@ -3,9 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
 
-// config モック
-vi.mock('../core/config', () => ({
-  getConfig: vi.fn(() => ({
+function createMockConfig() {
+  return {
     openaiApiKey: '',
     braveApiKey: '',
     openWeatherMapApiKey: '',
@@ -34,7 +33,12 @@ vi.mock('../core/config', () => ({
       batchSize: 10,
       flushIntervalMs: 30000,
     },
-  })),
+  };
+}
+
+// config モック
+vi.mock('../core/config', () => ({
+  getConfig: vi.fn(() => createMockConfig()),
   saveConfig: vi.fn(),
   getDefaultHeartbeatConfig: vi.fn(() => ({
     enabled: false,
@@ -188,8 +192,10 @@ function removeStorage() {
 }
 
 describe('SettingsModal', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { getConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockImplementation(() => createMockConfig());
     // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false,
@@ -216,6 +222,58 @@ describe('SettingsModal', () => {
     const openaiInput = screen.getByPlaceholderText('sk-...');
     await userEvent.type(openaiInput, 'sk-test-key');
     expect(openaiInput).toHaveValue('sk-test-key');
+  });
+
+  it('保存済み API キーは再入力しなくても保持される', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      openaiApiKey: 'sk-existing',
+      braveApiKey: 'BSA-existing',
+      openWeatherMapApiKey: 'owm-existing',
+    });
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    expect(screen.getAllByText('保存済み。変更しない場合は再入力不要です。').length).toBeGreaterThan(0);
+    expect(screen.getAllByPlaceholderText('保存済み（変更する場合のみ入力）').length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByText('保存'));
+
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      openaiApiKey: 'sk-existing',
+      braveApiKey: 'BSA-existing',
+      openWeatherMapApiKey: 'owm-existing',
+    }));
+  });
+
+  it('API キーを更新すると trim して保存される', async () => {
+    const { saveConfig } = await import('../core/config');
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const openaiInput = screen.getByPlaceholderText('sk-...');
+    await userEvent.type(openaiInput, '  sk-new-key  ');
+    await userEvent.click(screen.getByText('保存'));
+
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      openaiApiKey: 'sk-new-key',
+    }));
+  });
+
+  it('保存済み API キーを削除して保存できる', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      openaiApiKey: 'sk-existing',
+    });
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '保存済みキーを削除' }));
+    expect(screen.getByText('保存時に削除されます。')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      openaiApiKey: '',
+    }));
   });
 
   it('保存ボタンで saveConfig と onClose が呼ばれる', async () => {
