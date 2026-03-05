@@ -247,6 +247,8 @@ export async function updateMemory(id: string, patch: UpdateMemoryInput): Promis
       const merged: Memory = {
         ...duplicate,
         updatedAt: now,
+        lastAccessedAt: now,
+        accessCount: (duplicate.accessCount ?? 0) + 1,
         importance: Math.max(duplicate.importance, nextImportance),
         tags: [...new Set([...duplicate.tags, ...nextTags])],
       };
@@ -264,6 +266,8 @@ export async function updateMemory(id: string, patch: UpdateMemoryInput): Promis
     importance: nextImportance,
     tags: nextTags,
     updatedAt: now,
+    lastAccessedAt: now,
+    accessCount: (current.accessCount ?? 0) + 1,
     contentHash: nextHash,
   };
   await db.put(STORE_NAME, updated);

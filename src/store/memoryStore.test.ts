@@ -321,6 +321,7 @@ describe('deleteMemory', () => {
 describe('updateMemory', () => {
   it('内容・重要度・タグを更新できる', async () => {
     const memory = await saveMemory('更新前', 'fact', { importance: 2, tags: ['old'] });
+    const beforeUpdate = Date.now();
     const updated = await updateMemory(memory.id, {
       content: '更新後',
       importance: 5,
@@ -332,6 +333,8 @@ describe('updateMemory', () => {
     expect(updated!.importance).toBe(5);
     expect(updated!.tags).toEqual(['new', 'urgent']);
     expect(updated!.contentHash).not.toBe(memory.contentHash);
+    expect(updated!.lastAccessedAt).toBeGreaterThanOrEqual(beforeUpdate);
+    expect(updated!.accessCount).toBe(1);
   });
 
   it('存在しないIDでは null を返す', async () => {
@@ -406,6 +409,23 @@ describe('listMemoryReevaluationCandidates', () => {
     const candidates = await listMemoryReevaluationCandidates();
     expect(candidates.find((m) => m.id === personality.id)).toBeUndefined();
     expect(candidates.find((m) => m.id === routine.id)).toBeUndefined();
+  });
+
+  it('更新直後の記憶は再評価候補から外れる', async () => {
+    const stale = await saveMemory('古いメモリ', 'fact', { importance: 1 });
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const stored = await mockDb.get('memories', stale.id);
+    stored!.lastAccessedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    await mockDb.put('memories', stored!);
+
+    const before = await listMemoryReevaluationCandidates();
+    expect(before.find((m) => m.id === stale.id)).toBeDefined();
+
+    await updateMemory(stale.id, { content: '更新後の古いメモリ' });
+    const after = await listMemoryReevaluationCandidates();
+    expect(after.find((m) => m.id === stale.id)).toBeUndefined();
   });
 });
 
