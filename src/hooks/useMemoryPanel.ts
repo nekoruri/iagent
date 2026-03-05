@@ -1,5 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { listMemories, deleteMemory, listArchivedMemories, restoreArchivedMemory, deleteArchivedMemory } from '../store/memoryStore';
+import {
+  listMemories,
+  deleteMemory,
+  listArchivedMemories,
+  restoreArchivedMemory,
+  deleteArchivedMemory,
+  updateMemory,
+  archiveMemory,
+  listMemoryReevaluationCandidates,
+  type UpdateMemoryInput,
+} from '../store/memoryStore';
 import type { Memory, MemoryCategory, ArchivedMemory } from '../types';
 
 export type MemoryViewTab = 'active' | 'archive';
@@ -8,6 +18,7 @@ export function useMemoryPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [archivedMemories, setArchivedMemories] = useState<ArchivedMemory[]>([]);
+  const [reevaluationCandidates, setReevaluationCandidates] = useState<Memory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<MemoryCategory | undefined>(undefined);
   const [viewTab, setViewTab] = useState<MemoryViewTab>('active');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,9 +28,17 @@ export function useMemoryPanel() {
     const id = ++refreshIdRef.current;
     setIsLoading(true);
     try {
-      const data = await listMemories(category);
+      const [data, candidates] = await Promise.all([
+        listMemories(category),
+        listMemoryReevaluationCandidates(),
+      ]);
       if (id !== refreshIdRef.current) return;
       setMemories(data);
+      if (category) {
+        setReevaluationCandidates(candidates.filter((m) => m.category === category));
+      } else {
+        setReevaluationCandidates(candidates);
+      }
     } finally {
       if (id === refreshIdRef.current) {
         setIsLoading(false);
@@ -34,6 +53,7 @@ export function useMemoryPanel() {
       const data = await listArchivedMemories(category);
       if (id !== refreshIdRef.current) return;
       setArchivedMemories(data);
+      setReevaluationCandidates([]);
     } finally {
       if (id === refreshIdRef.current) {
         setIsLoading(false);
@@ -83,6 +103,16 @@ export function useMemoryPanel() {
     await refresh(selectedCategory);
   }, [refresh, selectedCategory]);
 
+  const handleUpdate = useCallback(async (id: string, patch: UpdateMemoryInput) => {
+    await updateMemory(id, patch);
+    await refresh(selectedCategory);
+  }, [refresh, selectedCategory]);
+
+  const handleArchive = useCallback(async (id: string) => {
+    await archiveMemory(id, 'manual');
+    await refresh(selectedCategory);
+  }, [refresh, selectedCategory]);
+
   const handleRestore = useCallback(async (id: string) => {
     await restoreArchivedMemory(id);
     await refreshArchive(selectedCategory);
@@ -99,8 +129,8 @@ export function useMemoryPanel() {
   }, [refresh]);
 
   return {
-    isOpen, memories, archivedMemories, selectedCategory, viewTab, isLoading,
+    isOpen, memories, archivedMemories, reevaluationCandidates, selectedCategory, viewTab, isLoading,
     toggle, close, changeCategory, changeViewTab,
-    handleDelete, handleRestore, handleDeleteArchived, refresh,
+    handleDelete, handleUpdate, handleArchive, handleRestore, handleDeleteArchived, refresh,
   };
 }

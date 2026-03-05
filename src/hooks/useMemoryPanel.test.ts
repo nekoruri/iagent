@@ -5,7 +5,12 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { useMemoryPanel } from './useMemoryPanel';
-import { saveMemory, cleanupLowScoredMemories } from '../store/memoryStore';
+import {
+  saveMemory,
+  cleanupLowScoredMemories,
+  listMemories,
+  listArchivedMemories,
+} from '../store/memoryStore';
 import * as memoryStore from '../store/memoryStore';
 
 beforeEach(() => {
@@ -62,6 +67,47 @@ describe('useMemoryPanel', () => {
       await result.current.handleDelete(mem.id);
     });
     expect(result.current.memories).toHaveLength(0);
+  });
+
+  it('handleUpdate でメモリを更新できる', async () => {
+    const mem = await saveMemory('更新前', 'fact', { importance: 2, tags: ['old'] });
+    const { result } = renderHook(() => useMemoryPanel());
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    await act(async () => {
+      await result.current.handleUpdate(mem.id, {
+        content: '更新後',
+        importance: 5,
+        tags: ['new'],
+      });
+    });
+
+    const after = await listMemories();
+    expect(after[0].content).toBe('更新後');
+    expect(after[0].importance).toBe(5);
+    expect(after[0].tags).toEqual(['new']);
+  });
+
+  it('handleArchive でメモリを無効化（アーカイブ）できる', async () => {
+    const mem = await saveMemory('無効化対象', 'other');
+    const { result } = renderHook(() => useMemoryPanel());
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.memories.find((m) => m.id === mem.id)).toBeDefined();
+
+    await act(async () => {
+      await result.current.handleArchive(mem.id);
+    });
+
+    const active = await listMemories();
+    const archived = await listArchivedMemories();
+    expect(active.find((m) => m.id === mem.id)).toBeUndefined();
+    expect(archived.find((m) => m.id === mem.id)).toBeDefined();
   });
 
   it('close でパネルを閉じる', async () => {
@@ -198,5 +244,24 @@ describe('useMemoryPanel', () => {
     });
 
     expect(result.current.archivedMemories).toHaveLength(archiveCount - 1);
+  });
+
+  it('refresh 時に再評価候補が読み込まれる', async () => {
+    const stale = await saveMemory('長期未参照', 'fact', { importance: 1 });
+    await saveMemory('通常メモリ', 'fact', { importance: 4 });
+
+    const { getDB } = await import('../store/__mocks__/db');
+    const db = await getDB();
+    const stored = await db.get('memories', stale.id) as Record<string, unknown>;
+    stored.lastAccessedAt = Date.now() - (20 * 24 * 60 * 60 * 1000);
+    await db.put('memories', stored);
+
+    const { result } = renderHook(() => useMemoryPanel());
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(result.current.reevaluationCandidates.some((m) => m.id === stale.id)).toBe(true);
+    expect(result.current.reevaluationCandidates.every((m) => m.importance <= 2)).toBe(true);
   });
 });

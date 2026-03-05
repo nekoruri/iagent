@@ -210,6 +210,122 @@ export async function deleteMemory(id: string): Promise<boolean> {
   return true;
 }
 
+export interface UpdateMemoryInput {
+  content?: string;
+  importance?: number;
+  tags?: string[];
+}
+
+/** 記憶を編集（内容/重要度/タグ） */
+export async function updateMemory(id: string, patch: UpdateMemoryInput): Promise<Memory | null> {
+  const db = await getDB();
+  const existing = await db.get(STORE_NAME, id);
+  if (!existing) return null;
+
+  const current = normalizeMemory(existing as Memory);
+  const now = Date.now();
+  const hasContent = typeof patch.content === 'string';
+  const nextContent = hasContent ? patch.content!.trim() : current.content;
+  if (!nextContent) return null;
+
+  const nextImportance = typeof patch.importance === 'number'
+    ? Math.max(1, Math.min(5, Math.floor(patch.importance)))
+    : current.importance;
+  const nextTags = Array.isArray(patch.tags)
+    ? [...new Set(patch.tags.map((t) => t.trim()).filter((t) => t.length > 0))]
+    : current.tags;
+
+  const nextHash = hasContent
+    ? await computeContentHash(nextContent)
+    : current.contentHash;
+
+  // 編集後コンテンツが別 ID と重複する場合は統合
+  if (nextHash && nextHash !== current.contentHash) {
+    const all = (await db.getAll(STORE_NAME) as Memory[]).map(normalizeMemory);
+    const duplicate = all.find((m) => m.id !== id && m.contentHash === nextHash);
+    if (duplicate) {
+      const merged: Memory = {
+        ...duplicate,
+        updatedAt: now,
+        importance: Math.max(duplicate.importance, nextImportance),
+        tags: [...new Set([...duplicate.tags, ...nextTags])],
+      };
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      await tx.store.put(merged);
+      await tx.store.delete(id);
+      await tx.done;
+      return merged;
+    }
+  }
+
+  const updated: Memory = {
+    ...current,
+    content: nextContent,
+    importance: nextImportance,
+    tags: nextTags,
+    updatedAt: now,
+    contentHash: nextHash,
+  };
+  await db.put(STORE_NAME, updated);
+  return updated;
+}
+
+/** 記憶を手動で無効化（アーカイブへ移動） */
+export async function archiveMemory(
+  id: string,
+  reason: ArchivedMemory['archiveReason'] = 'manual',
+): Promise<boolean> {
+  const db = await getDB();
+  const existing = await db.get(STORE_NAME, id);
+  if (!existing) return false;
+  const memory = normalizeMemory(existing as Memory);
+  const now = Date.now();
+  const archived: ArchivedMemory = {
+    ...memory,
+    archivedAt: now,
+    archiveReason: reason,
+  };
+  const tx = db.transaction([STORE_NAME, ARCHIVE_STORE_NAME], 'readwrite');
+  await tx.objectStore(ARCHIVE_STORE_NAME).put(archived);
+  await tx.objectStore(STORE_NAME).delete(id);
+  await tx.done;
+  return true;
+}
+
+export interface ReevaluateCandidateOptions {
+  minStaleDays?: number;
+  maxImportance?: number;
+  limit?: number;
+}
+
+/** 長期間未参照かつ低重要度の記憶を再評価候補として抽出 */
+export async function listMemoryReevaluationCandidates(
+  options?: ReevaluateCandidateOptions,
+): Promise<Memory[]> {
+  const minStaleDays = Math.max(1, Math.floor(options?.minStaleDays ?? 14));
+  const maxImportance = Math.max(1, Math.min(5, Math.floor(options?.maxImportance ?? 2)));
+  const limit = Math.max(1, Math.min(100, Math.floor(options?.limit ?? 20)));
+  const staleMs = minStaleDays * DAY_MS;
+  const now = Date.now();
+
+  const all = await listMemories();
+  const candidates = all.filter((m) => {
+    if (m.category === 'personality' || m.category === 'routine') return false;
+    if (m.importance > maxImportance) return false;
+    return now - m.lastAccessedAt >= staleMs;
+  });
+
+  return candidates
+    .sort((a, b) => {
+      const staleA = now - a.lastAccessedAt;
+      const staleB = now - b.lastAccessedAt;
+      if (staleA !== staleB) return staleB - staleA;
+      if (a.importance !== b.importance) return a.importance - b.importance;
+      return a.updatedAt - b.updatedAt;
+    })
+    .slice(0, limit);
+}
+
 export async function getRecentMemories(limit: number = 10): Promise<Memory[]> {
   const all = await listMemories();
   return all.slice(0, limit);

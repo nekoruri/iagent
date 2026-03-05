@@ -295,6 +295,7 @@ export default function App() {
               isOpen={memoryPanel.isOpen}
               memories={memoryPanel.memories}
               archivedMemories={memoryPanel.archivedMemories}
+              reevaluationCandidates={memoryPanel.reevaluationCandidates}
               selectedCategory={memoryPanel.selectedCategory}
               viewTab={memoryPanel.viewTab}
               isLoading={memoryPanel.isLoading}
@@ -303,6 +304,8 @@ export default function App() {
               onChangeCategory={memoryPanel.changeCategory}
               onChangeViewTab={memoryPanel.changeViewTab}
               onDelete={memoryPanel.handleDelete}
+              onUpdate={memoryPanel.handleUpdate}
+              onArchive={memoryPanel.handleArchive}
               onRestore={memoryPanel.handleRestore}
               onDeleteArchived={memoryPanel.handleDeleteArchived}
             />
