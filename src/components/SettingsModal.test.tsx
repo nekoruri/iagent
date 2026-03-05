@@ -383,6 +383,61 @@ describe('SettingsModal', () => {
     }));
   });
 
+  it('不正なペルソナプリセットJSONをインポートした場合はエラー表示して既存設定を保持する', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      persona: {
+        name: 'Current Agent',
+        personality: '既存',
+        tone: '既存',
+        customInstructions: '既存',
+      },
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        tasks: [
+          { id: 'calendar-check', name: 'カレンダー', description: '', enabled: false, type: 'builtin' },
+          { id: 'feed-check', name: 'フィード', description: '', enabled: true, type: 'builtin' },
+        ],
+      },
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const invalidJson = JSON.stringify({
+      format: 'wrong-format',
+      version: 1,
+      persona: {
+        name: 'Imported Agent',
+        personality: '分析重視',
+        tone: 'フォーマル',
+        customInstructions: '根拠を示す',
+      },
+    });
+
+    const file = new File([invalidJson], 'invalid-persona-preset.json', { type: 'application/json' });
+    const input = screen.getByTestId('persona-preset-import-input') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(await screen.findByText(/format が不正/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      persona: expect.objectContaining({
+        name: 'Current Agent',
+        personality: '既存',
+        tone: '既存',
+        customInstructions: '既存',
+      }),
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({ id: 'calendar-check', enabled: false }),
+          expect.objectContaining({ id: 'feed-check', enabled: true }),
+        ]),
+      }),
+    }));
+  });
+
   it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
     const { getConfig, saveConfig } = await import('../core/config');
     const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');
