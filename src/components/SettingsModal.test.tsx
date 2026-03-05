@@ -136,6 +136,15 @@ vi.mock('../core/notifier', () => ({
   requestNotificationPermission: vi.fn(async () => 'granted'),
 }));
 
+// pushSubscription モック
+vi.mock('../core/pushSubscription', () => ({
+  subscribePush: vi.fn(async () => ({})),
+  unsubscribePush: vi.fn(async () => {}),
+  getPushSubscription: vi.fn(async () => null),
+  registerPeriodicSync: vi.fn(async () => true),
+  unregisterPeriodicSync: vi.fn(async () => {}),
+}));
+
 // data portability モック
 vi.mock('../core/dataPortability', () => ({
   exportDataPortability: vi.fn(async () => ({
@@ -195,7 +204,9 @@ describe('SettingsModal', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const { getConfig } = await import('../core/config');
+    const { getPushSubscription } = await import('../core/pushSubscription');
     vi.mocked(getConfig).mockImplementation(() => createMockConfig());
+    vi.mocked(getPushSubscription).mockResolvedValue(null);
     // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false,
@@ -278,6 +289,9 @@ describe('SettingsModal', () => {
 
   it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
     const { getConfig, saveConfig } = await import('../core/config');
+    const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');
+    const fakeSubscription = {} as PushSubscription;
+    vi.mocked(getPushSubscription).mockResolvedValue(fakeSubscription);
     vi.mocked(getConfig).mockReturnValue({
       ...createMockConfig(),
       mcpServers: [
@@ -299,6 +313,10 @@ describe('SettingsModal', () => {
         authToken: 'token',
         allowedDomains: ['example.com'],
       },
+      push: {
+        enabled: true,
+        serverUrl: 'https://push.example',
+      },
       webSpeech: {
         sttEnabled: true,
         ttsEnabled: true,
@@ -310,6 +328,10 @@ describe('SettingsModal', () => {
     render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: '最小権限プリセットを適用' }));
+    await waitFor(() => {
+      expect(unsubscribePush).toHaveBeenCalledWith('https://push.example');
+      expect(unregisterPeriodicSync).toHaveBeenCalled();
+    });
     expect(screen.getByText(/最小権限プリセットを適用しました/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByText('保存'));
@@ -323,6 +345,10 @@ describe('SettingsModal', () => {
       }),
       proxy: expect.objectContaining({
         enabled: false,
+      }),
+      push: expect.objectContaining({
+        enabled: false,
+        serverUrl: 'https://push.example',
       }),
       webSpeech: expect.objectContaining({
         sttEnabled: false,

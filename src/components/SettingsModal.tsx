@@ -557,7 +557,7 @@ export function SettingsModal({ open, onClose }: Props) {
     return '未設定。必要な場合のみ入力してください。';
   };
 
-  const handleApplyLeastPrivilegePreset = () => {
+  const handleApplyLeastPrivilegePreset = async () => {
     const nextHeartbeat = {
       ...heartbeat,
       enabled: false,
@@ -583,19 +583,47 @@ export function SettingsModal({ open, onClose }: Props) {
       + Number(webSpeech.ttsEnabled)
       + Number(webSpeech.ttsAutoRead)
       + Number(proxy.enabled)
+      + Number(push.enabled)
       + disabledMcpCount;
+    let pushCleanupError = '';
+
+    const activeSubscription = await getPushSubscription();
+    if (push.enabled || hasPushSubscription || !!activeSubscription) {
+      setPushStatus('unsubscribing');
+      setPushError('');
+      try {
+        if (activeSubscription) {
+          if (push.serverUrl) {
+            await unsubscribePush(push.serverUrl);
+          } else {
+            await activeSubscription.unsubscribe();
+          }
+        }
+        await unregisterPeriodicSync();
+        setHasPushSubscription(false);
+        setPushStatus('idle');
+      } catch (error) {
+        pushCleanupError = error instanceof Error ? error.message : String(error);
+        setPushError(pushCleanupError);
+        setPushStatus('error');
+      }
+    }
 
     setConfig((prev) => ({
       ...prev,
       heartbeat: nextHeartbeat,
       webSpeech: nextWebSpeech,
       proxy: nextProxy,
+      push: { ...(prev.push ?? { enabled: false, serverUrl: '' }), enabled: false },
       mcpServers: nextMcpServers,
     }));
+    const baseMessage = changedCount === 0
+      ? '既に最小権限設定です。'
+      : `最小権限プリセットを適用しました（${changedCount}項目を変更）。`;
     setSecurityPresetMessage(
-      changedCount === 0
-        ? '既に最小権限設定です。'
-        : `最小権限プリセットを適用しました（${changedCount}項目を変更）。`,
+      pushCleanupError
+        ? `${baseMessage} Push 購読の解除に失敗しました。Heartbeat セクションで再度 OFF を実行してください。`
+        : baseMessage,
     );
   };
 
@@ -888,7 +916,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 </button>
                 {securityPresetMessage && <p className="mcp-hint">{securityPresetMessage}</p>}
                 <p className="mcp-hint">
-                  Push 購読の解除は別途「Heartbeat」セクションで Push トグルを OFF にしてください。
+                  Push 購読が存在する場合、プリセット適用時に自動解除します（失敗時は Heartbeat セクションで再実行）。
                 </p>
               </div>
             </div>
