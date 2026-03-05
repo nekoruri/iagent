@@ -14,6 +14,7 @@ import { isSpeechRecognitionSupported, isSpeechSynthesisSupported } from '../cor
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
+import { loadActionLog, type ActionLogEntry } from '../store/heartbeatStore';
 import { registerProxyToken } from '../core/corsProxy';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
@@ -214,6 +215,21 @@ function mergeMcpPresetServers(
   return { nextServers, added, skipped };
 }
 
+function formatActionTypeLabel(type: string): string {
+  switch (type) {
+    case 'toggle-task':
+      return 'タスク切替';
+    case 'update-task-interval':
+      return '間隔変更';
+    case 'update-quiet-hours':
+      return '静寂時間';
+    case 'update-quiet-days':
+      return '静寂曜日';
+    default:
+      return type;
+  }
+}
+
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: 'ダーク' },
   { value: 'light', label: 'ライト' },
@@ -241,6 +257,9 @@ export function SettingsModal({ open, onClose }: Props) {
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [mcpPresetMessage, setMcpPresetMessage] = useState('');
   const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
+  const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
+  const [actionLogError, setActionLogError] = useState('');
+  const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
   const [portabilityStatus, setPortabilityStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
   const [portabilityMessage, setPortabilityMessage] = useState('');
   const [needsReloadAfterImport, setNeedsReloadAfterImport] = useState(false);
@@ -294,6 +313,25 @@ export function SettingsModal({ open, onClose }: Props) {
     if (!open) return;
     mcpManager.getAvailableTools().then(setMcpToolsList).catch(() => setMcpToolsList([]));
   }, [open]);
+
+  const loadActionLogEntries = useCallback(async () => {
+    try {
+      const entries = await loadActionLog();
+      setActionLogEntries([...entries].sort((a, b) => b.timestamp - a.timestamp));
+      setActionLogError('');
+    } catch {
+      setActionLogError('自動実行ログの読み込みに失敗しました。');
+      setActionLogEntries([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const refreshId = window.setTimeout(() => {
+      void loadActionLogEntries();
+    }, 0);
+    return () => window.clearTimeout(refreshId);
+  }, [open, loadActionLogEntries]);
 
   // ストレージ情報を取得
   useEffect(() => {
@@ -533,6 +571,12 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const handlePickImportFile = () => {
     importFileInputRef.current?.click();
+  };
+
+  const handleRefreshActionLog = async () => {
+    setActionLogRefreshing(true);
+    await loadActionLogEntries();
+    setActionLogRefreshing(false);
   };
 
   const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -999,6 +1043,40 @@ export function SettingsModal({ open, onClose }: Props) {
                 <p className="mcp-hint">
                   予算が逼迫すると、出力トークンを縮退し、必要に応じて低優先タスクを次回に回します。
                 </p>
+              </div>
+
+              <div className="hb-action-log-section">
+                <div className="hb-action-log-header">
+                  <h4>自動実行ログ（Action Planning）</h4>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={handleRefreshActionLog}
+                    disabled={actionLogRefreshing}
+                  >
+                    {actionLogRefreshing ? '更新中...' : '再読み込み'}
+                  </button>
+                </div>
+                <p className="mcp-hint">
+                  いつ、何を、なぜ変更したかを確認できます（最新20件を表示）。
+                </p>
+                {actionLogError && <p className="mcp-error-text">{actionLogError}</p>}
+                {actionLogEntries.length === 0 ? (
+                  <p className="mcp-hint">ログはまだありません。</p>
+                ) : (
+                  <div className="hb-action-log-list">
+                    {actionLogEntries.slice(0, 20).map((entry) => (
+                      <div key={`${entry.timestamp}-${entry.type}-${entry.reason}`} className="hb-action-log-item">
+                        <div className="hb-action-log-meta">
+                          <span className="mcp-status mcp-status-disconnected">{formatActionTypeLabel(entry.type)}</span>
+                          <span className="hb-action-log-time">{new Date(entry.timestamp).toLocaleString()}</span>
+                        </div>
+                        <p className="hb-action-log-reason">{entry.reason}</p>
+                        <p className="hb-action-log-detail">{entry.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Push 通知設定（Layer 3） */}

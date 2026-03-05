@@ -235,6 +235,7 @@ RSS フィード取得と Web 監視で利用します。
    - quiet hours / quiet days を設定
    - 日次通知上限を設定
    - focus mode を使用
+4. 自動設定変更の履歴を確認したい場合は、設定の Heartbeat セクションで `自動実行ログ（Action Planning）` を開く
 
 ### 7.3 情報収集運用（RSS/監視）
 
@@ -253,6 +254,7 @@ RSS フィード取得と Web 監視で利用します。
 | RSS取得/監視が失敗する | CORSプロキシ未設定 or 無効 | Proxy セクションで URL/トークン設定・有効化 |
 | Push が登録できない | サーバーURL不正 / サーバー未構築 | URL確認、[OPERATIONS.md](OPERATIONS.md) でサーバー準備 |
 | 通知が来ない | 通知権限 denied / focus mode ON / OS 側通知 OFF | ブラウザの通知権限を許可 → 設定画面で `権限を再確認` 実行、focus mode を解除、OS 通知設定を確認 |
+| 自動で設定が変わった理由が分からない | Action Planning の適用履歴が未確認 | 設定画面 → Heartbeat → `自動実行ログ（Action Planning）` で reason/detail と時刻を確認し、必要なら `再読み込み` |
 | MCP 接続がエラー | URL不正/CORS/サーバー停止 | MCP URL見直し、MCPサーバー側設定確認 |
 
 ## 9. データ保存仕様と上限
