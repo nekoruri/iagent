@@ -8,6 +8,7 @@
 - 2026-03-05: 項目 1, 2, 4 を運用ドキュメントとして具体化（`POC-KPI.md`, `POC-USER-VALIDATION.md`, `POC-SLO.md`）
 - 2026-03-05: 初回レビューと運用導線を追加（`weekly/2026-W10.md`, `POC-METRICS-COLLECTION.md`）
 - 2026-03-05: baseline/インタビューの実体ファイルを作成（`weekly/2026-W10-baseline.md`, `weekly/interviews/*`）
+- 2026-03-05: 項目 5 の実装着手（通知権限の状態別ガイド、権限再確認ボタン、定期再チェックを `SettingsModal` に追加）
 
 ---
 

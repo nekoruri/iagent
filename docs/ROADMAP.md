@@ -153,7 +153,7 @@
 - [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
 - [ ] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
 - [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（→ フェーズ 3 スマートフォン対応強化に統合）
-- [ ] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
+- [x] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
 - [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
 
 ---
@@ -342,3 +342,4 @@
 - [x] オフラインフォールバック UI — useOnlineStatus フック（navigator.onLine + online/offline イベント）、OfflineBanner コンポーネント（role="alert" + WiFi オフ SVG）、ChatView/InputBar オフライン時送信無効化 + placeholder 変更 + サジェストボタン disabled、SW NavigationRoute（オフライン時 index.html フォールバック）。テスト 1051→1061 件。（2026-03-04）
 - [x] ファイル添付・画像認識（マルチモーダル対応）— Attachment/PendingAttachment 型定義、attachmentStore（IndexedDB attachments ストア、DB_VERSION 10→11）、fileUtils（fileToDataUri/generateThumbnail/validateFile）、InputBar 拡張（クリップアイコン + ファイル選択 + ペーストハンドラ + カメラ capture + プレビュー UI）、useAgentChat 拡張（sendMessage に PendingAttachment[] 対応 + OpenAI Agents SDK UserContent[] 変換: input_image/input_file）、MessageBubble 添付表示（サムネイル + フルサイズ表示 + ファイルアイコン）、ChatView 添付遅延ロード、会話削除時 attachments クリーンアップ。テスト 1061→1096 件。（2026-03-04）
 - [x] 音声入出力（Web Speech API）— WebSpeechConfig 型 + config デフォルト/パース、speechService（STT/TTS ユーティリティ: API 検出/SpeechRecognition 生成/SpeechSynthesisUtterance 生成/cancelSpeech/stripMarkdown）、useSpeechInput フック（continuous:false + interimResults + マイク権限エラー処理）、useSpeechOutput フック（Markdown 除去 TTS + voiceschanged 対応）、InputBar マイクボタン（パルスアニメーション + 中間認識テキスト placeholder）、MessageBubble TTS ボタン（ホバー表示 + 再生/停止切替）、App.tsx 自動読み上げ（ストリーミング完了トリガー）、SettingsModal 音声設定セクション（STT/TTS トグル + 自動読み上げ + 速度スライダー + 言語選択）。テスト 1107→1154 件。（2026-03-04）
+- [x] 通知パーミッション回復導線（PoC-5）— SettingsModal に通知権限ステータス表示（`default/denied/granted/unsupported`）、状態別の回復ガイド、`権限を再確認` アクション、30 秒ごとの権限再チェック（visibility/focus 追従）を追加。Push 有効化は通知権限 `granted` 時のみ可能にし、誤設定を防止。`SettingsModal` テストを 4 ケース追加。（2026-03-05）

@@ -399,4 +399,54 @@ describe('SettingsModal', () => {
       expect(screen.queryByText(/iOS で Push 通知を受け取るには/)).not.toBeInTheDocument();
     });
   });
+
+  describe('通知権限回復導線', () => {
+    it('default の場合は未設定ガイドが表示され、Push 有効化は無効化される', () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.getByText('通知権限: 未設定')).toBeInTheDocument();
+      expect(screen.getByText(/通知権限は未設定です/)).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Push 通知を有効化' })).toBeDisabled();
+    });
+
+    it('denied の場合はブロック状態を表示し、デスクトップ通知トグルを無効化する', async () => {
+      const { getNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getNotificationPermission).mockReturnValue('denied');
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'デスクトップ通知' })).toBeDisabled();
+    });
+
+    it('権限を再確認ボタンで状態表示を更新できる', async () => {
+      const { getNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getNotificationPermission)
+        .mockReturnValueOnce('default')
+        .mockReturnValueOnce('default')
+        .mockReturnValue('granted');
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      expect(screen.getByText('通知権限: 未設定')).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: '権限を再確認' }));
+
+      expect(screen.getByText('通知権限: 許可済み')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Push 通知を有効化' })).toBeEnabled();
+    });
+
+    it('通知許可が denied の場合、デスクトップ通知は ON にならない', async () => {
+      const { requestNotificationPermission } = await import('../core/notifier');
+      vi.mocked(requestNotificationPermission).mockResolvedValue('denied');
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      const desktopToggle = screen.getByRole('checkbox', { name: 'デスクトップ通知' });
+      await userEvent.click(desktopToggle);
+
+      expect(requestNotificationPermission).toHaveBeenCalled();
+      expect(desktopToggle).not.toBeChecked();
+      expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
+    });
+  });
 });
