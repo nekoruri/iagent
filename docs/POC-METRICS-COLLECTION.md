@@ -112,6 +112,7 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 - `オンボーディング完了率（7日）`
 - `セットアップ完了時間中央値（7日）`
 - `推奨プリセット採用率（完了セッション, 7日）`
+- `オンボーディング完了後24hアクティブ率（7日）`
 - `KPI 判定`
 - `Heartbeat 実行成功率（24h平均）`
 - `Push wake 実行成功率（24h平均）`
@@ -291,12 +292,14 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
   - `onboardingCompletionRate`
   - `onboardingMedianCompletionSec`
   - `onboardingRecommendedRate`
+  - `onboardingActiveWithin24hRate`
 
 解釈の目安（PoC 運用）:
 
 - 完了率が下がる場合は、Wizard ステップ内容の簡素化を優先
 - 中央値が伸びる場合は、入力必須項目や説明文の見直しを優先
 - 推奨プリセット採用率が低い場合は、プリセット文言や導線位置を見直す
+- 完了後24hアクティブ率が低い場合は、完了直後の初回提案導線（何をすれば価値が出るか）を見直す
 
 ---
 

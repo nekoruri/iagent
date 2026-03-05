@@ -53,9 +53,12 @@
 - onboardingMedianCompletionSec: n/a
 - onboardingRecommendedCompletions: 0
 - onboardingRecommendedRate: 0.0% (0.0000)
+- onboardingActiveWithin24h: 0
+- onboardingActiveWithin24hRate: 0.0% (0.0000)
 - onboardingCompletionStatus: NoData
 - onboardingRecommendedStatus: NoData
 - onboardingMedianStatus: NoData
+- onboardingActiveWithin24hStatus: NoData
 - onboardingOverallStatus: NoData
 
 ---

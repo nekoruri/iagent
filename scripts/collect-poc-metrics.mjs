@@ -281,6 +281,7 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
     ? `- セットアップ完了時間中央値（7日）: ${(result.kpi.onboarding.medianCompletionMs / 1000).toFixed(1)}s（sample=${result.kpi.onboarding.completedSessions}）`
     : `- セットアップ完了時間中央値（7日）: n/a（sample=${result.kpi.onboarding.completedSessions}）`;
   const onboardingRecommendedLine = `- 推奨プリセット採用率（完了セッション, 7日）: ${toPercent(result.kpi.onboarding.recommendedRate)}（recommendedCompleted=${result.kpi.onboarding.completedWithRecommended}, completed=${result.kpi.onboarding.completedSessions}）`;
+  const onboardingActive24hLine = `- オンボーディング完了後24hアクティブ率（7日）: ${toPercent(result.kpi.onboarding.activeWithin24hRate)}（active=${result.kpi.onboarding.activeWithin24h}, completed=${result.kpi.onboarding.completedSessions}）`;
   const kpiStatusLine = `- KPI 判定: Accept=${result.assessment.kpi.acceptRate}, Active=${result.assessment.kpi.activeRate}, Revisit=${result.assessment.kpi.revisitRate}, Overall=${result.assessment.kpi.overall}`;
   const sloHeartbeatLine = `- Heartbeat 実行成功率（24h平均）: ${toPercent(result.slo24h.heartbeatRunSuccess.rate)}（attempts=${result.slo24h.heartbeatRunSuccess.attempts}）`;
   const sloPushLine = `- Push wake 実行成功率（24h平均）: ${toPercent(result.slo24h.pushWakeSuccess.rate)}（attempts=${result.slo24h.pushWakeSuccess.attempts}）`;
@@ -297,6 +298,7 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   next = lineReplace(next, /^- オンボーディング完了率（7日）:.*$/m, onboardingCompletionLine);
   next = lineReplace(next, /^- セットアップ完了時間中央値（7日）:.*$/m, onboardingMedianLine);
   next = lineReplace(next, /^- 推奨プリセット採用率（完了セッション, 7日）:.*$/m, onboardingRecommendedLine);
+  next = lineReplace(next, /^- オンボーディング完了後24hアクティブ率（7日）:.*$/m, onboardingActive24hLine);
   next = lineReplace(next, /^- KPI 判定:.*$/m, kpiStatusLine);
   next = lineReplace(next, /^- Heartbeat 実行成功率（24h平均）:.*$/m, sloHeartbeatLine);
   next = lineReplace(next, /^- Push wake 実行成功率（24h平均）:.*$/m, sloPushLine);
@@ -350,9 +352,12 @@ async function updateBaselineFile(filePath, result, collectedAtTs, userDataDir) 
   );
   next = lineReplace(next, /^- onboardingRecommendedCompletions:.*$/m, `- onboardingRecommendedCompletions: ${result.kpi.onboarding.completedWithRecommended}`);
   next = lineReplace(next, /^- onboardingRecommendedRate:.*$/m, `- onboardingRecommendedRate: ${toPercent(result.kpi.onboarding.recommendedRate)} (${result.kpi.onboarding.recommendedRate.toFixed(4)})`);
+  next = lineReplace(next, /^- onboardingActiveWithin24h:.*$/m, `- onboardingActiveWithin24h: ${result.kpi.onboarding.activeWithin24h}`);
+  next = lineReplace(next, /^- onboardingActiveWithin24hRate:.*$/m, `- onboardingActiveWithin24hRate: ${toPercent(result.kpi.onboarding.activeWithin24hRate)} (${result.kpi.onboarding.activeWithin24hRate.toFixed(4)})`);
   next = lineReplace(next, /^- onboardingCompletionStatus:.*$/m, `- onboardingCompletionStatus: ${result.assessment.onboarding.completionRate}`);
   next = lineReplace(next, /^- onboardingRecommendedStatus:.*$/m, `- onboardingRecommendedStatus: ${result.assessment.onboarding.recommendedRate}`);
   next = lineReplace(next, /^- onboardingMedianStatus:.*$/m, `- onboardingMedianStatus: ${result.assessment.onboarding.medianCompletion}`);
+  next = lineReplace(next, /^- onboardingActiveWithin24hStatus:.*$/m, `- onboardingActiveWithin24hStatus: ${result.assessment.onboarding.activeWithin24h}`);
   next = lineReplace(next, /^- onboardingOverallStatus:.*$/m, `- onboardingOverallStatus: ${result.assessment.onboarding.overall}`);
   next = lineReplace(next, /^- shownByChannel:.*$/m, `- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
   next = lineReplace(next, /^- clickedByChannel:.*$/m, `- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
@@ -659,6 +664,29 @@ async function main() {
               return sorted[mid];
             })()
           : null;
+        const activityTimestamps = [];
+        for (const msg of conversations) {
+          if (msg?.role !== 'user' || typeof msg?.timestamp !== 'number') continue;
+          activityTimestamps.push(msg.timestamp);
+        }
+        for (const feedback of feedbackByResult.values()) {
+          if (typeof feedback?.feedbackTimestamp === 'number') {
+            activityTimestamps.push(feedback.feedbackTimestamp);
+          }
+        }
+        activityTimestamps.sort((a, b) => a - b);
+        const onboardingCompletedAt = onboardingSessions
+          .map((s) => (Number.isFinite(s.completedAt) ? s.completedAt : null))
+          .filter((ts) => typeof ts === 'number');
+        let onboardingActiveWithin24h = 0;
+        for (const completedAt of onboardingCompletedAt) {
+          const cutoff24h = completedAt + dayMs;
+          const hasActivity = activityTimestamps.some((ts) => ts >= completedAt && ts <= cutoff24h);
+          if (hasActivity) onboardingActiveWithin24h++;
+        }
+        const onboardingActiveWithin24hRate = onboardingCompletedAt.length > 0
+          ? onboardingActiveWithin24h / onboardingCompletedAt.length
+          : 0;
 
         const sloEvents = Array.isArray(opsEvents)
           ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= sloCutoff && e?.type === 'heartbeat-run')
@@ -721,6 +749,8 @@ async function main() {
               medianCompletionMs: onboardingMedianCompletionMs,
               completedWithRecommended: onboardingCompletedWithRecommended,
               recommendedRate: onboardingRecommendedRate,
+              activeWithin24h: onboardingActiveWithin24h,
+              activeWithin24hRate: onboardingActiveWithin24hRate,
             },
           },
           slo24h: {
@@ -791,11 +821,17 @@ async function main() {
         result.kpi.onboarding.completedSessions,
         { targetMs: 180_000, alertMs: 300_000 },
       ),
+      activeWithin24h: classifySloSuccessRate(
+        result.kpi.onboarding.activeWithin24hRate,
+        result.kpi.onboarding.completedSessions,
+        { target: 0.6, alert: 0.4 },
+      ),
     };
     assessment.onboarding.overall = worstStatus([
       assessment.onboarding.completionRate,
       assessment.onboarding.recommendedRate,
       assessment.onboarding.medianCompletion,
+      assessment.onboarding.activeWithin24h,
     ]);
     assessment.kpi.overall = worstStatus([
       assessment.kpi.acceptRate,
@@ -843,9 +879,12 @@ async function main() {
     }
     console.log(`- onboardingRecommendedCompletions: ${result.kpi.onboarding.completedWithRecommended}`);
     console.log(`- onboardingRecommendedRate: ${toPercent(result.kpi.onboarding.recommendedRate)} (${result.kpi.onboarding.recommendedRate.toFixed(4)})`);
+    console.log(`- onboardingActiveWithin24h: ${result.kpi.onboarding.activeWithin24h}`);
+    console.log(`- onboardingActiveWithin24hRate: ${toPercent(result.kpi.onboarding.activeWithin24hRate)} (${result.kpi.onboarding.activeWithin24hRate.toFixed(4)})`);
     console.log(`- onboardingCompletionStatus: ${result.assessment.onboarding.completionRate}`);
     console.log(`- onboardingRecommendedStatus: ${result.assessment.onboarding.recommendedRate}`);
     console.log(`- onboardingMedianStatus: ${result.assessment.onboarding.medianCompletion}`);
+    console.log(`- onboardingActiveWithin24hStatus: ${result.assessment.onboarding.activeWithin24h}`);
     console.log(`- onboardingOverallStatus: ${result.assessment.onboarding.overall}`);
     console.log(`- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
     console.log(`- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
