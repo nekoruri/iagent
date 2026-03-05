@@ -642,10 +642,10 @@ async function main() {
           (s) => Number.isFinite(s.completedAt) && s.completedWithRecommended,
         ).length;
         const onboardingCompletionRate = onboardingStartedSessions > 0
-          ? onboardingCompletedSessions / onboardingStartedSessions
+          ? Math.min(1, onboardingCompletedSessions / onboardingStartedSessions)
           : 0;
         const onboardingRecommendedRate = onboardingCompletedSessions > 0
-          ? onboardingCompletedWithRecommended / onboardingCompletedSessions
+          ? Math.min(1, onboardingCompletedWithRecommended / onboardingCompletedSessions)
           : 0;
         const onboardingCompletionDurationsMs = onboardingSessions
           .map((s) => {
@@ -685,7 +685,7 @@ async function main() {
           if (hasActivity) onboardingActiveWithin24h++;
         }
         const onboardingActiveWithin24hRate = onboardingCompletedAt.length > 0
-          ? onboardingActiveWithin24h / onboardingCompletedAt.length
+          ? Math.min(1, onboardingActiveWithin24h / onboardingCompletedAt.length)
           : 0;
 
         const sloEvents = Array.isArray(opsEvents)
