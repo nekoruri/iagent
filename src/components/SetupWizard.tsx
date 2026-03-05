@@ -23,7 +23,7 @@ const PERSONA_PRESETS: PersonaPreset[] = [
     personality: '情報の変化に敏感で、重要度順に要点を整理して伝える。',
     tone: '結論先行で簡潔に。',
     suggestionFrequency: 'high',
-    recommendedTaskIds: ['calendar-check', 'feed-check', 'web-monitor-check', 'briefing-morning'],
+    recommendedTaskIds: ['calendar-check', 'feed-check', 'rss-digest-daily', 'web-monitor-check', 'briefing-morning'],
   },
   {
     label: 'PM型',

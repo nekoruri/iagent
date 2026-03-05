@@ -18,6 +18,7 @@ vi.mock('../core/config', () => ({
       tasks: [
         { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
         { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+        { id: 'rss-digest-daily', name: 'RSSダイジェスト', description: '', enabled: false, type: 'builtin' },
         { id: 'web-monitor-check', name: '監視', description: '', enabled: false, type: 'builtin' },
         { id: 'briefing-morning', name: '朝ブリ', description: '', enabled: false, type: 'builtin' },
         { id: 'weekly-summary', name: '週次', description: '', enabled: false, type: 'builtin' },
@@ -51,6 +52,7 @@ vi.mock('../core/config', () => ({
     tasks: [
       { id: 'calendar-check', name: 'カレンダー', description: '', enabled: true, type: 'builtin' },
       { id: 'feed-check', name: 'フィード', description: '', enabled: false, type: 'builtin' },
+      { id: 'rss-digest-daily', name: 'RSSダイジェスト', description: '', enabled: false, type: 'builtin' },
       { id: 'web-monitor-check', name: '監視', description: '', enabled: false, type: 'builtin' },
       { id: 'briefing-morning', name: '朝ブリ', description: '', enabled: false, type: 'builtin' },
       { id: 'weekly-summary', name: '週次', description: '', enabled: false, type: 'builtin' },
@@ -246,6 +248,7 @@ describe('SetupWizard', () => {
         tasks: expect.arrayContaining([
           expect.objectContaining({ id: 'calendar-check', enabled: true }),
           expect.objectContaining({ id: 'feed-check', enabled: true }),
+          expect.objectContaining({ id: 'rss-digest-daily', enabled: true }),
           expect.objectContaining({ id: 'web-monitor-check', enabled: true }),
           expect.objectContaining({ id: 'briefing-morning', enabled: true }),
           expect.objectContaining({ id: 'weekly-summary', enabled: false }),
@@ -272,7 +275,7 @@ describe('SetupWizard', () => {
       presetLabel: '情報収集型',
       presetRecommended: true,
       suggestionFrequency: 'high',
-      enabledTaskCount: 4,
+      enabledTaskCount: 5,
     }));
   });
 
