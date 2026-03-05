@@ -4,6 +4,16 @@ import {
   SUPPORTED_IMAGE_TYPES,
   ALLOWED_MIME_TYPES,
 } from '../types/attachment';
+import type { ThumbnailWorkerCommand, ThumbnailWorkerEvent } from '../workers/thumbnailWorkerProtocol';
+
+const THUMBNAIL_WORKER_TIMEOUT_MS = 10_000;
+let thumbnailWorker: Worker | null = null;
+let thumbnailWorkerRequestId = 0;
+const thumbnailWorkerPending = new Map<number, {
+  resolve: (value: string) => void;
+  reject: (reason?: unknown) => void;
+  timer: ReturnType<typeof setTimeout>;
+}>();
 
 /** MIME タイプが画像かどうか判定 */
 export function isImageMimeType(mimeType: string): boolean {
@@ -49,8 +59,86 @@ export function fileToDataUri(file: File): Promise<string> {
   });
 }
 
-/** 画像のサムネイル生成（Canvas リサイズ） */
-export function generateThumbnail(
+function supportsThumbnailWorker(): boolean {
+  return (
+    typeof Worker !== 'undefined' &&
+    typeof OffscreenCanvas !== 'undefined' &&
+    typeof createImageBitmap === 'function'
+  );
+}
+
+function clearThumbnailWorker(): void {
+  if (thumbnailWorkerPending.size > 0) return;
+  if (!thumbnailWorker) return;
+  thumbnailWorker.terminate();
+  thumbnailWorker = null;
+}
+
+function failPendingThumbnailRequest(
+  requestId: number,
+  message: string,
+): void {
+  const pending = thumbnailWorkerPending.get(requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  thumbnailWorkerPending.delete(requestId);
+  pending.reject(new Error(message));
+  clearThumbnailWorker();
+}
+
+function ensureThumbnailWorker(): Worker {
+  if (thumbnailWorker) return thumbnailWorker;
+
+  thumbnailWorker = new Worker(
+    new URL('../workers/thumbnail.worker.ts', import.meta.url),
+    { type: 'module' },
+  );
+  thumbnailWorker.onmessage = (event: MessageEvent<ThumbnailWorkerEvent>) => {
+    const response = event.data;
+    if (response?.type === 'thumbnail-success') {
+      const pending = thumbnailWorkerPending.get(response.requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      thumbnailWorkerPending.delete(response.requestId);
+      pending.resolve(response.thumbnailUri);
+      clearThumbnailWorker();
+      return;
+    }
+    if (response?.type === 'thumbnail-error') {
+      failPendingThumbnailRequest(response.requestId, response.error || 'worker-thumbnail-generate-failed');
+    }
+  };
+  thumbnailWorker.onerror = () => {
+    const pendingIds = [...thumbnailWorkerPending.keys()];
+    for (const requestId of pendingIds) {
+      failPendingThumbnailRequest(requestId, 'worker-thumbnail-error');
+    }
+    clearThumbnailWorker();
+  };
+
+  return thumbnailWorker;
+}
+
+function generateThumbnailViaWorker(dataUri: string, maxSize: number): Promise<string> {
+  const worker = ensureThumbnailWorker();
+  const requestId = ++thumbnailWorkerRequestId;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      failPendingThumbnailRequest(requestId, 'worker-thumbnail-timeout');
+    }, THUMBNAIL_WORKER_TIMEOUT_MS);
+
+    thumbnailWorkerPending.set(requestId, { resolve, reject, timer });
+    const command: ThumbnailWorkerCommand = {
+      type: 'thumbnail-generate',
+      requestId,
+      dataUri,
+      maxSize,
+    };
+    worker.postMessage(command);
+  });
+}
+
+function generateThumbnailOnMainThread(
   dataUri: string,
   maxSize = 200,
 ): Promise<string> {
@@ -103,6 +191,18 @@ export function generateThumbnail(
     };
     img.src = dataUri;
   });
+}
+
+/** 画像のサムネイル生成（Canvas リサイズ） */
+export function generateThumbnail(
+  dataUri: string,
+  maxSize = 200,
+): Promise<string> {
+  if (supportsThumbnailWorker()) {
+    return generateThumbnailViaWorker(dataUri, maxSize)
+      .catch(() => generateThumbnailOnMainThread(dataUri, maxSize));
+  }
+  return generateThumbnailOnMainThread(dataUri, maxSize);
 }
 
 /** ファイル名のサニタイズ（パス区切り除去 + 長さ制限） */

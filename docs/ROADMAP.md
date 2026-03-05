@@ -189,7 +189,7 @@
 - [x] 会話削除時の添付データクリーンアップ
 - [x] data URI → Blob 保存への移行（メモリ最適化）
 - [x] N+1 クエリ解消（`getAttachmentsByMessageIds()` バッチ関数）
-- [ ] Web Worker でサムネイル生成（メインスレッドブロック回避）
+- [x] Web Worker でサムネイル生成（メインスレッドブロック回避）
 
 ### 音声入出力
 - [x] Web Speech API による音声入力（STT）— SpeechRecognition + interimResults + マイクボタン UI
@@ -357,3 +357,4 @@
 - [x] モバイルサイドバーのスワイプ開閉（フェーズ3）— `App.tsx` にモバイル専用タッチジェスチャを追加し、左端から右スワイプで開く・開状態で左スワイプで閉じる動作を実装。縦スクロール誤検知を防ぐ判定を追加し、`App.test.tsx` と `e2e/mobile-drawer.spec.ts` にスワイプ開閉テストを追加。（2026-03-05）
 - [x] 添付取得の N+1 解消（フェーズ3）— `attachmentStore` に `getAttachmentsByMessageIds()` を追加し、`ChatView` の添付遅延ロードをメッセージ単位の逐次取得から一括取得へ変更。`attachmentStore.test.ts` にバッチ取得テスト（複数ID/空配列/重複ID）を追加。（2026-03-05）
 - [x] data URI → Blob 保存移行（フェーズ3）— `attachmentStore` で添付の保存形式を Blob 優先に変更（旧 data URI 形式との互換読み出しを維持）。`dataPortability` の export/import でも Blob 変換を挟み、バックアップ互換を維持。`attachmentStore.test.ts` / `dataPortability.test.ts` に Blob 変換の検証を追加。（2026-03-05）
+- [x] サムネイル生成の Worker 化（フェーズ3）— `thumbnail.worker.ts` を追加し、`fileUtils.generateThumbnail()` で Web Worker 経由のサムネイル生成を実装。`OffscreenCanvas/createImageBitmap` 非対応時や Worker 失敗時は既存のメインスレッド実装へ自動フォールバック。（2026-03-05）
