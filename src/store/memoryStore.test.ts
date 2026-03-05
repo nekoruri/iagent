@@ -8,6 +8,8 @@ import {
   searchMemories,
   listMemories,
   deleteMemory,
+  updateMemory,
+  archiveMemory,
   getRecentMemories,
   getRelevantMemories,
   getMemoriesForBriefing,
@@ -20,6 +22,7 @@ import {
   listArchivedMemories,
   restoreArchivedMemory,
   deleteArchivedMemory,
+  listMemoryReevaluationCandidates,
   HALF_LIFE_MS,
 } from './memoryStore';
 import type { Memory } from '../types';
@@ -312,6 +315,130 @@ describe('deleteMemory', () => {
   it('存在しないIDで false を返す', async () => {
     const result = await deleteMemory('non-existent-id');
     expect(result).toBe(false);
+  });
+});
+
+describe('updateMemory', () => {
+  it('内容・重要度・タグを更新できる', async () => {
+    const memory = await saveMemory('更新前', 'fact', { importance: 2, tags: ['old'] });
+    const beforeUpdate = Date.now();
+    const updated = await updateMemory(memory.id, {
+      content: '更新後',
+      importance: 5,
+      tags: ['new', 'urgent'],
+    });
+
+    expect(updated).toBeDefined();
+    expect(updated!.content).toBe('更新後');
+    expect(updated!.importance).toBe(5);
+    expect(updated!.tags).toEqual(['new', 'urgent']);
+    expect(updated!.contentHash).not.toBe(memory.contentHash);
+    expect(updated!.lastAccessedAt).toBeGreaterThanOrEqual(beforeUpdate);
+    expect(updated!.accessCount).toBe(1);
+  });
+
+  it('存在しないIDでは null を返す', async () => {
+    const updated = await updateMemory('not-found', { content: 'x' });
+    expect(updated).toBeNull();
+  });
+
+  it('編集内容が他メモリと重複した場合は統合される', async () => {
+    const a = await saveMemory('内容A', 'fact', { tags: ['a'], importance: 2 });
+    const b = await saveMemory('内容B', 'fact', { tags: ['b'], importance: 4 });
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const aStored = await mockDb.get('memories', a.id);
+    const bStored = await mockDb.get('memories', b.id);
+    aStored!.accessCount = 2;
+    bStored!.accessCount = 3;
+    aStored!.lastAccessedAt = 100;
+    bStored!.lastAccessedAt = 200;
+    await mockDb.put('memories', aStored!);
+    await mockDb.put('memories', bStored!);
+
+    const merged = await updateMemory(a.id, { content: '内容B', importance: 5, tags: ['merged'] });
+    expect(merged).toBeDefined();
+
+    const all = await listMemories();
+    expect(all).toHaveLength(1);
+    expect(all[0].id).toBe(b.id);
+    expect(all[0].importance).toBe(5);
+    expect(all[0].tags).toEqual(expect.arrayContaining(['b', 'merged']));
+    expect(all[0].accessCount).toBe(6); // duplicate(3) + current(2) + update access(1)
+    expect(all[0].lastAccessedAt).toBeGreaterThanOrEqual(200);
+  });
+});
+
+describe('archiveMemory', () => {
+  it('アクティブ記憶を手動アーカイブへ移動できる', async () => {
+    const memory = await saveMemory('手動アーカイブ対象', 'other');
+    const ok = await archiveMemory(memory.id);
+    expect(ok).toBe(true);
+
+    const active = await listMemories();
+    const archived = await listArchivedMemories();
+    expect(active.find((m) => m.id === memory.id)).toBeUndefined();
+    const item = archived.find((m) => m.id === memory.id);
+    expect(item).toBeDefined();
+    expect(item?.archiveReason).toBe('manual');
+  });
+
+  it('存在しないIDでは false を返す', async () => {
+    const ok = await archiveMemory('not-found');
+    expect(ok).toBe(false);
+  });
+});
+
+describe('listMemoryReevaluationCandidates', () => {
+  it('低重要度かつ長期間未参照の記憶を返す', async () => {
+    const stale = await saveMemory('見直し候補', 'fact', { importance: 1 });
+    await saveMemory('通常', 'fact', { importance: 4 });
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const stored = await mockDb.get('memories', stale.id);
+    stored!.lastAccessedAt = Date.now() - (20 * 24 * 60 * 60 * 1000);
+    await mockDb.put('memories', stored!);
+
+    const candidates = await listMemoryReevaluationCandidates();
+    expect(candidates.find((m) => m.id === stale.id)).toBeDefined();
+    expect(candidates.every((m) => m.importance <= 2)).toBe(true);
+  });
+
+  it('personality / routine は候補から除外される', async () => {
+    const personality = await saveMemory('性格情報', 'personality', { importance: 1 });
+    const routine = await saveMemory('日課情報', 'routine', { importance: 1 });
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const pStored = await mockDb.get('memories', personality.id);
+    pStored!.lastAccessedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    await mockDb.put('memories', pStored!);
+    const rStored = await mockDb.get('memories', routine.id);
+    rStored!.lastAccessedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    await mockDb.put('memories', rStored!);
+
+    const candidates = await listMemoryReevaluationCandidates();
+    expect(candidates.find((m) => m.id === personality.id)).toBeUndefined();
+    expect(candidates.find((m) => m.id === routine.id)).toBeUndefined();
+  });
+
+  it('更新直後の記憶は再評価候補から外れる', async () => {
+    const stale = await saveMemory('古いメモリ', 'fact', { importance: 1 });
+
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const stored = await mockDb.get('memories', stale.id);
+    stored!.lastAccessedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    await mockDb.put('memories', stored!);
+
+    const before = await listMemoryReevaluationCandidates();
+    expect(before.find((m) => m.id === stale.id)).toBeDefined();
+
+    await updateMemory(stale.id, { content: '更新後の古いメモリ' });
+    const after = await listMemoryReevaluationCandidates();
+    expect(after.find((m) => m.id === stale.id)).toBeUndefined();
   });
 });
 

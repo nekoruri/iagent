@@ -3,7 +3,14 @@ import type { CalendarEvent, Feed, FeedItem, FeedItemTier, FeedItemDisplayTier, 
 import { loadConfigFromIDB } from '../store/configStore';
 import { parseFeed } from './feedParser';
 import { fetchViaProxy } from './corsProxy';
-import { saveMemory, getRecentMemoriesForReflection, cleanupLowScoredMemories, getRelevantMemories, listMemories } from '../store/memoryStore';
+import {
+  saveMemory,
+  getRecentMemoriesForReflection,
+  cleanupLowScoredMemories,
+  getRelevantMemories,
+  listMemories,
+  listMemoryReevaluationCandidates,
+} from '../store/memoryStore';
 import { listClips } from '../store/clipStore';
 import { getHeartbeatFeedbackSummary, loadHeartbeatState, type FeedbackSummary } from '../store/heartbeatStore';
 import { listUnclassifiedItems, listClassifiedItems, updateItemTier } from '../store/feedStore';
@@ -902,6 +909,21 @@ export const WORKER_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'listMemoryReevaluationCandidates',
+      description: '低重要度かつ長期間未参照の記憶を再評価候補として取得します。',
+      parameters: {
+        type: 'object',
+        properties: {
+          minStaleDays: { type: 'number', description: '最小未参照日数（デフォルト 14）' },
+          maxImportance: { type: 'number', description: '最大重要度（デフォルト 2）' },
+          limit: { type: 'number', description: '最大取得件数（デフォルト 20）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'listUnreadFeedItems',
       description: '未読・未分類のフィード記事を title + excerpt で取得します（ページング対応）。',
       parameters: {
@@ -1329,6 +1351,28 @@ export async function executeWorkerTool(
       return wrap(JSON.stringify({
         message: `${archivedCount} 件の記憶をアーカイブしました`,
         archivedCount,
+      }));
+    }
+    case 'listMemoryReevaluationCandidates': {
+      const minStaleDays = typeof args.minStaleDays === 'number' ? args.minStaleDays : undefined;
+      const maxImportance = typeof args.maxImportance === 'number' ? args.maxImportance : undefined;
+      const limit = typeof args.limit === 'number' ? args.limit : undefined;
+      const candidates = await listMemoryReevaluationCandidates({
+        ...(Number.isFinite(minStaleDays) ? { minStaleDays } : {}),
+        ...(Number.isFinite(maxImportance) ? { maxImportance } : {}),
+        ...(Number.isFinite(limit) ? { limit } : {}),
+      });
+      return wrap(JSON.stringify({
+        candidates: candidates.map((m) => ({
+          id: m.id,
+          content: m.content,
+          category: m.category,
+          importance: m.importance,
+          tags: m.tags,
+          lastAccessedAt: m.lastAccessedAt,
+          updatedAt: m.updatedAt,
+        })),
+        count: candidates.length,
       }));
     }
     case 'listUnreadFeedItems': {

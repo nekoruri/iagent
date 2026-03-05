@@ -11,6 +11,8 @@
 - 2026-03-05: 項目 3 の実装着手（SetupWizard に目的別プリセット: 情報収集型 / PM型 / 学習者型 + 推奨1クリック適用 + 推奨タスク初期化）
 - 2026-03-05: 項目 5 の実装着手（通知権限の状態別ガイド、権限再確認ボタン、定期再チェックを `SettingsModal` に追加）
 - 2026-03-05: 項目 6 の実装着手（Heartbeat コスト制御: タスク別モデル/出力トークン予算 + 日次トークン予算 + 予算逼迫時の縮退/次回回し + 実行トークン計測）
+- 2026-03-05: 項目 7 の実装着手（MemoryPanel で記憶編集/手動無効化、長期未参照・低重要度の再評価候補表示）
+- 2026-03-05: 項目 7 を拡張（`memory` ツールに update/archive/reevaluate を追加、Heartbeat Worker ツールに `listMemoryReevaluationCandidates` を追加）
 
 ---
 
@@ -80,6 +82,12 @@
   - 「記憶の修正」「重要度調整」「無効化」をユーザー操作可能にする。
   - 一定期間未参照・低評価の記憶を再評価対象にする。
 - 成功判定: 記憶起因の誤提案報告が減り、提案 Accept 率が安定する。
+- 実装メモ（2026-03-05）:
+  - `memoryStore` に `updateMemory` / `archiveMemory` / `listMemoryReevaluationCandidates` を追加。
+  - `MemoryPanel` に編集フォーム（内容/重要度/タグ）と手動無効化ボタンを追加。
+  - 低重要度かつ長期間未参照（既定 14 日）の記憶を「再評価候補」として表示。
+  - `memory` ツールに `update` / `archive` / `reevaluate` を追加し、会話経由でも記憶ガバナンス操作を実行可能化。
+  - Heartbeat Worker ツールに `listMemoryReevaluationCandidates` を追加し、reflection タスクから見直し候補を参照可能化。
 
 ## 8. データポータビリティ
 
