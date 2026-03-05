@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultOtelConfig, getDefaultProxyConfig, getDefaultPersonaConfig, getDefaultWebSpeechConfig, BUILTIN_HEARTBEAT_TASKS } from '../core/config';
+import {
+  getConfig,
+  saveConfig,
+  getDefaultHeartbeatConfig,
+  getDefaultHeartbeatCostControlConfig,
+  getDefaultOtelConfig,
+  getDefaultProxyConfig,
+  getDefaultPersonaConfig,
+  getDefaultWebSpeechConfig,
+  BUILTIN_HEARTBEAT_TASKS,
+} from '../core/config';
 import { isSpeechRecognitionSupported, isSpeechSynthesisSupported } from '../core/speechService';
 import { mcpManager, type MCPConnectionStatus } from '../core/mcpManager';
 import { getNotificationPermission, requestNotificationPermission } from '../core/notifier';
@@ -9,7 +19,21 @@ import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
 import { applyTheme } from '../core/theme';
-import type { AppConfig, MCPServerConfig, HeartbeatConfig, HeartbeatTask, TaskSchedule, OtelConfig, PushConfig, ProxyConfig, PersonaConfig, ThemeMode, SuggestionFrequency, WebSpeechConfig } from '../types';
+import type {
+  AppConfig,
+  MCPServerConfig,
+  HeartbeatConfig,
+  HeartbeatCostControlConfig,
+  HeartbeatTask,
+  TaskSchedule,
+  OtelConfig,
+  PushConfig,
+  ProxyConfig,
+  PersonaConfig,
+  ThemeMode,
+  SuggestionFrequency,
+  WebSpeechConfig,
+} from '../types';
 
 interface Props {
   open: boolean;
@@ -78,6 +102,7 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const heartbeatCostControl: HeartbeatCostControlConfig = heartbeat.costControl ?? getDefaultHeartbeatCostControlConfig();
   const push: PushConfig = config.push ?? { enabled: false, serverUrl: '' };
   const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
@@ -241,6 +266,15 @@ export function SettingsModal({ open, onClose }: Props) {
     }));
   };
 
+  const updateHeartbeatCostControl = (patch: Partial<HeartbeatCostControlConfig>) => {
+    updateHeartbeat({
+      costControl: {
+        ...heartbeatCostControl,
+        ...patch,
+      },
+    });
+  };
+
   const updateHeartbeatTask = (taskId: string, patch: Partial<HeartbeatTask>) => {
     updateHeartbeat({
       tasks: heartbeat.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)),
@@ -336,6 +370,19 @@ export function SettingsModal({ open, onClose }: Props) {
       default:
         return '通知権限は未設定です。「デスクトップ通知」を ON にして、ブラウザの許可ダイアログで許可してください。';
     }
+  })();
+
+  const normalizedDailyTokenBudget = (() => {
+    const raw = Number(heartbeatCostControl.dailyTokenBudget);
+    if (!Number.isFinite(raw)) return 0;
+    return Math.min(50000, Math.max(0, Math.floor(raw)));
+  })();
+
+  const normalizedPressureThresholdPercent = (() => {
+    const raw = Number(heartbeatCostControl.pressureThreshold);
+    const base = Number.isFinite(raw) ? raw : 0.8;
+    const clamped = Math.min(0.95, Math.max(0.5, base));
+    return Math.round(clamped * 100);
   })();
 
   const toggleSection = (id: SectionId) => {
@@ -654,6 +701,51 @@ export function SettingsModal({ open, onClose }: Props) {
                   onChange={(e) => updateHeartbeat({ maxNotificationsPerDay: Number(e.target.value) })}
                 />
               </label>
+
+              <div className="hb-tasks-section">
+                <h4>コスト制御（PoC）</h4>
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={heartbeatCostControl.enabled}
+                    onChange={(e) => updateHeartbeatCostControl({ enabled: e.target.checked })}
+                  />
+                  コスト制御を有効化
+                </label>
+                <label className="hb-range-label">
+                  日次トークン予算: {normalizedDailyTokenBudget === 0 ? '無制限' : `${normalizedDailyTokenBudget.toLocaleString()} tokens`}
+                  <input
+                    type="range"
+                    min={0}
+                    max={50000}
+                    step={500}
+                    value={normalizedDailyTokenBudget}
+                    onChange={(e) => updateHeartbeatCostControl({ dailyTokenBudget: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="hb-range-label">
+                  予算逼迫しきい値: {normalizedPressureThresholdPercent}%
+                  <input
+                    type="range"
+                    min={50}
+                    max={95}
+                    step={5}
+                    value={normalizedPressureThresholdPercent}
+                    onChange={(e) => updateHeartbeatCostControl({ pressureThreshold: Number(e.target.value) / 100 })}
+                  />
+                </label>
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={heartbeatCostControl.deferNonCriticalTasks ?? true}
+                    onChange={(e) => updateHeartbeatCostControl({ deferNonCriticalTasks: e.target.checked })}
+                  />
+                  予算逼迫時に非クリティカルタスクを次回回し
+                </label>
+                <p className="mcp-hint">
+                  予算が逼迫すると、出力トークンを縮退し、必要に応じて低優先タスクを次回に回します。
+                </p>
+              </div>
 
               {/* Push 通知設定（Layer 3） */}
               <div className="hb-push-section">

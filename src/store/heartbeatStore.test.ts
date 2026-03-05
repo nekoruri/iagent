@@ -18,6 +18,7 @@ import {
   getHeartbeatFeedbackSummary,
   appendOpsEvent,
   appendOpsEvents,
+  getTodayHeartbeatTokenUsage,
   loadOpsEvents,
 } from './heartbeatStore';
 import type { HeartbeatResult, HeartbeatState } from '../types';
@@ -593,5 +594,36 @@ describe('ops events', () => {
     const runEvents = events.filter((event) => event.type === 'heartbeat-run');
     expect(runEvents).toHaveLength(total);
     expect(new Set(runEvents.map((event) => event.timestamp)).size).toBe(total);
+  });
+
+  it('getTodayHeartbeatTokenUsage は当日成功イベントの totalTokens のみ合計する', async () => {
+    const now = Date.now();
+    const yesterday = now - (24 * 60 * 60 * 1000);
+    await appendOpsEvents([
+      {
+        type: 'heartbeat-run',
+        timestamp: now - 1000,
+        source: 'worker',
+        status: 'success',
+        totalTokens: 120,
+      },
+      {
+        type: 'heartbeat-run',
+        timestamp: now - 500,
+        source: 'tab',
+        status: 'failure',
+        totalTokens: 999,
+      },
+      {
+        type: 'heartbeat-run',
+        timestamp: yesterday,
+        source: 'worker',
+        status: 'success',
+        totalTokens: 300,
+      },
+    ]);
+
+    const total = await getTodayHeartbeatTokenUsage(now);
+    expect(total).toBe(120);
   });
 });

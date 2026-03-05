@@ -69,6 +69,27 @@ describe('callChatCompletions', () => {
     expect(body.tools).toHaveLength(1);
   });
 
+  it('max_completion_tokens を指定できる', async () => {
+    const mockResponse = {
+      choices: [{ message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    });
+
+    await callChatCompletions(
+      'sk-test',
+      'gpt-5-nano',
+      [{ role: 'user', content: 'test' }],
+      undefined,
+      { maxCompletionTokens: 321 },
+    );
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.max_completion_tokens).toBe(321);
+  });
+
   it('API エラー時に例外を投げる', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
@@ -233,6 +254,37 @@ describe('executeWorkerHeartbeatCheck', () => {
 
     const { results } = await executeWorkerHeartbeatCheck('sk-test', tasks, [], memories);
     expect(results).toEqual([]);
+  });
+
+  it('タスクポリシーごとにモデルと max_completion_tokens を使い分ける', async () => {
+    const mixedTasks: HeartbeatTask[] = [
+      { id: 'calendar-check', name: 'カレンダー', description: '予定確認', enabled: true, type: 'builtin' },
+      { id: 'briefing-morning', name: '朝ブリーフィング', description: '要約', enabled: true, type: 'builtin' },
+    ];
+    const apiResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({ results: [] }),
+        },
+        finish_reason: 'stop',
+      }],
+    };
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(apiResponse) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(apiResponse) });
+
+    await executeWorkerHeartbeatCheck('sk-test', mixedTasks, [], memories);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const body1 = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body2 = JSON.parse(mockFetch.mock.calls[1][1].body);
+    const models = [body1.model, body2.model];
+    expect(models).toContain('gpt-5-nano');
+    expect(models).toContain('gpt-5-mini');
+    const maxTokens = [body1.max_completion_tokens, body2.max_completion_tokens];
+    expect(maxTokens).toContain(400);
+    expect(maxTokens).toContain(900);
   });
 
   it('JSON にマッチしない content の場合は空配列を返す', async () => {

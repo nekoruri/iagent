@@ -7,8 +7,10 @@ import {
   getAllTaskLastRun,
   loadHeartbeatState,
   appendOpsEvent,
+  getTodayHeartbeatTokenUsage,
 } from '../store/heartbeatStore';
 import { executeWorkerHeartbeatCheck } from './heartbeatOpenAI';
+import { getHeartbeatTokenBudgetState, selectTasksForCostPressure } from './heartbeatCost';
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getDefaultPersonaConfig } from './config';
@@ -147,13 +149,36 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     return EMPTY;
   }
 
+  const tokenBudget = getHeartbeatTokenBudgetState(
+    hbConfig.costControl,
+    await getTodayHeartbeatTokenUsage(),
+  );
+  const { runnableTasks, deferredTasks } = selectTasksForCostPressure(
+    tasks,
+    tokenBudget,
+    hbConfig.costControl?.deferNonCriticalTasks ?? true,
+  );
+  if (deferredTasks.length > 0) {
+    await batchUpdateTaskLastRun(deferredTasks.map((task) => task.id), Date.now());
+  }
+  if (runnableTasks.length === 0) {
+    await logRun('skipped', {
+      reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
+      taskCount: tasks.length,
+      deferredTaskCount: deferredTasks.length,
+      tokenBudget: tokenBudget.dailyTokenBudget,
+      tokensUsedToday: tokenBudget.usedTokensToday,
+    });
+    return EMPTY;
+  }
+
   // 先制的に taskLastRun を更新（パース失敗時の再実行ループ防止）
-  await batchUpdateTaskLastRun(tasks.map(t => t.id), Date.now());
+  await batchUpdateTaskLastRun(runnableTasks.map(t => t.id), Date.now());
 
   // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
   const db = await getDB();
   const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
-  const hasBriefing = tasks.some((t) => t.id.startsWith('briefing-'));
+  const hasBriefing = runnableTasks.some((t) => t.id.startsWith('briefing-'));
   const memories = hasBriefing
     ? await getMemoriesForBriefing(15)
     : await getRelevantMemories('', 5);
@@ -162,12 +187,13 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const persona = freshConfig?.persona ?? getDefaultPersonaConfig();
 
   try {
-    const { results, configChanged } = await executeWorkerHeartbeatCheck(
+    const { results, configChanged, usage } = await executeWorkerHeartbeatCheck(
       resolvedApiKey,
-      tasks,
+      runnableTasks,
       calendarEvents,
       memories,
       persona,
+      { degradedMode: tokenBudget.isPressure },
     );
 
     const now = Date.now();
@@ -191,15 +217,28 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     console.log(`[Heartbeat:${sourceLabel}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
 
     await logRun('success', {
-      taskCount: tasks.length,
+      taskCount: runnableTasks.length,
+      deferredTaskCount: deferredTasks.length,
       resultCount: results.length,
       changedCount: heartbeatResults.length,
+      requestCount: usage.requests,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens,
+      modelUsage: usage.byModel,
+      tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
+      tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
+      pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
     });
     return { results: heartbeatResults, configChanged };
   } catch (error) {
     await logRun('failure', {
-      taskCount: tasks.length,
+      taskCount: runnableTasks.length,
+      deferredTaskCount: deferredTasks.length,
       errorMessage: error instanceof Error ? error.message : String(error),
+      tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
+      tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
+      pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
     });
     throw error;
   }

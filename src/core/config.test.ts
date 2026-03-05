@@ -8,6 +8,7 @@ vi.mock('../store/configStore', () => ({
 import {
   BUILTIN_HEARTBEAT_TASKS,
   getDefaultHeartbeatConfig,
+  getDefaultHeartbeatCostControlConfig,
   getDefaultPersonaConfig,
   getConfig,
   saveConfig,
@@ -107,6 +108,11 @@ describe('getDefaultHeartbeatConfig', () => {
     const config = getDefaultHeartbeatConfig();
     expect(config.maxNotificationsPerDay).toBe(0);
   });
+
+  it('costControl のデフォルトを含む', () => {
+    const config = getDefaultHeartbeatConfig();
+    expect(config.costControl).toEqual(getDefaultHeartbeatCostControlConfig());
+  });
 });
 
 describe('getConfig / saveConfig', () => {
@@ -197,6 +203,50 @@ describe('getConfig / saveConfig', () => {
     }));
     const config = getConfig();
     expect(config.heartbeat!.focusMode).toBe(false);
+  });
+
+  it('既存の heartbeat に costControl が無い場合デフォルトでマージする', () => {
+    const oldHeartbeat = {
+      enabled: true,
+      intervalMinutes: 30,
+      quietHoursStart: 0,
+      quietHoursEnd: 6,
+      tasks: [],
+      desktopNotification: false,
+      focusMode: false,
+    };
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: oldHeartbeat,
+    }));
+    const config = getConfig();
+    expect(config.heartbeat!.costControl).toEqual(getDefaultHeartbeatCostControlConfig());
+  });
+
+  it('既存の heartbeat.costControl は部分値でもデフォルトとマージされる', () => {
+    localStorage.setItem('iagent-config', JSON.stringify({
+      openaiApiKey: 'sk-test',
+      heartbeat: {
+        enabled: true,
+        intervalMinutes: 30,
+        quietHoursStart: 0,
+        quietHoursEnd: 6,
+        tasks: [],
+        desktopNotification: false,
+        focusMode: false,
+        costControl: {
+          enabled: false,
+          dailyTokenBudget: 12000,
+        },
+      },
+    }));
+    const config = getConfig();
+    expect(config.heartbeat!.costControl).toEqual({
+      enabled: false,
+      dailyTokenBudget: 12000,
+      pressureThreshold: 0.8,
+      deferNonCriticalTasks: true,
+    });
   });
 
   it('保存済み tasks に不足しているビルトインタスクが自動追加される', () => {

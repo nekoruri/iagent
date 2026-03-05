@@ -13,7 +13,19 @@ import {
   batchUpdateTaskLastRun,
   loadHeartbeatState,
   appendOpsEvent,
+  getTodayHeartbeatTokenUsage,
 } from '../store/heartbeatStore';
+import {
+  addTokenUsageSample,
+  createEmptyHeartbeatTokenUsage,
+  getHeartbeatTokenBudgetState,
+  groupTasksByExecutionPolicy,
+  mergeHeartbeatTokenUsage,
+  selectTasksForCostPressure,
+  type HeartbeatModelName,
+  type HeartbeatTokenBudgetState,
+  type HeartbeatTokenUsage,
+} from './heartbeatCost';
 import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
@@ -21,6 +33,11 @@ export type HeartbeatNotification = {
 };
 
 type Listener = (notification: HeartbeatNotification) => void;
+
+interface CostExecutionMeta {
+  deferredTaskCount: number;
+  budget: HeartbeatTokenBudgetState;
+}
 
 /** タスクを allowedMcpTools の内容でグループ化する */
 export function groupTasksByMcpTools(
@@ -188,10 +205,45 @@ export class HeartbeatEngine {
     const tasks = await getTasksDue(config);
     if (tasks.length === 0) return;
 
-    await this.executeCheck(tasks, remainingQuota);
+    const tokenBudget = getHeartbeatTokenBudgetState(
+      config.costControl,
+      await getTodayHeartbeatTokenUsage(),
+    );
+    const { runnableTasks, deferredTasks } = selectTasksForCostPressure(
+      tasks,
+      tokenBudget,
+      config.costControl?.deferNonCriticalTasks ?? true,
+    );
+    if (deferredTasks.length > 0) {
+      await batchUpdateTaskLastRun(deferredTasks.map((task) => task.id), Date.now());
+    }
+    if (runnableTasks.length === 0) {
+      await appendOpsEvent({
+        type: 'heartbeat-run',
+        timestamp: Date.now(),
+        source: 'tab',
+        status: 'skipped',
+        taskCount: tasks.length,
+        deferredTaskCount: deferredTasks.length,
+        reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
+        tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
+        tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
+        pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
+      }).catch(() => {});
+      return;
+    }
+
+    await this.executeCheck(runnableTasks, remainingQuota, {
+      deferredTaskCount: deferredTasks.length,
+      budget: tokenBudget,
+    });
   }
 
-  private async executeCheck(tasks: HeartbeatTask[], remainingQuota = Infinity): Promise<void> {
+  private async executeCheck(
+    tasks: HeartbeatTask[],
+    remainingQuota = Infinity,
+    costMeta?: CostExecutionMeta,
+  ): Promise<void> {
     this.isExecuting = true;
     const startedAt = Date.now();
     const logRun = async (status: 'success' | 'failure' | 'skipped', extras: Record<string, unknown> = {}) => {
@@ -202,13 +254,20 @@ export class HeartbeatEngine {
         status,
         durationMs: Date.now() - startedAt,
         taskCount: tasks.length,
+        deferredTaskCount: costMeta?.deferredTaskCount ?? 0,
+        tokenBudget: costMeta?.budget.enabled ? costMeta.budget.dailyTokenBudget : undefined,
+        tokensUsedToday: costMeta?.budget.enabled ? costMeta.budget.usedTokensToday : undefined,
+        pressureMode: costMeta?.budget.enabled ? costMeta.budget.isPressure : undefined,
         ...extras,
       }).catch(() => {});
     };
 
+    const degradedMode = Boolean(costMeta?.budget.isPressure);
+    const executionGroups = groupTasksByExecutionPolicy(tasks, degradedMode);
     const trace = tracer.startTrace('heartbeat.check');
     trace.rootSpan.setAttribute(LLM_ATTRS.SYSTEM, 'openai');
-    trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, 'gpt-5-nano');
+    const traceModel = executionGroups.length === 1 ? executionGroups[0].model : 'mixed';
+    trace.rootSpan.setAttribute(LLM_ATTRS.MODEL, traceModel);
     trace.rootSpan.setAttribute(HEARTBEAT_ATTRS.TASK_COUNT, tasks.length);
 
     try {
@@ -225,19 +284,25 @@ export class HeartbeatEngine {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
       setDefaultOpenAIClient(client);
 
-      // タスクを allowedMcpTools のセットでグループ化し、グループごとに Agent を実行
-      const groups = groupTasksByMcpTools(tasks);
       const mcpServers = this.getMCPServers();
       const allHeartbeatResults: HeartbeatResult[] = [];
+      const usage = createEmptyHeartbeatTokenUsage();
 
-      for (const group of groups) {
-        const results = await this.executeGroup(
-          group.tasks,
-          mcpServers,
-          group.allowedMcpTools.length > 0 ? group.allowedMcpTools : undefined,
-          trace,
-        );
-        allHeartbeatResults.push(...results);
+      for (const executionGroup of executionGroups) {
+        // MCP 設定は既存ロジックのままグループ化。さらにモデル/トークン上限で分割済みタスク単位で実行する。
+        const mcpGroups = groupTasksByMcpTools(executionGroup.tasks);
+        for (const group of mcpGroups) {
+          const groupResult = await this.executeGroup(
+            group.tasks,
+            mcpServers,
+            group.allowedMcpTools.length > 0 ? group.allowedMcpTools : undefined,
+            trace,
+            executionGroup.model,
+            executionGroup.maxCompletionTokens,
+          );
+          allHeartbeatResults.push(...groupResult.results);
+          mergeHeartbeatTokenUsage(usage, groupResult.usage);
+        }
       }
 
       // 日次通知上限で通知数をトリム（同一 tick 内で複数タスクが変化ありを返した場合の超過防止）
@@ -250,6 +315,11 @@ export class HeartbeatEngine {
       await logRun('success', {
         resultCount: allHeartbeatResults.length,
         changedCount: trimmed.length,
+        requestCount: usage.requests,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        modelUsage: usage.byModel,
       });
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
@@ -271,8 +341,15 @@ export class HeartbeatEngine {
     mcpServers: MCPServer[],
     allowedMcpTools: string[] | undefined,
     trace: ReturnType<typeof tracer.startTrace>,
-  ): Promise<HeartbeatResult[]> {
-    const agent = await createHeartbeatAgent(mcpServers, allowedMcpTools, tasks);
+    model: HeartbeatModelName,
+    maxCompletionTokens: number,
+  ): Promise<{ results: HeartbeatResult[]; usage: HeartbeatTokenUsage }> {
+    const agent = await createHeartbeatAgent(
+      mcpServers,
+      allowedMcpTools,
+      tasks,
+      { model, maxTokens: maxCompletionTokens },
+    );
 
     const taskDescriptions = tasks.map((t) =>
       `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
@@ -281,18 +358,29 @@ export class HeartbeatEngine {
     const prompt = `以下のタスクについてチェックを実行してください:\n${taskDescriptions}`;
 
     const result = await run(agent, [user(prompt)], { stream: false });
+    const usage = createEmptyHeartbeatTokenUsage();
+    const rawResponses = (result as { rawResponses?: Array<{ usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } }> }).rawResponses;
+    if (Array.isArray(rawResponses)) {
+      for (const response of rawResponses) {
+        addTokenUsageSample(usage, model, {
+          inputTokens: response?.usage?.inputTokens,
+          outputTokens: response?.usage?.outputTokens,
+          totalTokens: response?.usage?.totalTokens,
+        });
+      }
+    }
     const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
 
     if (typeof finalOutput !== 'string') {
       trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_string_output' });
-      return [];
+      return { results: [], usage };
     }
 
     // JSON部分を抽出
     const jsonMatch = finalOutput.match(/\{[\s\S]*?\}(?=[^}]*$|\s*$)/);
     if (!jsonMatch) {
       trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_json_match' });
-      return [];
+      return { results: [], usage };
     }
 
     let parsed: { results?: unknown };
@@ -301,13 +389,13 @@ export class HeartbeatEngine {
     } catch (e) {
       console.warn('[Heartbeat] JSON パース失敗:', e);
       trace.rootSpan.addEvent('heartbeat.skip', { reason: 'json_parse_error' });
-      return [];
+      return { results: [], usage };
     }
 
     if (!parsed || !Array.isArray(parsed.results)) {
       console.warn('[Heartbeat] パース結果の results が配列ではありません');
       trace.rootSpan.addEvent('heartbeat.skip', { reason: 'invalid_results' });
-      return [];
+      return { results: [], usage };
     }
 
     const now = Date.now();
@@ -336,6 +424,6 @@ export class HeartbeatEngine {
       }
     }
 
-    return heartbeatResults;
+    return { results: heartbeatResults, usage };
   }
 }

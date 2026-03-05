@@ -88,6 +88,7 @@ export async function createHeartbeatAgent(
   mcpServers?: MCPServer[],
   allowedMcpToolNames?: string[],
   tasks?: Array<{ id: string }>,
+  options?: { model?: 'gpt-5-nano' | 'gpt-5-mini'; maxTokens?: number },
 ): Promise<Agent> {
   const config = getConfig();
   const persona = config.persona ?? getDefaultPersonaConfig();
@@ -134,10 +135,16 @@ export async function createHeartbeatAgent(
       }).join(', ')}\n【重要】上記リスト以外の MCP ツールを呼び出さないでください。許可されていないツール呼び出しは無視されます。`
     : '';
 
+  const resolvedModel = options?.model ?? 'gpt-5-nano';
+  const resolvedMaxTokens = Number.isFinite(options?.maxTokens) && Number(options?.maxTokens) > 0
+    ? Math.floor(Number(options?.maxTokens))
+    : undefined;
+
   return new Agent({
     name: `${persona.name || 'iAgent'}-Heartbeat`,
     instructions: instructions + mcpToolNote,
-    model: 'gpt-5-nano',
+    model: resolvedModel,
+    modelSettings: resolvedMaxTokens ? { maxTokens: resolvedMaxTokens } : undefined,
     tools: [
       calendarTool,
       deviceInfoTool,

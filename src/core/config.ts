@@ -1,4 +1,16 @@
-import type { AppConfig, ConfigKey, HeartbeatConfig, HeartbeatTask, OtelConfig, PersonaConfig, ProxyConfig, SuggestionFrequency, ThemeMode, WebSpeechConfig } from '../types';
+import type {
+  AppConfig,
+  ConfigKey,
+  HeartbeatConfig,
+  HeartbeatCostControlConfig,
+  HeartbeatTask,
+  OtelConfig,
+  PersonaConfig,
+  ProxyConfig,
+  SuggestionFrequency,
+  ThemeMode,
+  WebSpeechConfig,
+} from '../types';
 import { VALID_SPEECH_LANGS } from './speechService';
 import { saveConfigToIDB } from '../store/configStore';
 
@@ -169,6 +181,15 @@ export function getDefaultPersonaConfig(): PersonaConfig {
   };
 }
 
+export function getDefaultHeartbeatCostControlConfig(): HeartbeatCostControlConfig {
+  return {
+    enabled: true,
+    dailyTokenBudget: 0,
+    pressureThreshold: 0.8,
+    deferNonCriticalTasks: true,
+  };
+}
+
 export function getDefaultHeartbeatConfig(): HeartbeatConfig {
   return {
     enabled: false,
@@ -180,6 +201,7 @@ export function getDefaultHeartbeatConfig(): HeartbeatConfig {
     tasks: BUILTIN_HEARTBEAT_TASKS.map((t) => ({ ...t })),
     desktopNotification: false,
     focusMode: false,
+    costControl: getDefaultHeartbeatCostControlConfig(),
   };
 }
 
@@ -198,6 +220,25 @@ function sanitizeWebSpeechConfig(config: WebSpeechConfig): WebSpeechConfig {
     ...config,
     ttsRate: Math.max(0.5, Math.min(2.0, Number(config.ttsRate) || 1.0)),
     lang: VALID_SPEECH_LANGS.includes(config.lang) ? config.lang : 'ja-JP',
+  };
+}
+
+function sanitizeHeartbeatCostControlConfig(
+  config: HeartbeatCostControlConfig,
+): HeartbeatCostControlConfig {
+  const rawDailyBudget = Number(config.dailyTokenBudget);
+  const rawThreshold = Number(config.pressureThreshold);
+  return {
+    enabled: typeof config.enabled === 'boolean' ? config.enabled : true,
+    dailyTokenBudget: Number.isFinite(rawDailyBudget)
+      ? Math.max(0, Math.floor(rawDailyBudget))
+      : 0,
+    pressureThreshold: Number.isFinite(rawThreshold)
+      ? Math.max(0.5, Math.min(0.95, rawThreshold))
+      : 0.8,
+    deferNonCriticalTasks: typeof config.deferNonCriticalTasks === 'boolean'
+      ? config.deferNonCriticalTasks
+      : true,
   };
 }
 
@@ -233,6 +274,10 @@ export function getConfig(): AppConfig {
   const heartbeat = parsed.heartbeat
     ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
     : getDefaultHeartbeatConfig();
+  heartbeat.costControl = parsed.heartbeat?.costControl
+    ? { ...getDefaultHeartbeatCostControlConfig(), ...parsed.heartbeat.costControl }
+    : getDefaultHeartbeatCostControlConfig();
+  heartbeat.costControl = sanitizeHeartbeatCostControlConfig(heartbeat.costControl);
   // 不足しているビルトインタスクを補完
   heartbeat.tasks = mergeBuiltinTasks(heartbeat.tasks);
   return {

@@ -1,6 +1,14 @@
 import { WORKER_TOOLS, executeWorkerTool } from './heartbeatTools';
 import { buildWorkerHeartbeatPrompt } from './instructionBuilder';
 import { getDefaultPersonaConfig } from './config';
+import {
+  addTokenUsageSample,
+  createEmptyHeartbeatTokenUsage,
+  groupTasksByExecutionPolicy,
+  mergeHeartbeatTokenUsage,
+  type HeartbeatTokenUsage,
+  type HeartbeatModelName,
+} from './heartbeatCost';
 import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory, PersonaConfig } from '../types';
 
 const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
@@ -33,14 +41,24 @@ interface ChatCompletionResponse {
     };
     finish_reason: string;
   }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 }
 
 /** fetch ベースで OpenAI Chat Completions API を呼び出す */
+interface ChatCompletionOptions {
+  maxCompletionTokens?: number;
+}
+
 export async function callChatCompletions(
   apiKey: string,
   model: string,
   messages: ChatMessage[],
   tools?: typeof WORKER_TOOLS,
+  options?: ChatCompletionOptions,
 ): Promise<ChatCompletionResponse> {
   const body: Record<string, unknown> = {
     model,
@@ -48,6 +66,9 @@ export async function callChatCompletions(
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
+  }
+  if (Number.isFinite(options?.maxCompletionTokens) && Number(options?.maxCompletionTokens) > 0) {
+    body.max_completion_tokens = Math.floor(Number(options?.maxCompletionTokens));
   }
 
   const controller = new AbortController();
@@ -103,17 +124,21 @@ function buildSystemPrompt(memories: Memory[], persona?: PersonaConfig): string 
 export interface WorkerHeartbeatCheckResult {
   results: HeartbeatResult[];
   configChanged: boolean;
+  usage: HeartbeatTokenUsage;
 }
 
-/** Worker 内で Heartbeat チェックを実行する（DOM/localStorage 非依存） */
-export async function executeWorkerHeartbeatCheck(
+export interface WorkerHeartbeatExecutionOptions {
+  degradedMode?: boolean;
+}
+
+async function executeWorkerTaskGroup(
   apiKey: string,
   tasks: HeartbeatTask[],
   calendarEvents: CalendarEvent[],
-  memories: Memory[],
-  persona?: PersonaConfig,
+  systemPrompt: string,
+  model: HeartbeatModelName,
+  maxCompletionTokens: number,
 ): Promise<WorkerHeartbeatCheckResult> {
-  const systemPrompt = buildSystemPrompt(memories, persona);
   const taskDescriptions = tasks.map((t) =>
     `- タスクID: ${t.id}, タスク名: ${t.name}, 内容: ${t.description}`
   ).join('\n');
@@ -129,13 +154,31 @@ export async function executeWorkerHeartbeatCheck(
     { role: 'user', content: userMessage },
   ];
 
-  console.debug('[Heartbeat] tool calling 開始 — タスク:', tasks.map(t => t.id).join(', '));
+  console.debug(
+    '[Heartbeat] tool calling 開始 — タスク:',
+    tasks.map(t => t.id).join(', '),
+    `model=${model}`,
+    `maxCompletionTokens=${maxCompletionTokens}`,
+  );
 
   let configChanged = false;
+  const usage = createEmptyHeartbeatTokenUsage();
 
   // tool calling ループ（最大 MAX_TOOL_ROUNDS 回）
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await callChatCompletions(apiKey, 'gpt-5-nano', messages, WORKER_TOOLS);
+    const response = await callChatCompletions(
+      apiKey,
+      model,
+      messages,
+      WORKER_TOOLS,
+      { maxCompletionTokens },
+    );
+    addTokenUsageSample(usage, model, {
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
+      totalTokens: response.usage?.total_tokens,
+    });
+
     const choice = response.choices[0];
     if (!choice) {
       throw new Error('OpenAI API からレスポンスが空です');
@@ -146,7 +189,7 @@ export async function executeWorkerHeartbeatCheck(
     // tool_calls がなければ最終レスポンス
     if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
       console.debug(`[Heartbeat] ラウンド ${round + 1}/${MAX_TOOL_ROUNDS} — 最終レスポンス（ツール呼び出しなし）`);
-      return { results: parseHeartbeatResponse(assistantMessage.content), configChanged };
+      return { results: parseHeartbeatResponse(assistantMessage.content), configChanged, usage };
     }
 
     const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name);
@@ -179,9 +222,52 @@ export async function executeWorkerHeartbeatCheck(
 
   // ループ上限を超えた場合は最後のレスポンスを試みる
   console.warn(`[Heartbeat] ツール呼び出しラウンド上限（${MAX_TOOL_ROUNDS}）に到達`);
-  const finalResponse = await callChatCompletions(apiKey, 'gpt-5-nano', messages);
+  const finalResponse = await callChatCompletions(
+    apiKey,
+    model,
+    messages,
+    undefined,
+    { maxCompletionTokens },
+  );
+  addTokenUsageSample(usage, model, {
+    inputTokens: finalResponse.usage?.prompt_tokens,
+    outputTokens: finalResponse.usage?.completion_tokens,
+    totalTokens: finalResponse.usage?.total_tokens,
+  });
   const finalChoice = finalResponse.choices[0];
-  return { results: parseHeartbeatResponse(finalChoice?.message?.content), configChanged };
+  return { results: parseHeartbeatResponse(finalChoice?.message?.content), configChanged, usage };
+}
+
+/** Worker 内で Heartbeat チェックを実行する（DOM/localStorage 非依存） */
+export async function executeWorkerHeartbeatCheck(
+  apiKey: string,
+  tasks: HeartbeatTask[],
+  calendarEvents: CalendarEvent[],
+  memories: Memory[],
+  persona?: PersonaConfig,
+  options?: WorkerHeartbeatExecutionOptions,
+): Promise<WorkerHeartbeatCheckResult> {
+  const systemPrompt = buildSystemPrompt(memories, persona);
+  const groups = groupTasksByExecutionPolicy(tasks, Boolean(options?.degradedMode));
+  const mergedResults: HeartbeatResult[] = [];
+  let configChanged = false;
+  const usage = createEmptyHeartbeatTokenUsage();
+
+  for (const group of groups) {
+    const groupResult = await executeWorkerTaskGroup(
+      apiKey,
+      group.tasks,
+      calendarEvents,
+      systemPrompt,
+      group.model,
+      group.maxCompletionTokens,
+    );
+    mergedResults.push(...groupResult.results);
+    if (groupResult.configChanged) configChanged = true;
+    mergeHeartbeatTokenUsage(usage, groupResult.usage);
+  }
+
+  return { results: mergedResults, configChanged, usage };
 }
 
 /** レスポンスから HeartbeatResult[] をパースする */
