@@ -3,6 +3,7 @@
 import { chromium } from '@playwright/test';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { seedPageWithSample } from './seed-poc-sample.mjs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
@@ -17,6 +18,7 @@ Options:
   --week <YYYY-W##> Auto-resolve weekly and baseline file paths
   --weekly-review   Update weekly review markdown file in-place
   --baseline        Update baseline markdown file in-place
+  --seed-sample     Seed fallback PoC sample into the current profile before collecting
   --fail-on-action  Exit with code 2 when KPI or SLO overall status is Action
   --headed          Run browser in headed mode
   --help            Show this help
@@ -41,6 +43,7 @@ function parseArgs(argv) {
     week: '',
     weeklyReview: '',
     baseline: '',
+    seedSample: false,
     failOnAction: false,
     headed: false,
     help: false,
@@ -58,6 +61,10 @@ function parseArgs(argv) {
     }
     if (a === '--fail-on-action') {
       args.failOnAction = true;
+      continue;
+    }
+    if (a === '--seed-sample') {
+      args.seedSample = true;
       continue;
     }
     if (a === '--url') {
@@ -157,6 +164,35 @@ function lineReplace(content, regex, line) {
     return content.replace(regex, line);
   }
   return `${content.trimEnd()}\n${line}\n`;
+}
+
+function ensureLinesBefore(content, anchorRegex, lines) {
+  const normalizedLines = lines.filter(Boolean);
+  if (normalizedLines.length === 0) return content;
+
+  let next = content;
+  for (const line of normalizedLines) {
+    const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    next = next.replace(new RegExp(`^${escaped}$\n?`, 'gm'), '');
+  }
+
+  const match = next.match(anchorRegex);
+  if (!match || typeof match.index !== 'number') {
+    return `${next.trimEnd()}\n${normalizedLines.join('\n')}\n`;
+  }
+
+  const insertion = `${normalizedLines.join('\n')}\n`;
+  return `${next.slice(0, match.index)}${insertion}${next.slice(match.index)}`;
+}
+
+function ensureSectionBefore(content, marker, sectionText) {
+  const heading = sectionText.trim().split('\n', 1)[0];
+  if (heading && content.includes(heading)) return content;
+  const index = content.indexOf(marker);
+  if (index < 0) {
+    return `${content.trimEnd()}\n\n${sectionText.trimEnd()}\n`;
+  }
+  return `${content.slice(0, index)}${sectionText}${content.slice(index)}`;
 }
 
 function localDate(ts) {
@@ -305,6 +341,12 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   next = lineReplace(next, /^- Heartbeat 遅延 p95（24h平均）:.*$/m, sloLatencyLine);
   next = lineReplace(next, /^- SLO 判定:.*$/m, sloStatusLine);
   next = lineReplace(next, /^レビュー日:\s.*$/m, reviewDateLine);
+  next = ensureLinesBefore(next, /^- KPI 判定:.*$/m, [
+    onboardingCompletionLine,
+    onboardingMedianLine,
+    onboardingRecommendedLine,
+    onboardingActive24hLine,
+  ]);
   // 旧テンプレート由来の補助行を除去
   next = next.replace(/^  - (Accept|Active|Revisit|Overall):.*\n/gm, '');
   next = next.replace(/^  - (Heartbeat success|Push success|Latency|Overall):.*\n/gm, '');
@@ -365,6 +407,27 @@ async function updateBaselineFile(filePath, result, collectedAtTs, userDataDir) 
   next = lineReplace(next, /^- kpiActiveStatus:.*$/m, `- kpiActiveStatus: ${result.assessment.kpi.activeRate}`);
   next = lineReplace(next, /^- kpiRevisitStatus:.*$/m, `- kpiRevisitStatus: ${result.assessment.kpi.revisitRate}`);
   next = lineReplace(next, /^- kpiOverallStatus:.*$/m, `- kpiOverallStatus: ${result.assessment.kpi.overall}`);
+  next = ensureSectionBefore(next, '\n---\n\n## SLO Baseline（24h）', `
+## 4) オンボーディング最適化（7日）
+
+- onboardingStartedSessions: 0
+- onboardingCompletedSessions: 0
+- onboardingCompletionRate: 0.0% (0.0000)
+- onboardingMedianCompletionSec: n/a
+- onboardingRecommendedCompletions: 0
+- onboardingRecommendedRate: 0.0% (0.0000)
+- onboardingActiveWithin24h: 0
+- onboardingActiveWithin24hRate: 0.0% (0.0000)
+- onboardingCompletionStatus: NoData
+- onboardingRecommendedStatus: NoData
+- onboardingMedianStatus: NoData
+- onboardingActiveWithin24hStatus: NoData
+- onboardingOverallStatus: NoData
+
+---
+
+`);
+  next = next.replace(/## 所感 \/ 次アクション[\s\S]*?(?:(?=\n## )|$)/, (section) => section.replace(/^- onboarding.*$\n/gm, ''));
 
   next = replaceSection(next, '1) Heartbeat 実行成功率（24h）', (section) => {
     let updated = section;
@@ -415,6 +478,9 @@ async function main() {
 
   try {
     await page.goto(opts.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    if (opts.seedSample) {
+      await seedPageWithSample(page);
+    }
 
     const result = await page.evaluate(async ({ days, dayMs }) => {
       const cutoff = Date.now() - days * dayMs;
