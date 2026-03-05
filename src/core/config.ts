@@ -55,7 +55,7 @@ export const BUILTIN_HEARTBEAT_TASKS: HeartbeatTask[] = [
     id: 'reflection',
     name: 'ふりかえり',
     description: '1日の記憶を振り返り、パターンや洞察を抽出して長期記憶に保存します。'
-      + '手順: 1) getRecentMemoriesForReflection で直近24時間の記憶とアクセス上位を取得 → 2) getHeartbeatFeedbackSummary で直近24時間のフィードバック統計を取得 → 3) 記憶のパターンを分析（行動連鎖、情報の成熟度、トピック集約） → 4) フィードバック分析（Accept率の高い/低いタスクの特徴、改善点の抽出） → 5) saveReflection で洞察を保存（タグ例: feedback-analysis, filter-tuning, user-pattern, daily-summary） → 6) cleanupMemories で低スコア記憶をアーカイブ。'
+      + '手順: 1) getRecentMemoriesForReflection で直近24時間の記憶とアクセス上位を取得 → 2) getHeartbeatFeedbackSummary で直近24時間のフィードバック統計を取得 → 3) 記憶のパターンを分析（行動連鎖、情報の成熟度、トピック集約） → 4) フィードバック分析（Accept率の高い/低いタスクの特徴、改善点の抽出） → 5) saveReflection で洞察を保存（タグ例: feedback-analysis, filter-tuning, user-pattern, daily-summary） → 6) listMemoryReevaluationCandidates で見直し候補を確認し、必要に応じて report に反映 → 7) cleanupMemories で低スコア記憶をアーカイブ。'
       + 'フィードバック分析では、Accept率が低いタスクの原因（タイミング、内容の関連性、情報量）を考察し、改善提案を洞察として保存してください。',
     enabled: false,
     type: 'builtin',

@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe('WORKER_TOOLS', () => {
   it('全 Worker ツールが定義されている', () => {
-    expect(WORKER_TOOLS).toHaveLength(20);
+    expect(WORKER_TOOLS).toHaveLength(21);
     const names = WORKER_TOOLS.map((t) => t.function.name);
     expect(names).toContain('listCalendarEvents');
     expect(names).toContain('getCurrentTime');
@@ -35,6 +35,7 @@ describe('WORKER_TOOLS', () => {
     expect(names).toContain('getRecentMemoriesForReflection');
     expect(names).toContain('saveReflection');
     expect(names).toContain('cleanupMemories');
+    expect(names).toContain('listMemoryReevaluationCandidates');
     expect(names).toContain('listUnreadFeedItems');
     expect(names).toContain('saveFeedClassification');
     expect(names).toContain('listClassifiedFeedItems');
@@ -173,6 +174,41 @@ describe('executeWorkerTool', () => {
       const result = await executeWorkerTool('cleanupMemories', {});
       const parsed = JSON.parse(result.result);
       expect(parsed.archivedCount).toBe(0);
+    });
+  });
+
+  describe('listMemoryReevaluationCandidates', () => {
+    it('低重要度かつ長期間未参照の候補を返す', async () => {
+      const stale = await saveMemory('見直し候補', 'fact', { importance: 1 });
+      await saveMemory('通常メモリ', 'fact', { importance: 5 });
+
+      const db = await getDB();
+      const stored = await db.get('memories', stale.id) as Record<string, unknown>;
+      stored.lastAccessedAt = Date.now() - (20 * 24 * 60 * 60 * 1000);
+      await db.put('memories', stored);
+
+      const result = await executeWorkerTool('listMemoryReevaluationCandidates', {
+        minStaleDays: 14,
+        maxImportance: 2,
+      });
+      const parsed = JSON.parse(result.result);
+      expect(parsed.count).toBeGreaterThanOrEqual(1);
+      expect((parsed.candidates as Array<{ id: string }>).some((m) => m.id === stale.id)).toBe(true);
+    });
+
+    it('上限件数を適用できる', async () => {
+      for (let i = 0; i < 5; i++) {
+        const m = await saveMemory(`候補-${i}`, 'fact', { importance: 1 });
+        const db = await getDB();
+        const stored = await db.get('memories', m.id) as Record<string, unknown>;
+        stored.lastAccessedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        await db.put('memories', stored);
+      }
+
+      const result = await executeWorkerTool('listMemoryReevaluationCandidates', { limit: 2 });
+      const parsed = JSON.parse(result.result);
+      expect(parsed.count).toBe(2);
+      expect(parsed.candidates).toHaveLength(2);
     });
   });
 
