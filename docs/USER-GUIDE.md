@@ -156,6 +156,7 @@ Heartbeat は定期チェック機能です。設定項目:
 - `Push 通知を有効化` で購読登録
   - 通知権限が `granted` のときのみ有効化可能
 - 解除時は購読解除
+- Push が利用できない場合は Periodic Background Sync がフォールバック（Chrome/Edge は最短でも約 12 時間、iOS Safari は非対応）
 - 参考: サーバー構築は [OPERATIONS.md](OPERATIONS.md)
 
 iOS の場合:
@@ -282,7 +283,7 @@ RSS フィード取得と Web 監視で利用します。
 
 - URL バリデーションにより、`localhost` 以外の HTTP URL は拒否
 - プライベート IP 宛て URL は拒否
-- `periodicSync` はブラウザ依存（許可・最小間隔とも実装依存）
+- `periodicSync` はブラウザ依存（Chrome/Edge は最短でも約 12 時間、iOS Safari は非対応）
 - Battery API はブラウザ非対応の場合あり
 - Push 通知はブラウザとインストール状態（特に iOS）に依存
 

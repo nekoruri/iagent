@@ -743,6 +743,12 @@ describe('SettingsModal', () => {
   });
 
   describe('Push セクション iOS 案内', () => {
+    it('Periodic Background Sync の制約説明が表示される', () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      expect(screen.getByText(/最短でも約12時間/)).toBeInTheDocument();
+      expect(screen.getByText(/iOS Safari は非対応/)).toBeInTheDocument();
+    });
+
     it('iOS 未インストール時に Push セクションに案内が表示される', () => {
       mockIsIOSSafari.mockReturnValue(true);
       mockIsStandaloneMode.mockReturnValue(false);
