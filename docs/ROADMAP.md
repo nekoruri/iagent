@@ -151,7 +151,7 @@
 ### Web Push 信頼性向上
 - [x] `pushsubscriptionchange` ハンドラ — Subscription 失効時の自動再登録
 - [x] Heartbeat API 呼び出しの fetch タイムアウト（90秒）
-- [ ] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
+- [x] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
 - [ ] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（→ フェーズ 3 スマートフォン対応強化に統合）
 - [x] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
 - [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
@@ -353,3 +353,4 @@
 - [x] API キー管理の安全化（PoC-10 Phase2）— `SettingsModal` の API キー欄を「変更時のみ再入力」方式へ変更。保存済みキーは値を再表示せず、状態表示（保存済み/更新予定/削除予定）と `保存済みキーを削除` / `削除を取り消す` 操作を追加。保存時は key ごとに保持・更新・削除を明示的に適用し、`SettingsModal.test.tsx` に保持/更新/削除のテストを追加。（2026-03-05）
 - [x] 最小権限プリセット（PoC-10 Phase3）— `SettingsModal` 基本設定に `最小権限プリセットを適用` を追加。Heartbeat の有効化/デスクトップ通知、Web Speech（STT/TTS/自動読み上げ）、CORS プロキシ有効化、MCP サーバー有効化を一括で無効化できるようにし、`SettingsModal.test.tsx` に適用テストを追加。（2026-03-05）
 - [x] 最小権限プリセット改善（PoC-10 Phase3 follow-up）— 最小権限プリセット適用時に Push 購読解除（`unsubscribePush`）と Periodic Sync 解除（`unregisterPeriodicSync`）を自動実行。サーバー解除失敗時でもローカル解除を継続し、失敗時は `Push 解除を再試行` 導線を表示。`SettingsModal.test.tsx` に自動解除/失敗再試行の検証を追加。（2026-03-05）
+- [x] Periodic Background Sync 制約の明示（PoC-5 follow-up）— `SettingsModal` Push セクションに「Chrome/Edge は最短約12時間、iOS Safari 非対応」の説明を追加。`SettingsModal.test.tsx` に表示テストを追加し、`USER-GUIDE.md` / `OPERATIONS.md` の運用説明を同期。（2026-03-05）

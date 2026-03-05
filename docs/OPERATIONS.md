@@ -115,6 +115,11 @@ curl -X POST https://your-worker.workers.dev/test-push
 - ブラウザ Push 購読
 - `/subscribe` へ登録
 
+補足:
+
+- Push が利用できない場合は Periodic Background Sync がフォールバックします。
+- ただし実行間隔はブラウザ実装依存で、Chrome/Edge は最短でも約 12 時間、iOS Safari は非対応です。
+
 ### 9.2 Proxy の有効化
 
 1. iAgent 設定 → CORS プロキシ

@@ -1360,6 +1360,9 @@ export function SettingsModal({ open, onClose }: Props) {
                 <p className="mcp-hint">
                   外部サーバーからの wake-up シグナルで、タブを閉じた後も定期チェックを継続します。
                 </p>
+                <p className="mcp-hint">
+                  フォールバックの Periodic Background Sync はブラウザ実装依存です（Chrome/Edge では最短でも約12時間、iOS Safari は非対応）。
+                </p>
                 <label>
                   Push サーバーURL
                   <input
