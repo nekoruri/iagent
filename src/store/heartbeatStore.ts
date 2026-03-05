@@ -48,8 +48,17 @@ export interface OpsEvent {
   reason?: string;
   durationMs?: number;
   taskCount?: number;
+  deferredTaskCount?: number;
   resultCount?: number;
   changedCount?: number;
+  requestCount?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  tokenBudget?: number;
+  tokensUsedToday?: number;
+  pressureMode?: boolean;
+  modelUsage?: Record<string, { requests: number; inputTokens: number; outputTokens: number; totalTokens: number }>;
   errorMessage?: string;
 }
 
@@ -79,6 +88,20 @@ export async function loadOpsEvents(): Promise<OpsEvent[]> {
   const row = await db.get(STORE_NAME, OPS_EVENTS_KEY);
   const raw = Array.isArray(row?.events) ? row.events : [];
   return normalizeOpsEvents(raw);
+}
+
+/** 当日の Heartbeat 実行で消費した totalTokens を返す */
+export async function getTodayHeartbeatTokenUsage(nowTs = Date.now()): Promise<number> {
+  const events = await loadOpsEvents();
+  const now = new Date(nowTs);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return events
+    .filter((event) =>
+      event.type === 'heartbeat-run'
+      && event.status === 'success'
+      && event.timestamp >= todayStart
+      && Number.isFinite(event.totalTokens))
+    .reduce((sum, event) => sum + Math.max(0, Number(event.totalTokens ?? 0)), 0);
 }
 
 /** 運用イベントを追記する（保持上限 + 保持期間でトリム） */

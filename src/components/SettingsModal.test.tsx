@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
 
@@ -15,8 +15,17 @@ vi.mock('../core/config', () => ({
       intervalMinutes: 30,
       quietHoursStart: 0,
       quietHoursEnd: 6,
+      quietDays: [],
+      maxNotificationsPerDay: 0,
       tasks: [],
       desktopNotification: false,
+      focusMode: false,
+      costControl: {
+        enabled: true,
+        dailyTokenBudget: 0,
+        pressureThreshold: 0.8,
+        deferNonCriticalTasks: true,
+      },
     },
     otel: {
       enabled: false,
@@ -32,8 +41,23 @@ vi.mock('../core/config', () => ({
     intervalMinutes: 30,
     quietHoursStart: 0,
     quietHoursEnd: 6,
+    quietDays: [],
+    maxNotificationsPerDay: 0,
     tasks: [],
     desktopNotification: false,
+    focusMode: false,
+    costControl: {
+      enabled: true,
+      dailyTokenBudget: 0,
+      pressureThreshold: 0.8,
+      deferNonCriticalTasks: true,
+    },
+  })),
+  getDefaultHeartbeatCostControlConfig: vi.fn(() => ({
+    enabled: true,
+    dailyTokenBudget: 0,
+    pressureThreshold: 0.8,
+    deferNonCriticalTasks: true,
   })),
   getDefaultOtelConfig: vi.fn(() => ({
     enabled: false,
@@ -447,6 +471,26 @@ describe('SettingsModal', () => {
       expect(requestNotificationPermission).toHaveBeenCalled();
       expect(desktopToggle).not.toBeChecked();
       expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
+    });
+  });
+
+  describe('コスト制御設定', () => {
+    it('コスト制御の初期設定が表示される', () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(screen.getByRole('checkbox', { name: 'コスト制御を有効化' })).toBeChecked();
+      expect(screen.getByText('日次トークン予算: 無制限')).toBeInTheDocument();
+      expect(screen.getByText('予算逼迫しきい値: 80%')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: '予算逼迫時に非クリティカルタスクを次回回し' })).toBeChecked();
+    });
+
+    it('日次トークン予算スライダーを変更すると表示が更新される', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      const slider = screen.getByRole('slider', { name: /日次トークン予算/ });
+      fireEvent.change(slider, { target: { value: '1000' } });
+
+      expect(screen.getByText(/日次トークン予算: \d{1,3}(,\d{3})* tokens/)).toBeInTheDocument();
     });
   });
 });

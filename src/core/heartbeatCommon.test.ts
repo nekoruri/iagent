@@ -4,7 +4,7 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { loadFreshConfig, getTasksDueFromIDB, executeHeartbeatAndStore } from './heartbeatCommon';
-import { updateTaskLastRun, getAllTaskLastRun } from '../store/heartbeatStore';
+import { appendOpsEvent, getAllTaskLastRun, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
 function makeConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
@@ -224,6 +224,13 @@ describe('executeHeartbeatAndStore', () => {
     const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck').mockResolvedValue({
       results: [],
       configChanged: false,
+      usage: {
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        byModel: {},
+      },
     });
 
     await executeHeartbeatAndStore('sk-test');
@@ -232,6 +239,148 @@ describe('executeHeartbeatAndStore', () => {
     const lastRunMap = await getAllTaskLastRun();
     expect(lastRunMap['pre-update-test']).toBeGreaterThan(0);
 
+    spy.mockRestore();
+  });
+
+  it('日次トークン予算を超過している場合は実行をスキップする', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'budget-test',
+      name: 'テスト',
+      description: 'テスト',
+      enabled: true,
+      type: 'custom',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({
+        tasks: [task],
+        costControl: {
+          enabled: true,
+          dailyTokenBudget: 100,
+          pressureThreshold: 0.8,
+          deferNonCriticalTasks: true,
+        },
+      }),
+    });
+    await appendOpsEvent({
+      type: 'heartbeat-run',
+      status: 'success',
+      source: 'worker',
+      timestamp: Date.now(),
+      totalTokens: 150,
+    });
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck');
+
+    const { results, configChanged } = await executeHeartbeatAndStore('sk-test');
+
+    expect(results).toEqual([]);
+    expect(configChanged).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+    expect(await getTaskLastRun('budget-test')).toBeGreaterThan(0);
+    spy.mockRestore();
+  });
+
+  it('予算逼迫時は non-critical タスクを次回回しする', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'feed-check',
+      name: 'フィードチェック',
+      description: 'テスト',
+      enabled: true,
+      type: 'builtin',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({
+        tasks: [task],
+        costControl: {
+          enabled: true,
+          dailyTokenBudget: 1000,
+          pressureThreshold: 0.8,
+          deferNonCriticalTasks: true,
+        },
+      }),
+    });
+    await appendOpsEvent({
+      type: 'heartbeat-run',
+      status: 'success',
+      source: 'worker',
+      timestamp: Date.now(),
+      totalTokens: 850,
+    });
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck');
+
+    const { results } = await executeHeartbeatAndStore('sk-test');
+
+    expect(results).toEqual([]);
+    expect(spy).not.toHaveBeenCalled();
+    expect(await getTaskLastRun('feed-check')).toBeGreaterThan(0);
+    spy.mockRestore();
+  });
+
+  it('予算逼迫時でも critical タスクは縮退モードで実行する', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'calendar-check',
+      name: 'カレンダー',
+      description: 'テスト',
+      enabled: true,
+      type: 'builtin',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({
+        tasks: [task],
+        costControl: {
+          enabled: true,
+          dailyTokenBudget: 1000,
+          pressureThreshold: 0.8,
+          deferNonCriticalTasks: true,
+        },
+      }),
+    });
+    await appendOpsEvent({
+      type: 'heartbeat-run',
+      status: 'success',
+      source: 'worker',
+      timestamp: Date.now(),
+      totalTokens: 850,
+    });
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck').mockResolvedValue({
+      results: [],
+      configChanged: false,
+      usage: {
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        byModel: {},
+      },
+    });
+
+    await executeHeartbeatAndStore('sk-test');
+
+    expect(spy).toHaveBeenCalledWith(
+      'sk-test',
+      expect.arrayContaining([expect.objectContaining({ id: 'calendar-check' })]),
+      expect.any(Array),
+      expect.any(Array),
+      expect.any(Object),
+      { degradedMode: true },
+    );
     spy.mockRestore();
   });
 });

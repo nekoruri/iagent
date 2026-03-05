@@ -100,6 +100,16 @@ export interface HeartbeatConfig {
   tasks: HeartbeatTask[];
   desktopNotification: boolean;
   focusMode: boolean;
+  costControl?: HeartbeatCostControlConfig;
+}
+
+export type HeartbeatModelGrade = 'low' | 'standard';
+
+export interface HeartbeatCostControlConfig {
+  enabled: boolean;
+  dailyTokenBudget: number;      // 0=無制限
+  pressureThreshold: number;     // 0.0-1.0（例: 0.8 = 80%）
+  deferNonCriticalTasks: boolean;
 }
 
 export interface PushConfig {
