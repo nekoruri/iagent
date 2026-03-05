@@ -172,7 +172,7 @@
 - [x] iOS PWA インストール案内 UI — Push 通知に必須のインストールへの導線
 - [x] タップターゲットサイズの統一（44x44px 最小保証）
 - [x] SettingsModal のモバイル最適化（フルスクリーン化 + セクション折りたたみ）
-- [ ] サイドバーのスワイプジェスチャ（左端スワイプで開閉）
+- [x] サイドバーのスワイプジェスチャ（左端スワイプで開閉）
 - [x] ストレージ永続化（`navigator.storage.persist()` + 容量表示）
 
 ### ビルド最適化
@@ -354,3 +354,4 @@
 - [x] 最小権限プリセット（PoC-10 Phase3）— `SettingsModal` 基本設定に `最小権限プリセットを適用` を追加。Heartbeat の有効化/デスクトップ通知、Web Speech（STT/TTS/自動読み上げ）、CORS プロキシ有効化、MCP サーバー有効化を一括で無効化できるようにし、`SettingsModal.test.tsx` に適用テストを追加。（2026-03-05）
 - [x] 最小権限プリセット改善（PoC-10 Phase3 follow-up）— 最小権限プリセット適用時に Push 購読解除（`unsubscribePush`）と Periodic Sync 解除（`unregisterPeriodicSync`）を自動実行。サーバー解除失敗時でもローカル解除を継続し、失敗時は `Push 解除を再試行` 導線を表示。`SettingsModal.test.tsx` に自動解除/失敗再試行の検証を追加。（2026-03-05）
 - [x] Periodic Background Sync 制約の明示（PoC-5 follow-up）— `SettingsModal` Push セクションに「Chrome/Edge は最短約12時間、iOS Safari 非対応」の説明を追加。`SettingsModal.test.tsx` に表示テストを追加し、`USER-GUIDE.md` / `OPERATIONS.md` の運用説明を同期。（2026-03-05）
+- [x] モバイルサイドバーのスワイプ開閉（フェーズ3）— `App.tsx` にモバイル専用タッチジェスチャを追加し、左端から右スワイプで開く・開状態で左スワイプで閉じる動作を実装。縦スクロール誤検知を防ぐ判定を追加し、`App.test.tsx` と `e2e/mobile-drawer.spec.ts` にスワイプ開閉テストを追加。（2026-03-05）

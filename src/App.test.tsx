@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, fireEvent, screen } from '@testing-library/react';
 
 // 依存モジュールのモック
 vi.mock('./components/ChatView', () => ({
   ChatView: () => <div data-testid="chat-view" />,
 }));
 vi.mock('./components/ConversationSidebar', () => ({
-  ConversationSidebar: () => <div data-testid="sidebar" />,
+  ConversationSidebar: ({ open }: { open: boolean }) => (
+    <div data-testid="sidebar" data-open={open ? 'true' : 'false'} />
+  ),
 }));
 vi.mock('./components/FeedPanel', () => ({
   FeedPanel: () => null,
@@ -142,16 +144,25 @@ vi.mock('./store/conversationStore', () => ({
   saveMessage: vi.fn(),
 }));
 
+function setMobileViewport(matches: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(max-width: 768px)' ? matches : false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
 describe('App', () => {
   let persistMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    window.matchMedia = vi.fn().mockReturnValue({
-      matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    });
+    setMobileViewport(false);
     persistMock = vi.fn(async () => true);
     Object.defineProperty(navigator, 'storage', {
       value: {
@@ -169,6 +180,7 @@ describe('App', () => {
   });
 
   it('未永続化の場合、起動時に navigator.storage.persist() が呼ばれる', async () => {
+    vi.resetModules();
     const { default: App } = await import('./App');
     render(<App />);
     await waitFor(() => {
@@ -193,5 +205,82 @@ describe('App', () => {
     await waitFor(() => {
       expect(persistMock).not.toHaveBeenCalled();
     });
+  });
+
+  it('モバイル幅で左端から右スワイプするとサイドバーが開く', async () => {
+    setMobileViewport(true);
+    vi.resetModules();
+    const { default: App } = await import('./App');
+    const { container } = render(<App />);
+    const appContainer = container.querySelector('.app-container');
+    expect(appContainer).toBeTruthy();
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'false');
+
+    fireEvent.touchStart(appContainer!, {
+      touches: [{ clientX: 8, clientY: 120 }],
+      changedTouches: [{ clientX: 8, clientY: 120 }],
+    });
+    fireEvent.touchMove(appContainer!, {
+      touches: [{ clientX: 120, clientY: 128 }],
+      changedTouches: [{ clientX: 120, clientY: 128 }],
+    });
+    fireEvent.touchEnd(appContainer!, {
+      touches: [],
+      changedTouches: [{ clientX: 120, clientY: 128 }],
+    });
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'true');
+    expect(container.querySelector('.sidebar-overlay')).toBeInTheDocument();
+  });
+
+  it('モバイル幅で開いているサイドバーを左スワイプで閉じられる', async () => {
+    setMobileViewport(true);
+    vi.resetModules();
+    const { default: App } = await import('./App');
+    const { container } = render(<App />);
+    const appContainer = container.querySelector('.app-container');
+    expect(appContainer).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle('会話一覧'));
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'true');
+
+    fireEvent.touchStart(appContainer!, {
+      touches: [{ clientX: 220, clientY: 150 }],
+      changedTouches: [{ clientX: 220, clientY: 150 }],
+    });
+    fireEvent.touchMove(appContainer!, {
+      touches: [{ clientX: 100, clientY: 158 }],
+      changedTouches: [{ clientX: 100, clientY: 158 }],
+    });
+    fireEvent.touchEnd(appContainer!, {
+      touches: [],
+      changedTouches: [{ clientX: 100, clientY: 158 }],
+    });
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'false');
+  });
+
+  it('デスクトップ幅では左端スワイプしてもサイドバーは開かない', async () => {
+    setMobileViewport(false);
+    vi.resetModules();
+    const { default: App } = await import('./App');
+    const { container } = render(<App />);
+    const appContainer = container.querySelector('.app-container');
+    expect(appContainer).toBeTruthy();
+
+    fireEvent.touchStart(appContainer!, {
+      touches: [{ clientX: 8, clientY: 120 }],
+      changedTouches: [{ clientX: 8, clientY: 120 }],
+    });
+    fireEvent.touchMove(appContainer!, {
+      touches: [{ clientX: 120, clientY: 128 }],
+      changedTouches: [{ clientX: 120, clientY: 128 }],
+    });
+    fireEvent.touchEnd(appContainer!, {
+      touches: [],
+      changedTouches: [{ clientX: 120, clientY: 128 }],
+    });
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'false');
   });
 });
