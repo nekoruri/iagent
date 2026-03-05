@@ -77,6 +77,35 @@ export function isQuietHours(config: HeartbeatConfig, now?: Date): boolean {
   return hour >= quietHoursStart || hour < quietHoursEnd;
 }
 
+/** タスクの実行条件（時間帯）を満たすか判定する */
+export function isTaskConditionMatched(task: HeartbeatTask, now?: Date): boolean {
+  const condition = task.condition;
+  if (!condition || condition.type !== 'time-window') {
+    return true;
+  }
+
+  const current = now ?? new Date();
+  const hour = current.getHours();
+  const rawStartHour = Number(condition.startHour);
+  const rawEndHour = Number(condition.endHour);
+  const startHour = Number.isFinite(rawStartHour)
+    ? Math.max(0, Math.min(23, Math.trunc(rawStartHour)))
+    : 0;
+  const endHour = Number.isFinite(rawEndHour)
+    ? Math.max(0, Math.min(23, Math.trunc(rawEndHour)))
+    : 0;
+
+  // start=end は「終日実行可」として扱う
+  if (startHour === endHour) {
+    return true;
+  }
+  if (startHour < endHour) {
+    return hour >= startHour && hour < endHour;
+  }
+  // 例: 22 -> 6（深夜跨ぎ）
+  return hour >= startHour || hour < endHour;
+}
+
 /** 今日の通知数（hasChanges=true の結果）をカウントする */
 export function getTodayNotificationCount(results: HeartbeatResult[], now?: Date): number {
   const current = now ?? new Date();
@@ -97,6 +126,10 @@ export async function getTasksDue(config: HeartbeatConfig): Promise<HeartbeatTas
   const taskLastRunMap = await getAllTaskLastRun();
 
   for (const task of enabledTasks) {
+    if (!isTaskConditionMatched(task, currentDate)) {
+      continue;
+    }
+
     const schedule = task.schedule;
     const lastRun = taskLastRunMap[task.id] ?? 0;
 

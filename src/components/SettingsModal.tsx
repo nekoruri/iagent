@@ -33,6 +33,7 @@ import type {
   HeartbeatCostControlConfig,
   HeartbeatTask,
   TaskSchedule,
+  TaskRunCondition,
   OtelConfig,
   PushConfig,
   ProxyConfig,
@@ -1433,9 +1434,19 @@ export function SettingsModal({ open, onClose }: Props) {
                 )}
                 {customTasks.map((task) => {
                   const scheduleType = task.schedule?.type ?? 'global';
+                  const conditionType = task.condition?.type ?? 'none';
                   const updateSchedule = (patch: Partial<TaskSchedule>) => {
                     const current = task.schedule ?? { type: 'global' as const };
                     updateHeartbeatTask(task.id, { schedule: { ...current, ...patch } });
+                  };
+                  const updateCondition = (patch: Partial<TaskRunCondition>) => {
+                    if (!task.condition || task.condition.type !== 'time-window') return;
+                    updateHeartbeatTask(task.id, {
+                      condition: {
+                        ...task.condition,
+                        ...patch,
+                      },
+                    });
                   };
 
                   return (
@@ -1522,6 +1533,53 @@ export function SettingsModal({ open, onClose }: Props) {
                               <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
                             ))}
                           </select>
+                        </div>
+                      )}
+                      <div className="hb-schedule-row">
+                        <span className="hb-schedule-label">時間帯条件:</span>
+                        <select
+                          className="hb-schedule-select"
+                          value={conditionType}
+                          onChange={(e) => {
+                            const type = e.target.value;
+                            if (type === 'none') {
+                              updateHeartbeatTask(task.id, { condition: undefined });
+                              return;
+                            }
+                            updateHeartbeatTask(task.id, {
+                              condition: task.condition?.type === 'time-window'
+                                ? task.condition
+                                : { type: 'time-window', startHour: 9, endHour: 18 },
+                            });
+                          }}
+                        >
+                          <option value="none">なし（常時実行可）</option>
+                          <option value="time-window">時間帯指定</option>
+                        </select>
+                      </div>
+                      {conditionType === 'time-window' && task.condition?.type === 'time-window' && (
+                        <div className="hb-schedule-detail hb-schedule-time">
+                          <span className="hb-schedule-label">実行可能時間:</span>
+                          <select
+                            className="hb-schedule-select"
+                            value={task.condition.startHour}
+                            onChange={(e) => updateCondition({ startHour: Number(e.target.value) })}
+                          >
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <option key={`c-start-${i}`} value={i}>{String(i).padStart(2, '0')}</option>
+                            ))}
+                          </select>
+                          <span>〜</span>
+                          <select
+                            className="hb-schedule-select"
+                            value={task.condition.endHour}
+                            onChange={(e) => updateCondition({ endHour: Number(e.target.value) })}
+                          >
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <option key={`c-end-${i}`} value={i}>{String(i).padStart(2, '0')}</option>
+                            ))}
+                          </select>
+                          <span className="mcp-hint">（start=end は終日実行可）</span>
                         </div>
                       )}
                       {/* MCP ツール許可設定 */}

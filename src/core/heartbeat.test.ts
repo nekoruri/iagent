@@ -3,7 +3,14 @@ import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
 
-import { isQuietHours, getTasksDue, groupTasksByMcpTools, getTodayNotificationCount, HeartbeatEngine } from './heartbeat';
+import {
+  isQuietHours,
+  isTaskConditionMatched,
+  getTasksDue,
+  groupTasksByMcpTools,
+  getTodayNotificationCount,
+  HeartbeatEngine,
+} from './heartbeat';
 import { updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
@@ -100,6 +107,41 @@ describe('isQuietHours', () => {
     expect(isQuietHours(config, sat)).toBe(true);
     expect(isQuietHours(config, sun)).toBe(true);
     expect(isQuietHours(config, mon)).toBe(false);
+  });
+});
+
+describe('isTaskConditionMatched', () => {
+  const baseTask: HeartbeatTask = {
+    id: 'task-condition',
+    name: '条件付きタスク',
+    description: 'テスト',
+    enabled: true,
+    type: 'custom',
+  };
+
+  it('condition 未設定なら常に true', () => {
+    expect(isTaskConditionMatched(baseTask, dateAt(1))).toBe(true);
+    expect(isTaskConditionMatched(baseTask, dateAt(13))).toBe(true);
+  });
+
+  it('時間帯条件（同日内）を満たす場合は true', () => {
+    const task: HeartbeatTask = {
+      ...baseTask,
+      condition: { type: 'time-window', startHour: 9, endHour: 18 },
+    };
+    expect(isTaskConditionMatched(task, dateAt(9))).toBe(true);
+    expect(isTaskConditionMatched(task, dateAt(17))).toBe(true);
+    expect(isTaskConditionMatched(task, dateAt(18))).toBe(false);
+  });
+
+  it('時間帯条件（日跨ぎ）を満たす場合は true', () => {
+    const task: HeartbeatTask = {
+      ...baseTask,
+      condition: { type: 'time-window', startHour: 22, endHour: 6 },
+    };
+    expect(isTaskConditionMatched(task, dateAt(23))).toBe(true);
+    expect(isTaskConditionMatched(task, dateAt(2))).toBe(true);
+    expect(isTaskConditionMatched(task, dateAt(12))).toBe(false);
   });
 });
 
@@ -241,6 +283,15 @@ describe('getTasksDue', () => {
     type: 'custom',
   };
 
+  const conditionTask: HeartbeatTask = {
+    id: 'condition-task',
+    name: '条件付きタスク',
+    description: 'テスト',
+    enabled: true,
+    type: 'custom',
+    condition: { type: 'time-window', startHour: 9, endHour: 18 },
+  };
+
   it('schedule未設定のタスクはグローバル間隔で判定される', async () => {
     // lastChecked=0 なのでグローバル間隔(30分)を超過 → due
     const config = makeConfig({ tasks: [globalTask] });
@@ -314,6 +365,29 @@ describe('getTasksDue', () => {
     const config = makeConfig({ tasks: [disabledTask] });
     const due = await getTasksDue(config);
     expect(due).toHaveLength(0);
+  });
+
+  describe('時間帯条件', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('条件時間内なら due 判定される', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-06T10:00:00'));
+      const config = makeConfig({ tasks: [conditionTask] });
+      const due = await getTasksDue(config);
+      expect(due).toHaveLength(1);
+      expect(due[0].id).toBe('condition-task');
+    });
+
+    it('条件時間外なら due 判定されない', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-06T20:00:00'));
+      const config = makeConfig({ tasks: [conditionTask] });
+      const due = await getTasksDue(config);
+      expect(due).toHaveLength(0);
+    });
   });
 });
 

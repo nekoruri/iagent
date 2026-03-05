@@ -145,7 +145,7 @@
 ### Heartbeat 高度化
 - [x] 結果の専用パネル（チャットとの分離）
 - [x] タスクごとの個別間隔設定（カスタムワークフロー: global/interval/fixed-time スケジュール）
-- [ ] 条件付き実行（位置情報ベース、時間帯ベース等）
+- [x] 条件付き実行（位置情報ベース、時間帯ベース等）
 - [x] 重要な通知のピン留め／保護（ブリーフィング等が recentResults の FIFO で押し出されない仕組み）
 
 ### Web Push 信頼性向上
@@ -358,3 +358,4 @@
 - [x] 添付取得の N+1 解消（フェーズ3）— `attachmentStore` に `getAttachmentsByMessageIds()` を追加し、`ChatView` の添付遅延ロードをメッセージ単位の逐次取得から一括取得へ変更。`attachmentStore.test.ts` にバッチ取得テスト（複数ID/空配列/重複ID）を追加。（2026-03-05）
 - [x] data URI → Blob 保存移行（フェーズ3）— `attachmentStore` で添付の保存形式を Blob 優先に変更（旧 data URI 形式との互換読み出しを維持）。`dataPortability` の export/import でも Blob 変換を挟み、バックアップ互換を維持。`attachmentStore.test.ts` / `dataPortability.test.ts` に Blob 変換の検証を追加。（2026-03-05）
 - [x] サムネイル生成の Worker 化（フェーズ3）— `thumbnail.worker.ts` を追加し、`fileUtils.generateThumbnail()` で Web Worker 経由のサムネイル生成を実装。`OffscreenCanvas/createImageBitmap` 非対応時や Worker 失敗時は既存のメインスレッド実装へ自動フォールバック。（2026-03-05）
+- [x] Heartbeat 条件付き実行（時間帯）— `HeartbeatTask.condition`（time-window）を追加し、`getTasksDue` / `getTasksDueFromIDB` で時間帯条件に合致するタスクのみ実行。`SettingsModal` のカスタムタスクに時間帯条件 UI（なし/時間帯指定）を追加し、`heartbeat.test.ts` / `heartbeatCommon.test.ts` / `config.test.ts` / `SettingsModal.test.tsx` を更新。（2026-03-06）

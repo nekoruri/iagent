@@ -86,6 +86,12 @@ const taskScheduleSchema = z.object({
   minute: z.number().finite().optional(),
 }).passthrough();
 
+const taskRunConditionSchema = z.object({
+  type: z.literal('time-window'),
+  startHour: z.number().finite(),
+  endHour: z.number().finite(),
+}).passthrough();
+
 const heartbeatTaskSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -93,6 +99,7 @@ const heartbeatTaskSchema = z.object({
   enabled: z.boolean(),
   type: z.enum(['builtin', 'custom']),
   schedule: taskScheduleSchema.optional(),
+  condition: taskRunConditionSchema.optional(),
   allowedMcpTools: z.array(z.string()).optional(),
 }).passthrough();
 
