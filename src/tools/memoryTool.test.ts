@@ -4,9 +4,18 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { memoryTool } from './memoryTool';
-import { listMemories } from '../store/memoryStore';
+import { listArchivedMemories, listMemories } from '../store/memoryStore';
 
-const base = { content: '', category: '', query: '', id: '', importance: '', tags: '' };
+const base = {
+  content: '',
+  category: '',
+  query: '',
+  id: '',
+  importance: '',
+  tags: '',
+  minStaleDays: '',
+  maxImportance: '',
+};
 
 /** ツールを呼び出すヘルパー */
 async function invoke(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -120,6 +129,69 @@ describe('memoryTool invoke', () => {
   });
 
   // --- delete ---
+  describe('action: update', () => {
+    it('id を指定してメモリを更新する', async () => {
+      const saveResult = await invoke({ ...base, action: 'save', content: '更新前', category: 'fact' });
+      const id = (saveResult.memory as Record<string, unknown>).id;
+
+      const parsed = await invoke({
+        ...base,
+        action: 'update',
+        id,
+        content: '更新後',
+        importance: '5',
+        tags: 'new,edited',
+      });
+
+      expect(parsed.message).toBe('メモリを更新しました');
+      const memory = parsed.memory as Record<string, unknown>;
+      expect(memory.content).toBe('更新後');
+      expect(memory.importance).toBe(5);
+      expect(memory.tags).toEqual(['new', 'edited']);
+    });
+
+    it('id が空の場合はエラーを返す', async () => {
+      const parsed = await invoke({ ...base, action: 'update', id: '' });
+      expect(parsed.error).toBe('id は必須です');
+    });
+  });
+
+  describe('action: archive', () => {
+    it('id を指定してメモリを無効化する', async () => {
+      const saveResult = await invoke({ ...base, action: 'save', content: '無効化対象', category: 'fact' });
+      const id = (saveResult.memory as Record<string, unknown>).id;
+
+      const parsed = await invoke({ ...base, action: 'archive', id });
+      expect(parsed.message).toBe('無効化しました');
+
+      const active = await listMemories();
+      const archived = await listArchivedMemories();
+      expect(active.find((m) => m.id === id)).toBeUndefined();
+      expect(archived.find((m) => m.id === id)).toBeDefined();
+    });
+  });
+
+  describe('action: reevaluate', () => {
+    it('再評価候補を返す', async () => {
+      const low = await invoke({ ...base, action: 'save', content: '候補', category: 'fact', importance: '1' });
+      await invoke({ ...base, action: 'save', content: '非候補', category: 'fact', importance: '5' });
+
+      const id = (low.memory as Record<string, unknown>).id as string;
+      const memories = await listMemories();
+      const target = memories.find((m) => m.id === id)!;
+      const { getDB } = await import('../store/__mocks__/db');
+      const db = await getDB();
+      const stored = await db.get('memories', target.id) as Record<string, unknown>;
+      stored.lastAccessedAt = Date.now() - (20 * 24 * 60 * 60 * 1000);
+      await db.put('memories', stored);
+
+      const parsed = await invoke({ ...base, action: 'reevaluate', minStaleDays: '14', maxImportance: '2' });
+      expect(parsed.count).toBeGreaterThanOrEqual(1);
+      const candidates = parsed.candidates as Record<string, unknown>[];
+      expect(candidates.some((m) => m.id === id)).toBe(true);
+    });
+  });
+
   describe('action: delete', () => {
     it('id を指定してメモリを削除する', async () => {
       const saveResult = await invoke({ ...base, action: 'save', content: '削除対象', category: 'fact' });
