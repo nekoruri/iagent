@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { __resetStores } from './__mocks__/db';
+import { __resetStores, getDB } from './__mocks__/db';
 import {
   saveAttachment,
   getAttachmentsByMessageId,
@@ -51,6 +51,27 @@ describe('saveAttachment', () => {
     expect(att.thumbnailUri).toBeUndefined();
     expect(att.filename).toBe('doc.pdf');
   });
+
+  it('IndexedDB には Blob 形式で保存する', async () => {
+    await saveAttachment({
+      id: 'att-blob',
+      messageId: 'msg-blob',
+      conversationId: 'conv-blob',
+      filename: 'blob.jpg',
+      mimeType: 'image/jpeg',
+      size: 512,
+      dataUri: 'data:image/jpeg;base64,QQ==',
+      thumbnailUri: 'data:image/jpeg;base64,QQ==',
+    });
+
+    const db = await getDB();
+    const rows = await db.getAll('attachments') as Array<Record<string, unknown>>;
+    const row = rows[0];
+    expect(row.dataUri).toBeUndefined();
+    expect(row.thumbnailUri).toBeUndefined();
+    expect(row.dataBlob).toBeInstanceOf(Blob);
+    expect(row.thumbnailBlob).toBeInstanceOf(Blob);
+  });
 });
 
 describe('getAttachmentsByMessageId', () => {
@@ -91,6 +112,24 @@ describe('getAttachmentsByMessageId', () => {
   it('該当なしなら空配列を返す', async () => {
     const results = await getAttachmentsByMessageId('no-such-msg');
     expect(results).toHaveLength(0);
+  });
+
+  it('旧形式（dataUri 保存）も読み出せる', async () => {
+    const db = await getDB();
+    await db.put('attachments', {
+      id: 'legacy-att',
+      messageId: 'legacy-msg',
+      conversationId: 'legacy-conv',
+      filename: 'legacy.txt',
+      mimeType: 'text/plain',
+      size: 1,
+      dataUri: 'data:text/plain;base64,QQ==',
+      createdAt: Date.now(),
+    });
+
+    const results = await getAttachmentsByMessageId('legacy-msg');
+    expect(results).toHaveLength(1);
+    expect(results[0].dataUri).toBe('data:text/plain;base64,QQ==');
   });
 });
 

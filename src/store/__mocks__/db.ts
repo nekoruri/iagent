@@ -6,6 +6,21 @@
 type StoreData = Map<string | number, Record<string, unknown>>;
 const stores = new Map<string, StoreData>();
 
+function cloneValue<T>(value: T): T {
+  if (value instanceof Blob) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneValue(item)) as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = cloneValue(nested);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 function getStore(name: string): StoreData {
   if (!stores.has(name)) {
     stores.set(name, new Map());
@@ -28,11 +43,11 @@ const mockDB = {
     const key = (value as Record<string, unknown>).traceId ??
                 (value as Record<string, unknown>).key ??
                 (value as Record<string, unknown>).id;
-    store.set(key as string | number, structuredClone(value));
+    store.set(key as string | number, cloneValue(value));
     return Promise.resolve();
   },
   getAll(storeName: string) {
-    return Promise.resolve([...getStore(storeName).values()].map((v) => structuredClone(v)));
+    return Promise.resolve([...getStore(storeName).values()].map((v) => cloneValue(v)));
   },
   clear(storeName: string) {
     getStore(storeName).clear();
@@ -53,9 +68,9 @@ const mockDB = {
         // multiEntry インデックス対応: 配列フィールドの場合は includes で判定
         return Array.isArray(value) ? value.includes(query) : value === query;
       });
-      return Promise.resolve(filtered.map((v) => structuredClone(v)));
+      return Promise.resolve(filtered.map((v) => cloneValue(v)));
     }
-    return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
+    return Promise.resolve([...store.values()].map((v) => cloneValue(v)));
   },
   /** transaction モック — objectStore ベースの操作をサポート */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -68,13 +83,13 @@ const mockDB = {
           const key = (value as Record<string, unknown>).traceId ??
                       (value as Record<string, unknown>).key ??
                       (value as Record<string, unknown>).id;
-          store.set(key as string | number, structuredClone(value));
+          store.set(key as string | number, cloneValue(value));
         },
         get(key: string | number) {
           return Promise.resolve(store.get(key) ?? undefined);
         },
         getAll() {
-          return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
+          return Promise.resolve([...store.values()].map((v) => cloneValue(v)));
         },
         delete(key: string | number) {
           store.delete(key);
@@ -83,7 +98,7 @@ const mockDB = {
           return {
             getAll(query?: IDBKeyRange | string | number) {
               if (query === undefined) {
-                return Promise.resolve([...store.values()].map((v) => structuredClone(v)));
+                return Promise.resolve([...store.values()].map((v) => cloneValue(v)));
               }
               const queryValue = (typeof globalThis.IDBKeyRange !== 'undefined' && query instanceof IDBKeyRange)
                 ? (query as unknown as { _value: unknown })._value : query;
@@ -92,7 +107,7 @@ const mockDB = {
                 // multiEntry インデックス対応: 配列フィールドの場合は includes で判定
                 return Array.isArray(value) ? value.includes(queryValue) : value === queryValue;
               });
-              return Promise.resolve(values.map((v) => structuredClone(v)));
+              return Promise.resolve(values.map((v) => cloneValue(v)));
             },
           };
         },
