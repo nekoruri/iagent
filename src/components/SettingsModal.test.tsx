@@ -136,6 +136,15 @@ vi.mock('../core/notifier', () => ({
   requestNotificationPermission: vi.fn(async () => 'granted'),
 }));
 
+// pushSubscription モック
+vi.mock('../core/pushSubscription', () => ({
+  subscribePush: vi.fn(async () => ({})),
+  unsubscribePush: vi.fn(async () => {}),
+  getPushSubscription: vi.fn(async () => null),
+  registerPeriodicSync: vi.fn(async () => true),
+  unregisterPeriodicSync: vi.fn(async () => {}),
+}));
+
 // data portability モック
 vi.mock('../core/dataPortability', () => ({
   exportDataPortability: vi.fn(async () => ({
@@ -195,7 +204,9 @@ describe('SettingsModal', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const { getConfig } = await import('../core/config');
+    const { getPushSubscription } = await import('../core/pushSubscription');
     vi.mocked(getConfig).mockImplementation(() => createMockConfig());
+    vi.mocked(getPushSubscription).mockResolvedValue(null);
     // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false,
@@ -278,6 +289,9 @@ describe('SettingsModal', () => {
 
   it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
     const { getConfig, saveConfig } = await import('../core/config');
+    const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');
+    const fakeSubscription = {} as PushSubscription;
+    vi.mocked(getPushSubscription).mockResolvedValue(fakeSubscription);
     vi.mocked(getConfig).mockReturnValue({
       ...createMockConfig(),
       mcpServers: [
@@ -299,6 +313,10 @@ describe('SettingsModal', () => {
         authToken: 'token',
         allowedDomains: ['example.com'],
       },
+      push: {
+        enabled: true,
+        serverUrl: 'https://push.example',
+      },
       webSpeech: {
         sttEnabled: true,
         ttsEnabled: true,
@@ -310,6 +328,10 @@ describe('SettingsModal', () => {
     render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: '最小権限プリセットを適用' }));
+    await waitFor(() => {
+      expect(unsubscribePush).toHaveBeenCalledWith('https://push.example');
+      expect(unregisterPeriodicSync).toHaveBeenCalled();
+    });
     expect(screen.getByText(/最小権限プリセットを適用しました/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByText('保存'));
@@ -324,10 +346,73 @@ describe('SettingsModal', () => {
       proxy: expect.objectContaining({
         enabled: false,
       }),
+      push: expect.objectContaining({
+        enabled: false,
+        serverUrl: 'https://push.example',
+      }),
       webSpeech: expect.objectContaining({
         sttEnabled: false,
         ttsEnabled: false,
         ttsAutoRead: false,
+      }),
+    }));
+  });
+
+  it('最小権限プリセットは Push 未購読でも Periodic Sync 解除を試行する', async () => {
+    const { getPushSubscription, unregisterPeriodicSync } = await import('../core/pushSubscription');
+    vi.mocked(getPushSubscription).mockResolvedValue(null);
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '最小権限プリセットを適用' }));
+    await waitFor(() => {
+      expect(unregisterPeriodicSync).toHaveBeenCalled();
+    });
+  });
+
+  it('最小権限プリセットの Push 解除失敗時は再試行導線を表示できる', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    const { getPushSubscription, unsubscribePush, unregisterPeriodicSync } = await import('../core/pushSubscription');
+    const localUnsubscribe = vi.fn()
+      .mockRejectedValueOnce(new Error('local unsubscribe failed'))
+      .mockResolvedValue(true);
+    const fakeSubscription = {
+      unsubscribe: localUnsubscribe,
+    } as unknown as PushSubscription;
+    vi.mocked(getPushSubscription).mockResolvedValue(fakeSubscription);
+    vi.mocked(unsubscribePush).mockRejectedValue(new Error('server unsubscribe failed'));
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      push: {
+        enabled: true,
+        serverUrl: 'https://push.example',
+      },
+    });
+
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '最小権限プリセットを適用' }));
+    expect(await screen.findByRole('button', { name: 'Push 解除を再試行' })).toBeInTheDocument();
+    expect(screen.getByText(/Push 購読の解除に失敗しました/)).toBeInTheDocument();
+    expect(unregisterPeriodicSync).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      push: expect.objectContaining({
+        enabled: true,
+      }),
+    }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Push 解除を再試行' }));
+    await waitFor(() => {
+      expect(localUnsubscribe).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole('button', { name: 'Push 解除を再試行' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Push 購読のローカル解除は完了しました/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      push: expect.objectContaining({
+        enabled: false,
       }),
     }));
   });
