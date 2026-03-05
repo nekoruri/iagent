@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
 
@@ -263,6 +263,28 @@ describe('SettingsModal', () => {
     const deleteButton = mcpSection.querySelector('.btn-danger')!;
     await userEvent.click(deleteButton);
     expect(screen.getByText('MCPサーバーが未登録です')).toBeInTheDocument();
+  });
+
+  it('MCP 推奨プリセット追加で GitHub/Notion/RSS Reader が追加される', async () => {
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+    const mcpSection = screen.getByText('MCP Servers').closest('.settings-section') as HTMLElement;
+
+    await userEvent.click(screen.getByRole('button', { name: '推奨セットを追加' }));
+
+    expect(within(mcpSection).getByDisplayValue('github')).toBeInTheDocument();
+    expect(within(mcpSection).getByDisplayValue('notion')).toBeInTheDocument();
+    expect(within(mcpSection).getByDisplayValue('rss-reader')).toBeInTheDocument();
+    expect(within(mcpSection).getByText(/を追加しました/)).toBeInTheDocument();
+  });
+
+  it('MCP 推奨プリセットを再追加すると重複スキップの警告が表示される', async () => {
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    const recommendedButton = screen.getByRole('button', { name: '推奨セットを追加' });
+    await userEvent.click(recommendedButton);
+    await userEvent.click(recommendedButton);
+
+    expect(screen.getByText('選択したプリセットはすべて追加済みです。')).toBeInTheDocument();
   });
 
   it('オーバーレイクリックで onClose が呼ばれる', async () => {

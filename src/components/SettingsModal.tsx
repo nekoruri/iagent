@@ -46,9 +46,71 @@ interface Props {
   onClose: () => void;
 }
 
+interface MCPPreset {
+  id: string;
+  label: string;
+  category: string;
+  serverName: string;
+  urlTemplate: string;
+  description: string;
+}
+
 type SectionId = 'basic' | 'agent' | 'mcp' | 'heartbeat' | 'speech' | 'proxy' | 'otel' | 'storage';
 
 const ALL_SECTIONS: SectionId[] = ['basic', 'agent', 'mcp', 'heartbeat', 'speech', 'proxy', 'otel', 'storage'];
+
+const MCP_PRESETS: MCPPreset[] = [
+  {
+    id: 'github',
+    label: 'GitHub',
+    category: 'コード',
+    serverName: 'github',
+    urlTemplate: 'https://<your-github-mcp-endpoint>/mcp',
+    description: 'Issue / PR の検索・更新を行うためのプリセット',
+  },
+  {
+    id: 'notion',
+    label: 'Notion',
+    category: 'ナレッジ',
+    serverName: 'notion',
+    urlTemplate: 'https://<your-notion-mcp-endpoint>/mcp',
+    description: 'Notion DB / ページ連携のためのプリセット',
+  },
+  {
+    id: 'rss-reader',
+    label: 'RSS Reader',
+    category: '情報収集',
+    serverName: 'rss-reader',
+    urlTemplate: 'https://<your-rss-mcp-endpoint>/mcp',
+    description: '外部 RSS 取得系 MCP の接続テンプレート',
+  },
+  {
+    id: 'slack',
+    label: 'Slack',
+    category: 'コミュニケーション',
+    serverName: 'slack',
+    urlTemplate: 'https://<your-slack-mcp-endpoint>/mcp',
+    description: 'Slack 検索 / 投稿連携のためのプリセット',
+  },
+  {
+    id: 'gmail',
+    label: 'Gmail',
+    category: 'メール',
+    serverName: 'gmail',
+    urlTemplate: 'https://<your-gmail-mcp-endpoint>/mcp',
+    description: 'Gmail 検索 / 送信連携のためのプリセット',
+  },
+  {
+    id: 'google-calendar',
+    label: 'Google Calendar',
+    category: 'カレンダー',
+    serverName: 'google-calendar',
+    urlTemplate: 'https://<your-google-calendar-mcp-endpoint>/mcp',
+    description: 'Google Calendar 連携のためのプリセット',
+  },
+];
+
+const RECOMMENDED_MCP_PRESET_IDS = ['github', 'notion', 'rss-reader'];
 
 function initOpenSections(): Record<SectionId, boolean> {
   return Object.fromEntries(ALL_SECTIONS.map((id) => [id, true])) as Record<SectionId, boolean>;
@@ -111,6 +173,47 @@ function confirmSafely(message: string): boolean {
   }
 }
 
+function mergeMcpPresetServers(
+  currentServers: MCPServerConfig[],
+  presets: MCPPreset[],
+): { nextServers: MCPServerConfig[]; added: MCPPreset[]; skipped: MCPPreset[] } {
+  const existingNames = new Set(
+    currentServers
+      .map((server) => server.name.trim().toLowerCase())
+      .filter((name) => name.length > 0),
+  );
+  const existingUrls = new Set(
+    currentServers
+      .map((server) => server.url.trim())
+      .filter((url) => url.length > 0),
+  );
+  const nextServers = [...currentServers];
+  const added: MCPPreset[] = [];
+  const skipped: MCPPreset[] = [];
+
+  for (const preset of presets) {
+    const normalizedName = preset.serverName.trim().toLowerCase();
+    const normalizedUrl = preset.urlTemplate.trim();
+    const duplicatedByName = normalizedName.length > 0 && existingNames.has(normalizedName);
+    const duplicatedByUrl = normalizedUrl.length > 0 && existingUrls.has(normalizedUrl);
+    if (duplicatedByName || duplicatedByUrl) {
+      skipped.push(preset);
+      continue;
+    }
+    nextServers.push({
+      id: crypto.randomUUID(),
+      name: preset.serverName,
+      url: preset.urlTemplate,
+      enabled: false,
+    });
+    added.push(preset);
+    existingNames.add(normalizedName);
+    existingUrls.add(normalizedUrl);
+  }
+
+  return { nextServers, added, skipped };
+}
+
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: 'ダーク' },
   { value: 'light', label: 'ライト' },
@@ -136,6 +239,8 @@ export function SettingsModal({ open, onClose }: Props) {
     quota: number;
   } | null>(null);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
+  const [mcpPresetMessage, setMcpPresetMessage] = useState('');
+  const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
   const [portabilityStatus, setPortabilityStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
   const [portabilityMessage, setPortabilityMessage] = useState('');
   const [needsReloadAfterImport, setNeedsReloadAfterImport] = useState(false);
@@ -387,6 +492,30 @@ export function SettingsModal({ open, onClose }: Props) {
     }));
   };
 
+  const handleAddMcpPreset = (presetIds: string[]) => {
+    const selected = MCP_PRESETS.filter((preset) => presetIds.includes(preset.id));
+    if (selected.length === 0) return;
+
+    const result = mergeMcpPresetServers(config.mcpServers, selected);
+    if (result.added.length === 0) {
+      setMcpPresetMessageStatus('warning');
+      setMcpPresetMessage('選択したプリセットはすべて追加済みです。');
+      return;
+    }
+
+    setConfig((prev) => ({
+      ...prev,
+      mcpServers: result.nextServers,
+    }));
+
+    const addedLabels = result.added.map((preset) => preset.label).join(' / ');
+    const skippedText = result.skipped.length > 0
+      ? `（${result.skipped.length}件は既存のためスキップ）`
+      : '';
+    setMcpPresetMessageStatus('success');
+    setMcpPresetMessage(`${addedLabels} を追加しました。${skippedText}`.trim());
+  };
+
   const handleExportData = async () => {
     setPortabilityStatus('exporting');
     setPortabilityMessage('バックアップを作成しています...');
@@ -621,6 +750,43 @@ export function SettingsModal({ open, onClose }: Props) {
             </summary>
             <div className="settings-section-content">
               <p className="mcp-hint">MCPサーバーのツールをAgentから利用できます。サーバー側でCORSを許可してください。</p>
+              <div className="mcp-preset-box">
+                <div className="mcp-preset-header">
+                  <span className="mcp-preset-title">クイック追加（MCPプリセット）</span>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={() => handleAddMcpPreset(RECOMMENDED_MCP_PRESET_IDS)}
+                  >
+                    推奨セットを追加
+                  </button>
+                </div>
+                <p className="mcp-hint">
+                  推奨セット（GitHub / Notion / RSS Reader）をワンクリックで追加できます。
+                  URL は各 MCP サーバー環境に合わせて編集してください。
+                </p>
+                <div className="mcp-preset-grid">
+                  {MCP_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="mcp-preset-btn"
+                      onClick={() => handleAddMcpPreset([preset.id])}
+                    >
+                      <div className="mcp-preset-btn-top">
+                        <span>{preset.label}</span>
+                        <span className="mcp-status mcp-status-disconnected">{preset.category}</span>
+                      </div>
+                      <span className="mcp-preset-btn-description">{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {mcpPresetMessage && (
+                  <p className={`mcp-preset-message ${mcpPresetMessageStatus}`}>
+                    {mcpPresetMessage}
+                  </p>
+                )}
+              </div>
 
               {config.mcpServers.length === 0 && (
                 <p className="mcp-empty">MCPサーバーが未登録です</p>

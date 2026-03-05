@@ -99,6 +99,10 @@ iOS Safari かつ未インストール時は、ホーム画面追加の案内バ
 ### 4.3 MCP Servers
 
 - MCP サーバーの追加・有効化・削除
+- クイック追加（MCPプリセット）
+  - 単体追加: `GitHub / Notion / RSS Reader / Slack / Gmail / Google Calendar`
+  - 一括追加: `推奨セットを追加`（`GitHub / Notion / RSS Reader`）
+  - 追加時は URL テンプレートが自動入力されるため、実環境のエンドポイントに書き換えて保存
 - 接続状態: `未接続 / 接続中 / 接続済み / エラー`
 - URL 制約
   - 原則 `https://`

@@ -999,6 +999,84 @@ body {
   padding: 12px 0;
 }
 
+.mcp-preset-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.mcp-preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcp-preset-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mcp-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mcp-preset-btn {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.mcp-preset-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+}
+
+.mcp-preset-btn-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mcp-preset-btn-description {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.mcp-preset-message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.mcp-preset-message.success {
+  color: var(--status-success);
+}
+
+.mcp-preset-message.warning {
+  color: var(--status-warning);
+}
+
 .mcp-server-card {
   display: flex;
   flex-direction: column;
@@ -2312,6 +2390,10 @@ body {
     width: 100%;
     max-height: 60vh;
     border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .mcp-preset-grid {
+    grid-template-columns: 1fr;
   }
 }
 
