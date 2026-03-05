@@ -43,6 +43,7 @@ export interface HeartbeatTokenUsage {
 
 const STANDARD_GRADE_TASK_IDS = new Set([
   'briefing-morning',
+  'rss-digest-daily',
   'reflection',
   'weekly-summary',
   'monthly-review',

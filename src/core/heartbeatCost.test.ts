@@ -32,6 +32,13 @@ describe('getHeartbeatTaskExecutionPolicy', () => {
     expect(policy.modelGrade).toBe('low');
     expect(policy.critical).toBe(true);
   });
+
+  it('rss-digest-daily は standard モデルで実行される', () => {
+    const policy = getHeartbeatTaskExecutionPolicy(builtinTask('rss-digest-daily'));
+    expect(policy.model).toBe('gpt-5-mini');
+    expect(policy.modelGrade).toBe('standard');
+    expect(policy.critical).toBe(false);
+  });
 });
 
 describe('groupTasksByExecutionPolicy', () => {

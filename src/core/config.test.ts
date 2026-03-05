@@ -52,6 +52,17 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     expect(task!.description).toContain('saveReflection');
   });
 
+  it('rss-digest-daily が無効で定義され、fixed-time 08:00 スケジュールを持つ', () => {
+    const task = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'rss-digest-daily');
+    expect(task).toBeDefined();
+    expect(task!.enabled).toBe(false);
+    expect(task!.type).toBe('builtin');
+    expect(task!.schedule).toEqual({ type: 'fixed-time', hour: 8, minute: 0 });
+    expect(task!.description).toContain('listClassifiedFeedItems');
+    expect(task!.description).toContain('getCrossSourceTopics');
+    expect(task!.description).toContain('listUnreadFeedItems');
+  });
+
   it('briefing-morning が無効で定義され、fixed-time 07:00 スケジュールを持つ', () => {
     const briefing = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'briefing-morning');
     expect(briefing).toBeDefined();

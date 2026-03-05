@@ -51,7 +51,7 @@ jobs:
             ]);
 
             const criticalPatterns = [
-              /\bcritical\b/i,
+              /\bcritical\s+(issue|issues|bug|bugs|finding|findings|vulnerability|risk|severity)\b/i,
               /\bblocker\b/i,
               /\bsev(?:erity)?\s*[:=]?\s*(critical|high)\b/i,
               /\bhigh\s+severity\b/i,

@@ -11,7 +11,7 @@
 - チャット UI（ストリーミング対応）
 - ビルトインツール 7 種（カレンダー、Web 検索、デバイス情報、メモリ、クリッピング、RSS フィード、Web ページ監視）
 - MCP サーバー連携（ブラウザベース StreamableHTTP）+ Heartbeat 対応（read-only ツール許可）
-- Heartbeat バックグラウンドチェック（11 ビルトインタスク + カスタムタスク + Action Planning 自動設定変更）
+- Heartbeat バックグラウンドチェック（12 ビルトインタスク + カスタムタスク + Action Planning 自動設定変更）
 - デスクトップ通知（Notification API）
 - PWA（カスタム Service Worker + injectManifest、インストール可能）
 - エージェント長期メモリ（構造化記憶 — importance/tags/カテゴリ拡張 + 関連性ベース取得 + 認知的記憶アーキテクチャ）
@@ -254,7 +254,7 @@
 - [x] 月次レビュータスク F15 — monthly-review ビルトインタスク（08:00 固定スケジュール、LLM 月初判定）+ getMonthlyGoalStats Worker ツール（goal メモリの活動状態・期日状態を集計: active/new/stale/overdue 分類 + deadline 残り日数）+ computeMonthlyGoalStats 純粋関数（テスト容易性確保）+ 結果ピン留め
 - [x] パターン認識トリガー F14 — pattern-recognition ビルトインタスク（22:00 固定スケジュール）+ getUserActivityPatterns Worker ツール（時間帯別 Accept 率・曜日別アクティビティ・タスク別トレンド・タグ頻出度変化を集計）+ computeUserActivityPatterns 純粋関数（テスト容易性確保）+ reflection 保存で briefing/他タスクが自動参照
 - [x] 提案品質の自動最適化 F16 — suggestion-optimization ビルトインタスク（23:30 固定スケジュール）+ getSuggestionOptimizations Worker ツール（フィードバック統計 + 行動パターンからタスク別調整方針・タイミング最適化・カテゴリ重み調整を算出）+ computeSuggestionOptimizations 純粋関数（テスト容易性確保）+ instructionBuilder に最適化ルール専用セクション注入（suggestion-optimization タグ付き reflection を分離、最新1件を「活用すること」指示付きで挿入）+ 結果ピン留め
-- [ ] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
+- [x] 情報収集ワークフロー拡張（RSS ダイジェスト等の追加 Heartbeat タスク）
 - [ ] プロアクティブ提案エンジン（関連情報サジェスト）
 - [x] Action Planning（チェック → 判断 → アクション）
 
@@ -359,3 +359,4 @@
 - [x] data URI → Blob 保存移行（フェーズ3）— `attachmentStore` で添付の保存形式を Blob 優先に変更（旧 data URI 形式との互換読み出しを維持）。`dataPortability` の export/import でも Blob 変換を挟み、バックアップ互換を維持。`attachmentStore.test.ts` / `dataPortability.test.ts` に Blob 変換の検証を追加。（2026-03-05）
 - [x] サムネイル生成の Worker 化（フェーズ3）— `thumbnail.worker.ts` を追加し、`fileUtils.generateThumbnail()` で Web Worker 経由のサムネイル生成を実装。`OffscreenCanvas/createImageBitmap` 非対応時や Worker 失敗時は既存のメインスレッド実装へ自動フォールバック。（2026-03-05）
 - [x] Heartbeat 条件付き実行（時間帯）— `HeartbeatTask.condition`（time-window）を追加し、`getTasksDue` / `getTasksDueFromIDB` で時間帯条件に合致するタスクのみ実行。`SettingsModal` のカスタムタスクに時間帯条件 UI（なし/時間帯指定）を追加し、`heartbeat.test.ts` / `heartbeatCommon.test.ts` / `config.test.ts` / `SettingsModal.test.tsx` を更新。（2026-03-06）
+- [x] 情報収集ワークフロー拡張（RSS ダイジェスト）— `rss-digest-daily` ビルトインタスクを追加（08:00 固定スケジュール）。`listClassifiedFeedItems` + `getCrossSourceTopics` を軸に日次要約し、分類済み記事がない場合は `listUnreadFeedItems` でヘッドライン要約にフォールバック。`heartbeatCost` で standard モデル実行に設定し、`config.test.ts` / `heartbeatCost.test.ts` を更新。（2026-03-06）
