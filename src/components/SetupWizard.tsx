@@ -51,6 +51,12 @@ export function SetupWizard({ onComplete }: Props) {
 
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat: HeartbeatConfig = config.heartbeat ?? getDefaultHeartbeatConfig();
+  const selectedPresetConfig = selectedPreset !== null ? PERSONA_PRESETS[selectedPreset] : null;
+  const selectedPresetTaskNames = selectedPresetConfig
+    ? heartbeat.tasks
+      .filter((task) => task.type === 'builtin' && selectedPresetConfig.recommendedTaskIds.includes(task.id))
+      .map((task) => task.name || task.id)
+    : [];
 
   const update = (key: keyof AppConfig, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
@@ -224,9 +230,14 @@ export function SetupWizard({ onComplete }: Props) {
                 ))}
               </div>
               {selectedPreset !== null && (
-                <p className="wizard-preset-description">
-                  {PERSONA_PRESETS[selectedPreset].description}
-                </p>
+                <>
+                  <p className="wizard-preset-description">
+                    {PERSONA_PRESETS[selectedPreset].description}
+                  </p>
+                  <p className="wizard-preset-task-summary">
+                    有効化タスク: {selectedPresetTaskNames.join(' / ')}
+                  </p>
+                </>
               )}
             </div>
             <label>

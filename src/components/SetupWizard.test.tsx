@@ -158,6 +158,7 @@ describe('SetupWizard', () => {
 
     expect(screen.getByRole('button', { name: /情報収集型/ })).toBeInTheDocument();
     expect(screen.getByText(/フィード\/監視の変化を素早く要約/)).toBeInTheDocument();
+    expect(screen.getByText(/有効化タスク:/)).toBeInTheDocument();
   });
 
   it('「戻る」で前のステップに戻れる', async () => {
