@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getConfig, saveConfig, getDefaultHeartbeatConfig, getDefaultPersonaConfig } from '../core/config';
 import type { AppConfig, PersonaConfig, HeartbeatConfig, SuggestionFrequency } from '../types';
+import { createSetupWizardSessionId, recordSetupWizardOpsEvent } from '../core/setupWizardOps';
 
 interface Props {
   onComplete: () => void | Promise<void>;
@@ -48,6 +49,7 @@ export function SetupWizard({ onComplete }: Props) {
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<AppConfig>(getConfig);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const sessionIdRef = useRef(createSetupWizardSessionId());
 
   const persona: PersonaConfig = config.persona ?? getDefaultPersonaConfig();
   const heartbeat: HeartbeatConfig = config.heartbeat ?? getDefaultHeartbeatConfig();
@@ -82,24 +84,81 @@ export function SetupWizard({ onComplete }: Props) {
   };
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 3) {
+      if (step === 0) {
+        void recordSetupWizardOpsEvent({
+          sessionId: sessionIdRef.current,
+          action: 'start',
+          step: 0,
+          nextStep: 1,
+        });
+      } else {
+        void recordSetupWizardOpsEvent({
+          sessionId: sessionIdRef.current,
+          action: 'step-next',
+          step,
+          nextStep: step + 1,
+        });
+      }
+      setStep(step + 1);
+    }
   };
 
   const handleBack = () => {
-    if (step > 0) setStep(step - 1);
+    if (step > 0) {
+      void recordSetupWizardOpsEvent({
+        sessionId: sessionIdRef.current,
+        action: 'step-back',
+        step,
+        nextStep: step - 1,
+      });
+      setStep(step - 1);
+    }
   };
 
   const handleSkip = () => {
+    void recordSetupWizardOpsEvent({
+      sessionId: sessionIdRef.current,
+      action: 'step-skip',
+      step,
+      nextStep: 3,
+    });
     setStep(3);
   };
 
   const handleComplete = async () => {
+    const selected = selectedPreset !== null ? PERSONA_PRESETS[selectedPreset] : null;
+    const enabledTaskCount = (config.heartbeat?.tasks ?? [])
+      .filter((task) => task.type === 'builtin' && task.enabled)
+      .length;
+    void recordSetupWizardOpsEvent({
+      sessionId: sessionIdRef.current,
+      action: 'completed',
+      step: 3,
+      ...(selected
+        ? {
+            presetLabel: selected.label,
+            presetRecommended: selectedPreset === RECOMMENDED_PRESET_INDEX,
+            suggestionFrequency: selected.suggestionFrequency,
+          }
+        : {}),
+      enabledTaskCount,
+    });
     saveConfig(config);
     await onComplete();
   };
 
   const applyPreset = (index: number) => {
     const preset = PERSONA_PRESETS[index];
+    void recordSetupWizardOpsEvent({
+      sessionId: sessionIdRef.current,
+      action: 'preset-applied',
+      step: 2,
+      presetLabel: preset.label,
+      presetRecommended: index === RECOMMENDED_PRESET_INDEX,
+      suggestionFrequency: preset.suggestionFrequency,
+      enabledTaskCount: preset.recommendedTaskIds.length,
+    });
     setSelectedPreset(index);
     setConfig((prev) => {
       const currentHeartbeat = prev.heartbeat ?? getDefaultHeartbeatConfig();

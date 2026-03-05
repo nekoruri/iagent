@@ -276,6 +276,12 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   const kpiAcceptLine = `- 提案 Accept 率（7日）: ${toPercent(result.kpi.acceptRate.rate)}（accepted=${result.kpi.acceptRate.accepted}, dismissed=${result.kpi.acceptRate.dismissed}, snoozed=${result.kpi.acceptRate.snoozed}）`;
   const kpiActiveLine = `- 7日アクティブ率: ${toPercent(result.kpi.activeRate.rate)}（activeDays=${result.kpi.activeRate.activeDays}）`;
   const kpiRevisitLine = `- 通知経由再訪率（7日）: ${toPercent(result.kpi.revisitRate.rate)}（notificationShown=${result.kpi.revisitRate.shown}, notificationClicked=${result.kpi.revisitRate.clicked}, unmatchedClicks=${result.kpi.revisitRate.unmatchedClicks}）`;
+  const onboardingCompletionLine = `- オンボーディング完了率（7日）: ${toPercent(result.kpi.onboarding.completionRate)}（started=${result.kpi.onboarding.startedSessions}, completed=${result.kpi.onboarding.completedSessions}）`;
+  const onboardingMedianLine = typeof result.kpi.onboarding.medianCompletionMs === 'number'
+    ? `- セットアップ完了時間中央値（7日）: ${(result.kpi.onboarding.medianCompletionMs / 1000).toFixed(1)}s（sample=${result.kpi.onboarding.completedSessions}）`
+    : `- セットアップ完了時間中央値（7日）: n/a（sample=${result.kpi.onboarding.completedSessions}）`;
+  const onboardingRecommendedLine = `- 推奨プリセット採用率（完了セッション, 7日）: ${toPercent(result.kpi.onboarding.recommendedRate)}（recommendedCompleted=${result.kpi.onboarding.completedWithRecommended}, completed=${result.kpi.onboarding.completedSessions}）`;
+  const onboardingActive24hLine = `- オンボーディング完了後24hアクティブ率（7日）: ${toPercent(result.kpi.onboarding.activeWithin24hRate)}（active=${result.kpi.onboarding.activeWithin24h}, completed=${result.kpi.onboarding.completedSessions}）`;
   const kpiStatusLine = `- KPI 判定: Accept=${result.assessment.kpi.acceptRate}, Active=${result.assessment.kpi.activeRate}, Revisit=${result.assessment.kpi.revisitRate}, Overall=${result.assessment.kpi.overall}`;
   const sloHeartbeatLine = `- Heartbeat 実行成功率（24h平均）: ${toPercent(result.slo24h.heartbeatRunSuccess.rate)}（attempts=${result.slo24h.heartbeatRunSuccess.attempts}）`;
   const sloPushLine = `- Push wake 実行成功率（24h平均）: ${toPercent(result.slo24h.pushWakeSuccess.rate)}（attempts=${result.slo24h.pushWakeSuccess.attempts}）`;
@@ -289,6 +295,10 @@ async function updateWeeklyReviewFile(filePath, result, collectedAtTs) {
   next = lineReplace(next, /^- 提案 Accept 率（7日）:.*$/m, kpiAcceptLine);
   next = lineReplace(next, /^- 7日アクティブ率:.*$/m, kpiActiveLine);
   next = lineReplace(next, /^- 通知経由再訪率（7日）:.*$/m, kpiRevisitLine);
+  next = lineReplace(next, /^- オンボーディング完了率（7日）:.*$/m, onboardingCompletionLine);
+  next = lineReplace(next, /^- セットアップ完了時間中央値（7日）:.*$/m, onboardingMedianLine);
+  next = lineReplace(next, /^- 推奨プリセット採用率（完了セッション, 7日）:.*$/m, onboardingRecommendedLine);
+  next = lineReplace(next, /^- オンボーディング完了後24hアクティブ率（7日）:.*$/m, onboardingActive24hLine);
   next = lineReplace(next, /^- KPI 判定:.*$/m, kpiStatusLine);
   next = lineReplace(next, /^- Heartbeat 実行成功率（24h平均）:.*$/m, sloHeartbeatLine);
   next = lineReplace(next, /^- Push wake 実行成功率（24h平均）:.*$/m, sloPushLine);
@@ -330,6 +340,25 @@ async function updateBaselineFile(filePath, result, collectedAtTs, userDataDir) 
   next = lineReplace(next, /^- notificationClicked:.*$/m, `- notificationClicked: ${result.kpi.revisitRate.clicked}`);
   next = lineReplace(next, /^- unmatchedClicks:.*$/m, `- unmatchedClicks: ${result.kpi.revisitRate.unmatchedClicks}`);
   next = lineReplace(next, /^- revisitRate:.*$/m, `- revisitRate: ${toPercent(result.kpi.revisitRate.rate)} (${result.kpi.revisitRate.rate.toFixed(4)})`);
+  next = lineReplace(next, /^- onboardingStartedSessions:.*$/m, `- onboardingStartedSessions: ${result.kpi.onboarding.startedSessions}`);
+  next = lineReplace(next, /^- onboardingCompletedSessions:.*$/m, `- onboardingCompletedSessions: ${result.kpi.onboarding.completedSessions}`);
+  next = lineReplace(next, /^- onboardingCompletionRate:.*$/m, `- onboardingCompletionRate: ${toPercent(result.kpi.onboarding.completionRate)} (${result.kpi.onboarding.completionRate.toFixed(4)})`);
+  next = lineReplace(
+    next,
+    /^- onboardingMedianCompletionSec:.*$/m,
+    typeof result.kpi.onboarding.medianCompletionMs === 'number'
+      ? `- onboardingMedianCompletionSec: ${(result.kpi.onboarding.medianCompletionMs / 1000).toFixed(1)}s (${result.kpi.onboarding.medianCompletionMs}ms)`
+      : '- onboardingMedianCompletionSec: n/a',
+  );
+  next = lineReplace(next, /^- onboardingRecommendedCompletions:.*$/m, `- onboardingRecommendedCompletions: ${result.kpi.onboarding.completedWithRecommended}`);
+  next = lineReplace(next, /^- onboardingRecommendedRate:.*$/m, `- onboardingRecommendedRate: ${toPercent(result.kpi.onboarding.recommendedRate)} (${result.kpi.onboarding.recommendedRate.toFixed(4)})`);
+  next = lineReplace(next, /^- onboardingActiveWithin24h:.*$/m, `- onboardingActiveWithin24h: ${result.kpi.onboarding.activeWithin24h}`);
+  next = lineReplace(next, /^- onboardingActiveWithin24hRate:.*$/m, `- onboardingActiveWithin24hRate: ${toPercent(result.kpi.onboarding.activeWithin24hRate)} (${result.kpi.onboarding.activeWithin24hRate.toFixed(4)})`);
+  next = lineReplace(next, /^- onboardingCompletionStatus:.*$/m, `- onboardingCompletionStatus: ${result.assessment.onboarding.completionRate}`);
+  next = lineReplace(next, /^- onboardingRecommendedStatus:.*$/m, `- onboardingRecommendedStatus: ${result.assessment.onboarding.recommendedRate}`);
+  next = lineReplace(next, /^- onboardingMedianStatus:.*$/m, `- onboardingMedianStatus: ${result.assessment.onboarding.medianCompletion}`);
+  next = lineReplace(next, /^- onboardingActiveWithin24hStatus:.*$/m, `- onboardingActiveWithin24hStatus: ${result.assessment.onboarding.activeWithin24h}`);
+  next = lineReplace(next, /^- onboardingOverallStatus:.*$/m, `- onboardingOverallStatus: ${result.assessment.onboarding.overall}`);
   next = lineReplace(next, /^- shownByChannel:.*$/m, `- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
   next = lineReplace(next, /^- clickedByChannel:.*$/m, `- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
   next = lineReplace(next, /^- kpiAcceptStatus:.*$/m, `- kpiAcceptStatus: ${result.assessment.kpi.acceptRate}`);
@@ -579,6 +608,85 @@ async function main() {
           else clickedByChannel.unknown++;
         }
 
+        const setupWizardEvents = kpiOpsEvents
+          .filter(
+            (e) => e?.type === 'setup-wizard'
+              && typeof e?.wizardSessionId === 'string'
+              && e.wizardSessionId.length > 0,
+          )
+          .sort((a, b) => a.timestamp - b.timestamp);
+        const onboardingBySession = new Map();
+        for (const e of setupWizardEvents) {
+          const session = onboardingBySession.get(e.wizardSessionId) ?? {
+            startedAt: null,
+            completedAt: null,
+            completedWithRecommended: false,
+          };
+          if (e.wizardAction === 'start' && session.startedAt === null) {
+            session.startedAt = e.timestamp;
+          }
+          if (e.wizardAction === 'completed') {
+            if (session.completedAt === null) {
+              session.completedAt = e.timestamp;
+            }
+            if (e.wizardPresetRecommended === true) {
+              session.completedWithRecommended = true;
+            }
+          }
+          onboardingBySession.set(e.wizardSessionId, session);
+        }
+        const onboardingSessions = Array.from(onboardingBySession.values());
+        const onboardingStarted = onboardingSessions.filter((s) => Number.isFinite(s.startedAt));
+        const onboardingCompleted = onboardingStarted.filter((s) => Number.isFinite(s.completedAt));
+        const onboardingStartedSessions = onboardingStarted.length;
+        const onboardingCompletedSessions = onboardingCompleted.length;
+        const onboardingCompletedWithRecommended = onboardingCompleted
+          .filter((s) => s.completedWithRecommended)
+          .length;
+        const onboardingCompletionRate = onboardingStartedSessions > 0
+          ? onboardingCompletedSessions / onboardingStartedSessions
+          : 0;
+        const onboardingRecommendedRate = onboardingCompletedSessions > 0
+          ? onboardingCompletedWithRecommended / onboardingCompletedSessions
+          : 0;
+        const onboardingCompletionDurationsMs = onboardingCompleted
+          .map((s) => {
+            const duration = s.completedAt - s.startedAt;
+            return duration >= 0 ? duration : null;
+          })
+          .filter((n) => typeof n === 'number');
+        const onboardingMedianCompletionMs = onboardingCompletionDurationsMs.length > 0
+          ? (() => {
+              const sorted = [...onboardingCompletionDurationsMs].sort((a, b) => a - b);
+              const mid = Math.floor(sorted.length / 2);
+              if (sorted.length % 2 === 0) {
+                return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+              }
+              return sorted[mid];
+            })()
+          : null;
+        const activityTimestamps = [];
+        for (const msg of conversations) {
+          if (msg?.role !== 'user' || typeof msg?.timestamp !== 'number') continue;
+          activityTimestamps.push(msg.timestamp);
+        }
+        for (const feedback of feedbackByResult.values()) {
+          if (typeof feedback?.feedbackTimestamp === 'number') {
+            activityTimestamps.push(feedback.feedbackTimestamp);
+          }
+        }
+        activityTimestamps.sort((a, b) => a - b);
+        const onboardingCompletedAt = onboardingCompleted.map((s) => s.completedAt);
+        let onboardingActiveWithin24h = 0;
+        for (const completedAt of onboardingCompletedAt) {
+          const cutoff24h = completedAt + dayMs;
+          const hasActivity = activityTimestamps.some((ts) => ts >= completedAt && ts <= cutoff24h);
+          if (hasActivity) onboardingActiveWithin24h++;
+        }
+        const onboardingActiveWithin24hRate = onboardingCompletedAt.length > 0
+          ? onboardingActiveWithin24h / onboardingCompletedAt.length
+          : 0;
+
         const sloEvents = Array.isArray(opsEvents)
           ? opsEvents.filter((e) => typeof e?.timestamp === 'number' && e.timestamp >= sloCutoff && e?.type === 'heartbeat-run')
           : [];
@@ -633,6 +741,16 @@ async function main() {
               shownByChannel,
               clickedByChannel,
             },
+            onboarding: {
+              startedSessions: onboardingStartedSessions,
+              completedSessions: onboardingCompletedSessions,
+              completionRate: onboardingCompletionRate,
+              medianCompletionMs: onboardingMedianCompletionMs,
+              completedWithRecommended: onboardingCompletedWithRecommended,
+              recommendedRate: onboardingRecommendedRate,
+              activeWithin24h: onboardingActiveWithin24h,
+              activeWithin24hRate: onboardingActiveWithin24hRate,
+            },
           },
           slo24h: {
             heartbeatRunSuccess: {
@@ -686,6 +804,34 @@ async function main() {
         ),
       },
     };
+    assessment.onboarding = {
+      completionRate: classifySloSuccessRate(
+        result.kpi.onboarding.completionRate,
+        result.kpi.onboarding.startedSessions,
+        { target: 0.7, alert: 0.5 },
+      ),
+      recommendedRate: classifySloSuccessRate(
+        result.kpi.onboarding.recommendedRate,
+        result.kpi.onboarding.completedSessions,
+        { target: 0.6, alert: 0.4 },
+      ),
+      medianCompletion: classifySloLatencyMs(
+        result.kpi.onboarding.medianCompletionMs,
+        result.kpi.onboarding.completedSessions,
+        { targetMs: 180_000, alertMs: 300_000 },
+      ),
+      activeWithin24h: classifySloSuccessRate(
+        result.kpi.onboarding.activeWithin24hRate,
+        result.kpi.onboarding.completedSessions,
+        { target: 0.6, alert: 0.4 },
+      ),
+    };
+    assessment.onboarding.overall = worstStatus([
+      assessment.onboarding.completionRate,
+      assessment.onboarding.recommendedRate,
+      assessment.onboarding.medianCompletion,
+      assessment.onboarding.activeWithin24h,
+    ]);
     assessment.kpi.overall = worstStatus([
       assessment.kpi.acceptRate,
       assessment.kpi.activeRate,
@@ -722,6 +868,23 @@ async function main() {
     console.log(`- kpiActiveStatus: ${result.assessment.kpi.activeRate}`);
     console.log(`- kpiRevisitStatus: ${result.assessment.kpi.revisitRate}`);
     console.log(`- kpiOverallStatus: ${result.assessment.kpi.overall}`);
+    console.log(`- onboardingStartedSessions: ${result.kpi.onboarding.startedSessions}`);
+    console.log(`- onboardingCompletedSessions: ${result.kpi.onboarding.completedSessions}`);
+    console.log(`- onboardingCompletionRate: ${toPercent(result.kpi.onboarding.completionRate)} (${result.kpi.onboarding.completionRate.toFixed(4)})`);
+    if (typeof result.kpi.onboarding.medianCompletionMs === 'number') {
+      console.log(`- onboardingMedianCompletionSec: ${(result.kpi.onboarding.medianCompletionMs / 1000).toFixed(1)}s (${result.kpi.onboarding.medianCompletionMs}ms)`);
+    } else {
+      console.log('- onboardingMedianCompletionSec: n/a');
+    }
+    console.log(`- onboardingRecommendedCompletions: ${result.kpi.onboarding.completedWithRecommended}`);
+    console.log(`- onboardingRecommendedRate: ${toPercent(result.kpi.onboarding.recommendedRate)} (${result.kpi.onboarding.recommendedRate.toFixed(4)})`);
+    console.log(`- onboardingActiveWithin24h: ${result.kpi.onboarding.activeWithin24h}`);
+    console.log(`- onboardingActiveWithin24hRate: ${toPercent(result.kpi.onboarding.activeWithin24hRate)} (${result.kpi.onboarding.activeWithin24hRate.toFixed(4)})`);
+    console.log(`- onboardingCompletionStatus: ${result.assessment.onboarding.completionRate}`);
+    console.log(`- onboardingRecommendedStatus: ${result.assessment.onboarding.recommendedRate}`);
+    console.log(`- onboardingMedianStatus: ${result.assessment.onboarding.medianCompletion}`);
+    console.log(`- onboardingActiveWithin24hStatus: ${result.assessment.onboarding.activeWithin24h}`);
+    console.log(`- onboardingOverallStatus: ${result.assessment.onboarding.overall}`);
     console.log(`- shownByChannel: ${JSON.stringify(result.kpi.revisitRate.shownByChannel)}`);
     console.log(`- clickedByChannel: ${JSON.stringify(result.kpi.revisitRate.clickedByChannel)}`);
     console.log(`- slo24hHeartbeatAttempts: ${result.slo24h.heartbeatRunSuccess.attempts}`);

@@ -1,4 +1,5 @@
 name: Copilot Review Check
+
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -7,20 +8,19 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
+  pull-requests: read
   statuses: write
 
 concurrency:
-  group: copilot-review-${{ github.event.pull_request.number || github.run_id }}-${{ github.event_name }}
+  group: copilot-review-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   check-copilot-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     steps:
-      - name: Wait for Copilot review and update status
+      - name: Evaluate Copilot review signals
         uses: actions/github-script@v7
         with:
           github-token: ${{ github.token }}
@@ -33,19 +33,24 @@ jobs:
               return;
             }
 
-            const shouldRequestReview = context.eventName === 'pull_request';
-            const targetUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`;
-            const statusContext = 'copilot-review';
-            const reportMarker = '<!-- copilot-review-check-report -->';
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
 
-            const COPILOT_LOGIN_CANDIDATES = [
+            const headSha = pr.head?.sha;
+            const targetUrl = pr.html_url;
+            const statusContext = 'copilot-review';
+
+            const copilotLogins = new Set([
               'github-copilot[bot]',
               'copilot-pull-request-reviewer[bot]',
               'copilot-pull-request-reviewer',
               'copilot',
-            ];
+            ]);
 
-            const CRITICAL_KEYWORDS = [
+            const criticalPatterns = [
               /\bcritical\b/i,
               /\bblocker\b/i,
               /\bsev(?:erity)?\s*[:=]?\s*(critical|high)\b/i,
@@ -58,599 +63,87 @@ jobs:
               /クラッシュ/i,
             ];
 
-            const NON_CRITICAL_HINTS = [
+            const nonCriticalHints = [
               /\bno\s+(critical|high severity|security issues?|bugs?)\b/i,
               /(?:問題|バグ|脆弱性)(?:は|が)?(?:ありません|なし)/i,
               /指摘なし/,
               /問題なし/,
             ];
 
-            const normalize = (value) => (value || '').toString().trim().toLowerCase();
-            const compact = (value) => (value || '').toString().replace(/\s+/g, ' ').trim();
-            const truncate = (value, maxLength = 120) => {
-              if (!value || value.length <= maxLength) {
-                return value || '';
-              }
-              return `${value.slice(0, maxLength - 1)}…`;
-            };
-            const shortSha = (sha) => (sha ? sha.slice(0, 7) : 'unknown');
-            const TERMINAL_STATUS_STATES = new Set(['success', 'failure', 'error']);
-            const SIGNAL_REFRESH_OVERLAP_MS = 30000;
-            const SIGNAL_CACHE_LIMIT = 600;
-            const HEAD_FRESH_GRACE_MS = 30000;
-            const COPILOT_LOGIN_SET = new Set(COPILOT_LOGIN_CANDIDATES.map(normalize));
-
             const isCopilotLogin = (login) => {
-              const normalized = normalize(login);
-              if (!normalized) {
-                return false;
-              }
-              return COPILOT_LOGIN_SET.has(normalized);
+              if (!login) return false;
+              return copilotLogins.has(String(login).trim().toLowerCase());
             };
 
-            if (context.eventName === 'pull_request_review') {
-              const reviewAuthor = context.payload.review?.user?.login;
-              if (!isCopilotLogin(reviewAuthor)) {
-                core.info(`Skip non-Copilot review event by "${reviewAuthor || 'unknown'}"`);
-                return;
-              }
+            const hasCriticalSignal = (text) => {
+              if (!text || typeof text !== 'string') return false;
+              if (nonCriticalHints.some((pattern) => pattern.test(text))) return false;
+              return criticalPatterns.some((pattern) => pattern.test(text));
+            };
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const copilotTexts = [];
+
+            for (const review of reviews) {
+              if (!isCopilotLogin(review.user?.login)) continue;
+              const body = review.body || '';
+              if (body.trim().length === 0) continue;
+              copilotTexts.push({
+                source: 'review',
+                id: review.id,
+                body,
+                submittedAt: review.submitted_at || review.updated_at || review.created_at || null,
+              });
             }
 
-            const toTimestamp = (value) => {
-              if (!value) {
-                return 0;
-              }
-              if (typeof value === 'number') {
-                return Number.isFinite(value) ? value : 0;
-              }
-              const ts = Date.parse(value);
-              return Number.isFinite(ts) ? ts : 0;
-            };
+            for (const comment of reviewComments) {
+              if (!isCopilotLogin(comment.user?.login)) continue;
+              const body = comment.body || '';
+              if (body.trim().length === 0) continue;
+              copilotTexts.push({
+                source: 'review-comment',
+                id: comment.id,
+                body,
+                submittedAt: comment.updated_at || comment.created_at || null,
+              });
+            }
 
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const criticalFindings = copilotTexts.filter((entry) => hasCriticalSignal(entry.body));
 
-            const setStatus = async (sha, state, description) => {
-              try {
-                await github.rest.repos.createCommitStatus({
-                  owner,
-                  repo,
-                  sha,
-                  state,
-                  context: statusContext,
-                  description: description.slice(0, 140),
-                  target_url: targetUrl,
-                });
-                return true;
-              } catch (error) {
-                const status = error?.status || 'unknown';
-                const message = error?.message || 'unknown';
-                core.info(
-                  `createCommitStatus failed sha="${sha}" state="${state}" status=${status} message=${message}`,
-                );
-                return false;
-              }
-            };
-
-            const getCurrentContextStatusState = async (sha) => {
-              try {
-                const { data } = await github.rest.repos.getCombinedStatusForRef({
-                  owner,
-                  repo,
-                  ref: sha,
-                  per_page: 100,
-                });
-                const current = (data.statuses || []).find((status) => status.context === statusContext);
-                return current?.state || null;
-              } catch (error) {
-                const status = error?.status || 'unknown';
-                const message = error?.message || 'unknown';
-                core.info(`getCombinedStatusForRef failed sha="${sha}" status=${status} message=${message}`);
-                return null;
-              }
-            };
-
-            const setPendingStatusSafely = async (sha, description) => {
-              const currentState = await getCurrentContextStatusState(sha);
-              if (TERMINAL_STATUS_STATES.has(currentState)) {
-                core.info(`Skip pending update: context already terminal state=${currentState}`);
-                return;
-              }
-              await setStatus(sha, 'pending', description);
-            };
-
-            const setTerminalStatusSafely = async (sha, state, description, reason) => {
-              const currentState = await getCurrentContextStatusState(sha);
-              if (currentState === state) {
-                core.info(`Skip ${reason}: context already state=${currentState}`);
-                return;
-              }
-              if (state === 'success' && TERMINAL_STATUS_STATES.has(currentState)) {
-                core.info(`Skip ${reason}: terminal state=${currentState} should not be overwritten by success`);
-                return;
-              }
-              await setStatus(sha, state, description);
-            };
-
-            let reportCommentId = null;
-            let reportCommentResolved = false;
-            let lastReportBody = '';
-
-            const ensureReportCommentId = async () => {
-              if (reportCommentResolved) {
-                return;
-              }
-              const comments = await github.paginate(
-                github.rest.issues.listComments,
-                { owner, repo, issue_number: prNumber, per_page: 100 },
-              );
-              const existing = comments
-                .slice()
-                .reverse()
-                .find((comment) =>
-                  comment.user?.login === 'github-actions[bot]'
-                  && comment.body?.includes(reportMarker),
-                );
-              if (existing) {
-                reportCommentId = existing.id;
-              }
-              reportCommentResolved = true;
-            };
-
-            const upsertReportComment = async (body) => {
-              if (!shouldRequestReview) {
-                return;
-              }
-              const fullBody = `${reportMarker}\n${body}`;
-              if (fullBody === lastReportBody) {
-                return;
-              }
-              try {
-                await ensureReportCommentId();
-                if (reportCommentId) {
-                  await github.rest.issues.updateComment({
-                    owner,
-                    repo,
-                    comment_id: reportCommentId,
-                    body: fullBody,
-                  });
-                } else {
-                  const { data: created } = await github.rest.issues.createComment({
-                    owner,
-                    repo,
-                    issue_number: prNumber,
-                    body: fullBody,
-                  });
-                  reportCommentId = created.id;
-                }
-                lastReportBody = fullBody;
-              } catch (error) {
-                const status = error?.status || 'unknown';
-                const message = error?.message || 'unknown';
-                core.info(`upsertReportComment failed status=${status} message=${message}`);
-              }
-            };
-
-            const newSignalCache = () => ({
-              items: [],
-              indexById: new Map(),
-              sinceTs: 0,
-            });
-            const reviewSignalCache = newSignalCache();
-            const reviewCommentSignalCache = newSignalCache();
-            const issueCommentSignalCache = newSignalCache();
-            const headObservedAtCache = new Map();
-            const headPrUpdatedAtCache = new Map();
-
-            const trimSignalCache = (cache) => {
-              if (cache.items.length <= SIGNAL_CACHE_LIMIT) {
-                return;
-              }
-              const overflow = cache.items.length - SIGNAL_CACHE_LIMIT;
-              cache.items.splice(0, overflow);
-              cache.indexById.clear();
-              for (let i = 0; i < cache.items.length; i++) {
-                const id = cache.items[i]?.id;
-                if (id) {
-                  cache.indexById.set(id, i);
-                }
-              }
-            };
-
-            const mergeSignalCache = (cache, incomingItems) => {
-              for (const item of incomingItems) {
-                const id = item?.id;
-                if (id && cache.indexById.has(id)) {
-                  const index = cache.indexById.get(id);
-                  cache.items[index] = item;
-                  continue;
-                }
-                cache.items.push(item);
-                if (id) {
-                  cache.indexById.set(id, cache.items.length - 1);
-                }
-              }
-              trimSignalCache(cache);
-            };
-
-            const buildSinceIso = (sinceTs) =>
-              new Date(Math.max(0, sinceTs - SIGNAL_REFRESH_OVERLAP_MS)).toISOString();
-
-            const refreshReviewSignalCache = async () => {
-              const params = { owner, repo, pull_number: prNumber, per_page: 100 };
-              if (reviewSignalCache.sinceTs > 0) {
-                params.since = buildSinceIso(reviewSignalCache.sinceTs);
-              }
-              const reviews = await github.paginate(github.rest.pulls.listReviews, params);
-              mergeSignalCache(reviewSignalCache, reviews);
-              reviewSignalCache.sinceTs = Date.now();
-            };
-
-            const refreshReviewCommentSignalCache = async () => {
-              const params = { owner, repo, pull_number: prNumber, per_page: 100 };
-              if (reviewCommentSignalCache.sinceTs > 0) {
-                params.since = buildSinceIso(reviewCommentSignalCache.sinceTs);
-              }
-              const comments = await github.paginate(github.rest.pulls.listReviewComments, params);
-              mergeSignalCache(reviewCommentSignalCache, comments);
-              reviewCommentSignalCache.sinceTs = Date.now();
-            };
-
-            const refreshIssueCommentSignalCache = async () => {
-              const params = { owner, repo, issue_number: prNumber, per_page: 100 };
-              if (issueCommentSignalCache.sinceTs > 0) {
-                params.since = buildSinceIso(issueCommentSignalCache.sinceTs);
-              }
-              const comments = await github.paginate(github.rest.issues.listComments, params);
-              mergeSignalCache(issueCommentSignalCache, comments);
-              issueCommentSignalCache.sinceTs = Date.now();
-            };
-
-            const getHeadObservedAt = (sha) => {
-              if (!sha) {
-                return Date.now();
-              }
-              if (!headObservedAtCache.has(sha)) {
-                headObservedAtCache.set(sha, Date.now());
-              }
-              return headObservedAtCache.get(sha);
-            };
-
-            const getHeadPrUpdatedAt = (sha, prUpdatedTs) => {
-              if (!sha) {
-                return prUpdatedTs;
-              }
-              if (!headPrUpdatedAtCache.has(sha)) {
-                headPrUpdatedAtCache.set(sha, prUpdatedTs);
-              }
-              return headPrUpdatedAtCache.get(sha);
-            };
-
-            const headCommitTimestampCache = new Map();
-
-            const getHeadCommitTimestamp = async (sha, fallbackTs) => {
-              if (!sha) {
-                return fallbackTs;
-              }
-              if (headCommitTimestampCache.has(sha)) {
-                return headCommitTimestampCache.get(sha);
-              }
-              try {
-                const { data: headCommit } = await github.rest.repos.getCommit({
-                  owner,
-                  repo,
-                  ref: sha,
-                });
-                const ts = toTimestamp(
-                  headCommit?.commit?.committer?.date
-                  || headCommit?.commit?.author?.date
-                  || fallbackTs,
-                );
-                headCommitTimestampCache.set(sha, ts);
-                return ts;
-              } catch (error) {
-                const status = error?.status || 'unknown';
-                const message = error?.message || 'unknown';
-                core.info(`repos.getCommit failed sha="${sha}" status=${status} message=${message}`);
-                return fallbackTs;
-              }
-            };
-
-            const fetchPrSnapshot = async () => {
-              const { data: pr } = await github.rest.pulls.get({
+            const createStatus = async (state, description) => {
+              if (!headSha) return;
+              await github.rest.repos.createCommitStatus({
                 owner,
                 repo,
-                pull_number: prNumber,
+                sha: headSha,
+                state,
+                context: statusContext,
+                description: description.slice(0, 140),
+                target_url: targetUrl,
               });
-              const prUpdatedTs = toTimestamp(pr.updated_at);
-              const headCommitTs = await getHeadCommitTimestamp(
-                pr.head?.sha,
-                prUpdatedTs,
-              );
-              return { pr, headCommitTs, prUpdatedTs };
             };
 
-            const requestCopilotReviewIfNeeded = async (pr, hasHeadReview) => {
-              const attempts = [];
-              if (pr.draft) {
-                return { requested: false, reason: 'draft', attempts };
-              }
-
-              if (hasHeadReview) {
-                return { requested: false, reason: 'already-reviewed', attempts };
-              }
-
-              const alreadyRequestedReviewers = (pr.requested_reviewers || [])
-                .map((reviewer) => reviewer?.login)
-                .filter((login) => isCopilotLogin(login));
-              if (alreadyRequestedReviewers.length > 0) {
-                return {
-                  requested: false,
-                  reason: 'already-requested',
-                  requestedReviewers: alreadyRequestedReviewers,
-                  attempts,
-                };
-              }
-
-              for (const reviewer of COPILOT_LOGIN_CANDIDATES) {
-                try {
-                  await github.rest.pulls.requestReviewers({
-                    owner,
-                    repo,
-                    pull_number: prNumber,
-                    reviewers: [reviewer],
-                  });
-                  attempts.push({ reviewer, success: true });
-                  core.info(`Copilot review requested via reviewer="${reviewer}"`);
-                  return { requested: true, reason: 'requested', reviewer, attempts };
-                } catch (error) {
-                  const status = error?.status || 'unknown';
-                  const message = error?.message || 'unknown';
-                  attempts.push({
-                    reviewer,
-                    success: false,
-                    status,
-                    message: truncate(compact(message), 120),
-                  });
-                  core.info(`requestReviewers failed reviewer="${reviewer}" status=${status} message=${message}`);
-                }
-              }
-
-              return { requested: false, reason: 'request-failed', attempts };
-            };
-
-            const buildRequestReportBody = (headSha, attempt, maxAttempts, requestResult) => {
-              const reasonTextByType = {
-                requested: `reviewer request 成功 (\`${requestResult.reviewer}\`)`,
-                'already-requested': `既に reviewer request 済み (${(requestResult.requestedReviewers || []).join(', ')})`,
-                'already-reviewed': 'Copilot レビューを検出済みのため request 不要',
-                draft: 'Draft PR のため request 未実行',
-                'request-failed': '全 reviewer 候補への request が失敗',
-              };
-              const reasonText = reasonTextByType[requestResult.reason] || requestResult.reason;
-
-              const lines = [
-                '### Copilot Review Request Log',
-                `- head: \`${shortSha(headSha)}\``,
-                `- poll: ${attempt}/${maxAttempts}`,
-                `- result: ${reasonText}`,
-                '',
-                '#### Candidate Results',
-              ];
-
-              if ((requestResult.attempts || []).length === 0) {
-                lines.push('- 実行なし');
-              } else {
-                for (const candidate of requestResult.attempts) {
-                  if (candidate.success) {
-                    lines.push(`- \`${candidate.reviewer}\`: success`);
-                    continue;
-                  }
-                  const status = candidate.status || 'unknown';
-                  const message = candidate.message ? ` - ${candidate.message}` : '';
-                  lines.push(`- \`${candidate.reviewer}\`: failed (${status})${message}`);
-                }
-              }
-
-              if (!requestResult.requested) {
-                lines.push('');
-                lines.push('#### Manual Re-request');
-                lines.push('```bash');
-                for (const reviewer of COPILOT_LOGIN_CANDIDATES) {
-                  lines.push(
-                    `gh api -X POST repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers -f 'reviewers[]=${reviewer}'`,
-                  );
-                }
-                lines.push('```');
-              }
-
-              lines.push('');
-              lines.push(`_updated: ${new Date().toISOString()}_`);
-              return lines.join('\n');
-            };
-
-            const upsertRequestReport = async (headSha, attempt, maxAttempts, requestResult) => {
-              const body = buildRequestReportBody(headSha, attempt, maxAttempts, requestResult);
-              await upsertReportComment(body);
-            };
-
-            const collectCopilotSignals = async (headSha, headCommitTs, headPrUpdatedAtTs, headObservedAtTs) => {
-              await Promise.all([
-                refreshReviewSignalCache(),
-                refreshReviewCommentSignalCache(),
-                refreshIssueCommentSignalCache(),
-              ]);
-
-              const reviews = reviewSignalCache.items;
-              const reviewComments = reviewCommentSignalCache.items;
-              const issueComments = issueCommentSignalCache.items;
-
-              const copilotReviews = reviews.filter((review) =>
-                isCopilotLogin(review?.user?.login)
-                && review?.state
-                && review.state !== 'PENDING'
-                && review.state !== 'DISMISSED'
-              );
-
-              const isHeadOrFresh = (itemTs, itemCommitId) => {
-                if (itemCommitId && itemCommitId === headSha) {
-                  return true;
-                }
-                if (!itemTs) {
-                  return false;
-                }
-                // commit_id が空でも、今回の HEAD を監視し始めた後の信号だけ許可する
-                const freshnessFloorTs = Math.max(
-                  0,
-                  headCommitTs,
-                  headPrUpdatedAtTs,
-                  headObservedAtTs - HEAD_FRESH_GRACE_MS,
-                );
-                return itemTs >= freshnessFloorTs;
-              };
-
-              const headReviews = copilotReviews
-                .filter((review) =>
-                  isHeadOrFresh(
-                    toTimestamp(review.submitted_at || review.created_at || review.updated_at),
-                    review.commit_id,
-                  ),
-                )
-                .sort(
-                  (a, b) =>
-                    toTimestamp(b.submitted_at || b.created_at || b.updated_at)
-                    - toTimestamp(a.submitted_at || a.created_at || a.updated_at),
-                );
-
-              const latestHeadReview = headReviews[0];
-
-              const copilotReviewComments = reviewComments.filter((comment) =>
-                isCopilotLogin(comment?.user?.login)
-                && isHeadOrFresh(
-                  toTimestamp(comment.created_at || comment.updated_at),
-                  comment.original_commit_id || comment.commit_id,
-                ),
-              );
-
-              const copilotIssueComments = issueComments.filter((comment) =>
-                isCopilotLogin(comment?.user?.login)
-                && isHeadOrFresh(
-                  toTimestamp(comment.created_at || comment.updated_at),
-                  null,
-                ),
-              );
-
-              const hasAnyCopilotSignal =
-                Boolean(latestHeadReview)
-                || copilotReviewComments.length > 0
-                || copilotIssueComments.length > 0;
-
-              const textBodies = [
-                latestHeadReview?.body || '',
-                ...copilotReviewComments.map((comment) => comment.body || ''),
-                ...copilotIssueComments.map((comment) => comment.body || ''),
-              ].map((body) => normalize(body));
-
-              const hasCriticalReviewState =
-                Boolean(latestHeadReview) && latestHeadReview.state === 'CHANGES_REQUESTED';
-
-              const hasCriticalText = textBodies.some((body) =>
-                !NON_CRITICAL_HINTS.some((hint) => hint.test(body))
-                && CRITICAL_KEYWORDS.some((keyword) => keyword.test(body)),
-              );
-
-              const hasCritical = hasCriticalReviewState || hasCriticalText;
-
-              return {
-                hasAnyCopilotSignal,
-                hasHeadReview: Boolean(latestHeadReview),
-                copilotReviewComments,
-                copilotIssueComments,
-                hasCritical,
-              };
-            };
-
-            const maxAttempts = shouldRequestReview ? 30 : 1;
-            const intervalMs = 20000;
-
-            if (shouldRequestReview) {
-              const initialSnapshot = await fetchPrSnapshot();
-              await setPendingStatusSafely(initialSnapshot.pr.head.sha, 'Copilot レビュー待機中');
-            }
-
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              const { pr, headCommitTs, prUpdatedTs } = await fetchPrSnapshot();
-              const headSha = pr.head.sha;
-              const headPrUpdatedAtTs = getHeadPrUpdatedAt(headSha, prUpdatedTs);
-              const headObservedAtTs = getHeadObservedAt(headSha);
-              core.info(`Attempt ${attempt}/${maxAttempts} head=${headSha} draft=${pr.draft}`);
-
-              const signals = await collectCopilotSignals(
-                headSha,
-                headCommitTs,
-                headPrUpdatedAtTs,
-                headObservedAtTs,
-              );
-
-              if (shouldRequestReview && (attempt === 1 || attempt % 6 === 1)) {
-                const requestResult = await requestCopilotReviewIfNeeded(pr, signals.hasHeadReview);
-                await upsertRequestReport(headSha, attempt, maxAttempts, requestResult);
-              }
-
-              if (signals.hasAnyCopilotSignal) {
-                const totalCommentCount =
-                  signals.copilotReviewComments.length + signals.copilotIssueComments.length;
-                const state = signals.hasCritical ? 'failure' : 'success';
-                const description = signals.hasCritical
-                  ? `Copilot: Critical 指摘あり (コメント件数: ${totalCommentCount})`
-                  : `Copilot レビュー完了 (コメント件数: ${totalCommentCount})`;
-
-                await setTerminalStatusSafely(headSha, state, description, 'signal');
-                core.info(`Copilot signal detected. state=${state} comments=${totalCommentCount}`);
-                return;
-              }
-
-              if (!shouldRequestReview) {
-                core.info('No Copilot signal on pull_request_review event; exit without status update.');
-                return;
-              }
-
-              if (pr.draft) {
-                await setPendingStatusSafely(headSha, 'Draft PR: ready_for_review 待ち');
-              } else {
-                await setPendingStatusSafely(headSha, 'Copilot レビュー待機中');
-              }
-
-              if (attempt < maxAttempts) {
-                await sleep(intervalMs);
-              }
-            }
-
-            if (!shouldRequestReview) {
+            if (criticalFindings.length > 0) {
+              const first = criticalFindings[0];
+              const compact = String(first.body).replace(/\s+/g, ' ').trim();
+              const snippet = compact.length > 110 ? `${compact.slice(0, 109)}…` : compact;
+              await createStatus('failure', `Copilot critical signal detected (${first.source}#${first.id}): ${snippet}`);
+              core.setFailed(`Copilot critical signal detected (${criticalFindings.length} findings)`);
               return;
             }
 
-            const finalSnapshot = await fetchPrSnapshot();
-            await setTerminalStatusSafely(
-              finalSnapshot.pr.head.sha,
-              'success',
-              'Copilot レビュー未検出 (timeout: 手動確認推奨)',
-              'timeout',
-            );
-            await upsertReportComment(
-              [
-                '### Copilot Review Request Log',
-                `- head: \`${shortSha(finalSnapshot.pr.head.sha)}\``,
-                '- result: timeout (Copilot レビュー未検出)',
-                '',
-                '#### Manual Re-request',
-                '```bash',
-                ...COPILOT_LOGIN_CANDIDATES.map(
-                  (reviewer) =>
-                    `gh api -X POST repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers -f 'reviewers[]=${reviewer}'`,
-                ),
-                '```',
-                '',
-                `_updated: ${new Date().toISOString()}_`,
-              ].join('\n'),
-            );
-            core.info('Copilot review polling timed out; marked success to avoid merge deadlock.');
+            await createStatus('success', 'No Copilot critical findings detected');
+            core.info(`Evaluated ${copilotTexts.length} Copilot review entries; no critical findings.`);

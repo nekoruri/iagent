@@ -551,6 +551,34 @@ describe('ops events', () => {
     }));
   });
 
+  it('setup-wizard イベントを保存・読み込みできる', async () => {
+    const now = Date.now();
+    await appendOpsEvent({
+      type: 'setup-wizard',
+      timestamp: now,
+      source: 'tab',
+      wizardSessionId: 'wizard-1',
+      wizardAction: 'completed',
+      wizardStep: 3,
+      wizardPresetLabel: '情報収集型',
+      wizardPresetRecommended: true,
+      wizardSuggestionFrequency: 'high',
+      wizardEnabledTaskCount: 4,
+    });
+
+    const events = await loadOpsEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(expect.objectContaining({
+      type: 'setup-wizard',
+      wizardSessionId: 'wizard-1',
+      wizardAction: 'completed',
+      wizardPresetLabel: '情報収集型',
+      wizardPresetRecommended: true,
+      wizardSuggestionFrequency: 'high',
+      wizardEnabledTaskCount: 4,
+    }));
+  });
+
   it('appendOpsEvents は保持期間外のイベントを除外する', async () => {
     const now = Date.now();
     const oldTs = now - (31 * 24 * 60 * 60 * 1000);
