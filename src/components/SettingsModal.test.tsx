@@ -276,6 +276,62 @@ describe('SettingsModal', () => {
     }));
   });
 
+  it('最小権限プリセットで権限系設定を一括で無効化できる', async () => {
+    const { getConfig, saveConfig } = await import('../core/config');
+    vi.mocked(getConfig).mockReturnValue({
+      ...createMockConfig(),
+      mcpServers: [
+        {
+          id: 'mcp-1',
+          name: 'github',
+          url: 'https://example.com/mcp',
+          enabled: true,
+        },
+      ],
+      heartbeat: {
+        ...createMockConfig().heartbeat,
+        enabled: true,
+        desktopNotification: true,
+      },
+      proxy: {
+        enabled: true,
+        serverUrl: 'https://proxy.example',
+        authToken: 'token',
+        allowedDomains: ['example.com'],
+      },
+      webSpeech: {
+        sttEnabled: true,
+        ttsEnabled: true,
+        ttsAutoRead: true,
+        lang: 'ja-JP',
+        ttsRate: 1.0,
+      },
+    });
+    render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '最小権限プリセットを適用' }));
+    expect(screen.getByText(/最小権限プリセットを適用しました/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('保存'));
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      mcpServers: [
+        expect.objectContaining({ enabled: false }),
+      ],
+      heartbeat: expect.objectContaining({
+        enabled: false,
+        desktopNotification: false,
+      }),
+      proxy: expect.objectContaining({
+        enabled: false,
+      }),
+      webSpeech: expect.objectContaining({
+        sttEnabled: false,
+        ttsEnabled: false,
+        ttsAutoRead: false,
+      }),
+    }));
+  });
+
   it('保存ボタンで saveConfig と onClose が呼ばれる', async () => {
     const { saveConfig } = await import('../core/config');
     const onClose = vi.fn();

@@ -1188,6 +1188,23 @@ body {
   flex-shrink: 0;
 }
 
+.security-preset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+}
+
+.security-preset-section h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .btn-danger {
   background: transparent;
   color: var(--status-error);

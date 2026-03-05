@@ -351,3 +351,4 @@
 - [x] MCP プリセット UI（PoC-9 Phase1）— `SettingsModal` の MCP セクションにカテゴリ別プリセットを追加（GitHub / Notion / RSS Reader / Slack / Gmail / Google Calendar）。`推奨セットを追加` で GitHub・Notion・RSS Reader を一括追加可能化し、重複追加は自動スキップ。`SettingsModal.test.tsx` にプリセット追加/重複スキップのテストを追加。（2026-03-05）
 - [x] 自動実行ログ可視化（PoC-10 Phase1）— `SettingsModal` の Heartbeat セクションに「自動実行ログ（Action Planning）」を追加。`loadActionLog()` で取得したログを新しい順に最大 20 件表示し、アクション種別（タスク切替/間隔変更/静寂時間/静寂曜日）・実行時刻・reason/detail を確認可能化。`再読み込み` ボタンとエラー表示を実装し、`SettingsModal.test.tsx` に空状態/表示順/再取得のテストを追加。（2026-03-05）
 - [x] API キー管理の安全化（PoC-10 Phase2）— `SettingsModal` の API キー欄を「変更時のみ再入力」方式へ変更。保存済みキーは値を再表示せず、状態表示（保存済み/更新予定/削除予定）と `保存済みキーを削除` / `削除を取り消す` 操作を追加。保存時は key ごとに保持・更新・削除を明示的に適用し、`SettingsModal.test.tsx` に保持/更新/削除のテストを追加。（2026-03-05）
+- [x] 最小権限プリセット（PoC-10 Phase3）— `SettingsModal` 基本設定に `最小権限プリセットを適用` を追加。Heartbeat の有効化/デスクトップ通知、Web Speech（STT/TTS/自動読み上げ）、CORS プロキシ有効化、MCP サーバー有効化を一括で無効化できるようにし、`SettingsModal.test.tsx` に適用テストを追加。（2026-03-05）

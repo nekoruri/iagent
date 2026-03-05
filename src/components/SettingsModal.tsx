@@ -269,6 +269,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ApiKeyField, string>>(initApiKeyDrafts);
   const [apiKeyClearFlags, setApiKeyClearFlags] = useState<Record<ApiKeyField, boolean>>(initApiKeyClearFlags);
+  const [securityPresetMessage, setSecurityPresetMessage] = useState('');
   const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
   const [actionLogError, setActionLogError] = useState('');
   const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
@@ -350,6 +351,7 @@ export function SettingsModal({ open, onClose }: Props) {
     const resetId = window.setTimeout(() => {
       setApiKeyDrafts(initApiKeyDrafts());
       setApiKeyClearFlags(initApiKeyClearFlags());
+      setSecurityPresetMessage('');
     }, 0);
     return () => window.clearTimeout(resetId);
   }, [open]);
@@ -553,6 +555,48 @@ export function SettingsModal({ open, onClose }: Props) {
     if (apiKeyDrafts[key].trim().length > 0) return '保存時に更新されます。';
     if (config[key].trim().length > 0) return '保存済み。変更しない場合は再入力不要です。';
     return '未設定。必要な場合のみ入力してください。';
+  };
+
+  const handleApplyLeastPrivilegePreset = () => {
+    const nextHeartbeat = {
+      ...heartbeat,
+      enabled: false,
+      desktopNotification: false,
+    };
+    const nextWebSpeech = {
+      ...webSpeech,
+      sttEnabled: false,
+      ttsEnabled: false,
+      ttsAutoRead: false,
+    };
+    const nextProxy = {
+      ...proxy,
+      enabled: false,
+    };
+    const disabledMcpCount = config.mcpServers.filter((server) => server.enabled).length;
+    const nextMcpServers = config.mcpServers.map((server) =>
+      server.enabled ? { ...server, enabled: false } : server
+    );
+    const changedCount = Number(heartbeat.enabled)
+      + Number(heartbeat.desktopNotification)
+      + Number(webSpeech.sttEnabled)
+      + Number(webSpeech.ttsEnabled)
+      + Number(webSpeech.ttsAutoRead)
+      + Number(proxy.enabled)
+      + disabledMcpCount;
+
+    setConfig((prev) => ({
+      ...prev,
+      heartbeat: nextHeartbeat,
+      webSpeech: nextWebSpeech,
+      proxy: nextProxy,
+      mcpServers: nextMcpServers,
+    }));
+    setSecurityPresetMessage(
+      changedCount === 0
+        ? '既に最小権限設定です。'
+        : `最小権限プリセットを適用しました（${changedCount}項目を変更）。`,
+    );
   };
 
   const addMCPServer = () => {
@@ -829,6 +873,24 @@ export function SettingsModal({ open, onClose }: Props) {
                   )}
                 </div>
               </label>
+
+              <div className="security-preset-section">
+                <h4>セキュリティ（PoC）</h4>
+                <p className="mcp-hint">
+                  最小権限プリセットで通知・音声・MCP 接続などを一括で無効化できます。
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary btn-small"
+                  onClick={handleApplyLeastPrivilegePreset}
+                >
+                  最小権限プリセットを適用
+                </button>
+                {securityPresetMessage && <p className="mcp-hint">{securityPresetMessage}</p>}
+                <p className="mcp-hint">
+                  Push 購読の解除は別途「Heartbeat」セクションで Push トグルを OFF にしてください。
+                </p>
+              </div>
             </div>
           </details>
 
