@@ -3,7 +3,7 @@ import { MessageBubble } from './MessageBubble';
 import { ToolIndicator } from './ToolIndicator';
 import { TaskProgress } from './TaskProgress';
 import { InputBar } from './InputBar';
-import { getAttachmentsByMessageId } from '../store/attachmentStore';
+import { getAttachmentsByMessageIds } from '../store/attachmentStore';
 import type { ChatMessage, ToolCallInfo } from '../types';
 import type { Attachment } from '../types/attachment';
 import type { PendingAttachment } from '../types/attachment';
@@ -26,13 +26,6 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
   const bottomRef = useRef<HTMLDivElement>(null);
   const [attachmentMap, setAttachmentMap] = useState<Record<string, Attachment[]>>({});
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-
-  // isSpeaking が false になったら speakingMessageId をクリア
-  useEffect(() => {
-    if (!speechOutput?.isSpeaking) {
-      setSpeakingMessageId(null);
-    }
-  }, [speechOutput?.isSpeaking]);
 
   const handleSpeak = useCallback((msgId: string, text: string) => {
     setSpeakingMessageId(msgId);
@@ -64,18 +57,9 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
       loadedOrLoadingRef.current.add(id);
     }
 
-    Promise.all(
-      msgIds.map(async (id) => {
-        const atts = await getAttachmentsByMessageId(id);
-        return [id, atts] as const;
-      }),
-    ).then((results) => {
+    getAttachmentsByMessageIds(msgIds).then((grouped) => {
       setAttachmentMap((prev) => {
-        const next = { ...prev };
-        for (const [id, atts] of results) {
-          next[id] = atts;
-        }
-        return next;
+        return { ...prev, ...grouped };
       });
     }).catch(() => {
       // 読み取り失敗時はロード中マークを外してリトライ可能にする

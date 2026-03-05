@@ -34,8 +34,30 @@ export async function saveAttachment(params: {
 
 /** メッセージ ID で添付を取得 */
 export async function getAttachmentsByMessageId(messageId: string): Promise<Attachment[]> {
+  const grouped = await getAttachmentsByMessageIds([messageId]);
+  return grouped[messageId] ?? [];
+}
+
+/** メッセージ ID 群に紐づく添付を一括取得 */
+export async function getAttachmentsByMessageIds(
+  messageIds: string[],
+): Promise<Record<string, Attachment[]>> {
+  const uniqueMessageIds = [...new Set(messageIds)];
+  const grouped: Record<string, Attachment[]> = {};
+  for (const id of uniqueMessageIds) {
+    grouped[id] = [];
+  }
+  if (uniqueMessageIds.length === 0) return grouped;
+
   const db = await getDB();
-  return db.getAllFromIndex(STORE_NAME, 'messageId', messageId) as Promise<Attachment[]>;
+  const all = (await db.getAll(STORE_NAME)) as Attachment[];
+  for (const attachment of all) {
+    if (grouped[attachment.messageId]) {
+      grouped[attachment.messageId].push(attachment);
+    }
+  }
+
+  return grouped;
 }
 
 /** 会話 ID に紐づく添付を全削除 */

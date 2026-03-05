@@ -188,7 +188,7 @@
 - [x] メッセージ表示の添付対応（サムネイル + フルサイズ表示）
 - [x] 会話削除時の添付データクリーンアップ
 - [ ] data URI → Blob 保存への移行（メモリ最適化）
-- [ ] N+1 クエリ解消（`getAttachmentsByMessageIds()` バッチ関数）
+- [x] N+1 クエリ解消（`getAttachmentsByMessageIds()` バッチ関数）
 - [ ] Web Worker でサムネイル生成（メインスレッドブロック回避）
 
 ### 音声入出力
@@ -355,3 +355,4 @@
 - [x] 最小権限プリセット改善（PoC-10 Phase3 follow-up）— 最小権限プリセット適用時に Push 購読解除（`unsubscribePush`）と Periodic Sync 解除（`unregisterPeriodicSync`）を自動実行。サーバー解除失敗時でもローカル解除を継続し、失敗時は `Push 解除を再試行` 導線を表示。`SettingsModal.test.tsx` に自動解除/失敗再試行の検証を追加。（2026-03-05）
 - [x] Periodic Background Sync 制約の明示（PoC-5 follow-up）— `SettingsModal` Push セクションに「Chrome/Edge は最短約12時間、iOS Safari 非対応」の説明を追加。`SettingsModal.test.tsx` に表示テストを追加し、`USER-GUIDE.md` / `OPERATIONS.md` の運用説明を同期。（2026-03-05）
 - [x] モバイルサイドバーのスワイプ開閉（フェーズ3）— `App.tsx` にモバイル専用タッチジェスチャを追加し、左端から右スワイプで開く・開状態で左スワイプで閉じる動作を実装。縦スクロール誤検知を防ぐ判定を追加し、`App.test.tsx` と `e2e/mobile-drawer.spec.ts` にスワイプ開閉テストを追加。（2026-03-05）
+- [x] 添付取得の N+1 解消（フェーズ3）— `attachmentStore` に `getAttachmentsByMessageIds()` を追加し、`ChatView` の添付遅延ロードをメッセージ単位の逐次取得から一括取得へ変更。`attachmentStore.test.ts` にバッチ取得テスト（複数ID/空配列/重複ID）を追加。（2026-03-05）
