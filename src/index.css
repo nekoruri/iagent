@@ -2341,6 +2341,33 @@ body {
   line-height: 1.4;
 }
 
+.storage-portability {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.storage-portability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.storage-portability-message {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.storage-portability-message.success {
+  color: var(--status-success);
+}
+
+.storage-portability-message.error {
+  color: var(--status-error);
+}
+
 /* ===== iOS Install Prompt ===== */
 
 .install-prompt {

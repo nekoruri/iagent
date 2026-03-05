@@ -14,6 +14,7 @@
 - 2026-03-05: 項目 6 の実装着手（Heartbeat コスト制御: タスク別モデル/出力トークン予算 + 日次トークン予算 + 予算逼迫時の縮退/次回回し + 実行トークン計測）
 - 2026-03-05: 項目 7 の実装着手（MemoryPanel で記憶編集/手動無効化、長期未参照・低重要度の再評価候補表示）
 - 2026-03-05: 項目 7 を拡張（`memory` ツールに update/archive/reevaluate を追加、Heartbeat Worker ツールに `listMemoryReevaluationCandidates` を追加）
+- 2026-03-05: 項目 8 の実装着手（`SettingsModal` ストレージセクションに JSON エクスポート/インポート導線を追加。対象: 設定・会話・記憶・記憶アーカイブ・添付）
 
 ---
 
@@ -98,6 +99,11 @@
   - 設定・メモリ・会話のエクスポート/インポートを提供。
   - 復元手順を1画面で完了できるようにする。
 - 成功判定: データ移行時の再セットアップ時間が大幅に短縮される。
+- 実装メモ（2026-03-05）:
+  - `core/dataPortability.ts` を追加し、`config / conversation-meta / conversations / memories / memories_archive / attachments` を単一 JSON 形式で export/import 可能化。
+  - import 時はフォーマット検証（`schemaVersion=1`）後に対象ストアを置換復元し、設定は localStorage + IndexedDB の両方へ同期。
+  - `SettingsModal` の「ストレージ」セクションに `データをエクスポート` / `データをインポート` / `再読み込みして反映` を追加。
+  - 復元対象件数（会話・メッセージ・記憶・アーカイブ・添付）を UI で表示し、実行結果の可視性を確保。
 
 ## 9. 拡張エコシステム戦略
 
