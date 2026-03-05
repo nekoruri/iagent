@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AppConfig, ChatMessage, Conversation, Memory, ArchivedMemory } from '../types';
 import type { Attachment } from '../types/attachment';
 import { __resetStores, getDB } from '../store/__mocks__/db';
+import { toStoredAttachmentRow } from '../store/attachmentStore';
 import {
   DATA_PORTABILITY_FORMAT,
   DATA_PORTABILITY_SCHEMA_VERSION,
@@ -132,6 +133,17 @@ describe('dataPortability', () => {
     });
   });
 
+  it('createDataPortabilityExport は Blob 保存された添付も dataUri 形式でエクスポートする', async () => {
+    const db = await getDB();
+    const attachment = makeAttachment('att-blob', 40, 'msg-a', 'conv-a');
+    await db.put('attachments', toStoredAttachmentRow(attachment));
+
+    const exported = await createDataPortabilityExport(1_700_000_000_000);
+    expect(exported.attachments).toHaveLength(1);
+    expect(exported.attachments[0].id).toBe('att-blob');
+    expect(exported.attachments[0].dataUri).toBe(attachment.dataUri);
+  });
+
   it('createDataPortabilityFilename は日時付きファイル名を生成する', () => {
     const ts = new Date(2026, 0, 2, 3, 4, 5).getTime();
     expect(createDataPortabilityFilename(ts)).toBe('iagent-backup-20260102-030405.json');
@@ -167,6 +179,9 @@ describe('dataPortability', () => {
     expect((await db.getAll('memories')).map((v) => (v as Memory).id)).toEqual(['new-memory']);
     expect((await db.getAll('memories_archive')).map((v) => (v as ArchivedMemory).id)).toEqual(['new-arch']);
     expect((await db.getAll('attachments')).map((v) => (v as Attachment).id)).toEqual(['new-att']);
+    const importedAttachment = (await db.getAll('attachments'))[0] as Record<string, unknown>;
+    expect(importedAttachment.dataBlob).toBeInstanceOf(Blob);
+    expect(importedAttachment.dataUri).toBeUndefined();
 
     const { saveConfig } = await import('./config');
     const { saveConfigToIDB } = await import('../store/configStore');

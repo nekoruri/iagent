@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getConfig, saveConfig } from './config';
 import { getDB } from '../store/db';
 import { saveConfigToIDB } from '../store/configStore';
+import { normalizeStoredAttachment, toStoredAttachmentRow, type StoredAttachmentRow } from '../store/attachmentStore';
 import type { AppConfig, ChatMessage, Conversation, Memory, ArchivedMemory } from '../types';
 import type { Attachment } from '../types/attachment';
 
@@ -275,13 +276,16 @@ function toSerializableRows<T extends object>(rows: T[]): Array<Record<string, u
 
 export async function createDataPortabilityExport(exportedAt = Date.now()): Promise<DataPortabilityExport> {
   const db = await getDB();
-  const [conversationMeta, conversations, memories, archivedMemories, attachments] = await Promise.all([
+  const [conversationMeta, conversations, memories, archivedMemories, rawAttachmentRows] = await Promise.all([
     db.getAll('conversation-meta'),
     db.getAll('conversations'),
     db.getAll('memories'),
     db.getAll('memories_archive'),
     db.getAll('attachments'),
   ]);
+  const attachmentRows = rawAttachmentRows as StoredAttachmentRow[];
+  const attachments = (await Promise.all(attachmentRows.map((row) => normalizeStoredAttachment(row))))
+    .filter((row): row is Attachment => row !== null);
 
   const parsed = dataPortabilityExportSchema.parse({
     format: DATA_PORTABILITY_FORMAT,
@@ -343,8 +347,8 @@ export async function importDataPortability(payload: DataPortabilityExport): Pro
   for (const row of toSerializableRows(parsed.archivedMemories)) {
     await db.put('memories_archive', row);
   }
-  for (const row of toSerializableRows(parsed.attachments)) {
-    await db.put('attachments', row);
+  for (const row of parsed.attachments) {
+    await db.put('attachments', toStoredAttachmentRow(row));
   }
 
   saveConfig(parsed.config);
