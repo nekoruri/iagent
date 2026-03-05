@@ -187,7 +187,7 @@ RSS フィード取得と Web 監視で利用します。
 | `calendar` | 予定一覧・作成・リマインダー作成 | なし |
 | `web_search` | Brave Search API で Web 検索 | Brave APIキー |
 | `device_info` | バッテリー・位置・天気 | 位置権限、OpenWeatherMap APIキー（天気時） |
-| `memory` | 長期記憶の保存/検索/一覧/削除 | なし |
+| `memory` | 長期記憶の保存/検索/一覧/更新/無効化/再評価候補取得 | なし |
 | `clip` | Web情報の構造化保存・検索 | なし |
 | `feed` | RSS/Atom 購読・取得・一覧 | CORSプロキシ |
 | `web_monitor` | Webページ変化監視 | CORSプロキシ |
