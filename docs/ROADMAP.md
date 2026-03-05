@@ -154,7 +154,7 @@
 - [x] Periodic Background Sync の実際の最小間隔（12時間）に関するドキュメント・UI 説明追加
 - [x] iOS PWA インストール導線 — Safari は PWA インストール後のみ Push 対応、設定画面にガイド追加（フェーズ 3 スマートフォン対応強化で実装済み）
 - [x] Chrome 通知パーミッション自動取り消し対策 — 低エンゲージメントサイトで通知権限が自動取り消しされる問題への対応（定期的な権限チェック）
-- [ ] Declarative Web Push 対応検討 — Chrome 実装後のサーバーレス Push 通知（サーバー不要化の可能性）
+- [x] Declarative Web Push 対応検討 — 調査結果を [docs/NOTE-declarative-web-push-2026-03.md](NOTE-declarative-web-push-2026-03.md) に整理し、PoC では既存 Push + Periodic Sync 継続（再検討条件付き）で運用
 
 ---
 
@@ -361,3 +361,4 @@
 - [x] Heartbeat 条件付き実行（時間帯）— `HeartbeatTask.condition`（time-window）を追加し、`getTasksDue` / `getTasksDueFromIDB` で時間帯条件に合致するタスクのみ実行。`SettingsModal` のカスタムタスクに時間帯条件 UI（なし/時間帯指定）を追加し、`heartbeat.test.ts` / `heartbeatCommon.test.ts` / `config.test.ts` / `SettingsModal.test.tsx` を更新。（2026-03-06）
 - [x] 情報収集ワークフロー拡張（RSS ダイジェスト）— `rss-digest-daily` ビルトインタスクを追加（08:00 固定スケジュール）。`listClassifiedFeedItems` + `getCrossSourceTopics` を軸に日次要約し、分類済み記事がない場合は `listUnreadFeedItems` でヘッドライン要約にフォールバック。`heartbeatCost` で standard モデル実行に設定し、`config.test.ts` / `heartbeatCost.test.ts` を更新。（2026-03-06）
 - [x] ペルソナプリセット配布 + インポート（Phase D）— `core/personaPreset.ts` を追加し、`persona/suggestionFrequency/有効なビルトインタスク` の JSON プリセット生成・検証・適用を実装。`SettingsModal` のエージェント設定に `ペルソナプリセットをエクスポート` / `ペルソナプリセットをインポート` を追加。`readFileAsText`（`fileUtils`）を導入し、`File.text()` 非対応環境でもインポート可能化。`personaPreset.test.ts` / `SettingsModal.test.tsx` / `fileUtils.test.ts` を更新。（2026-03-06）
+- [x] Declarative Web Push 対応検討（PoC）— WebKit / W3C Push API 提案 / MDN 現行API を調査し、現時点では標準化・実装の過渡期と判断。iAgent は `ServiceWorkerRegistration.pushManager` ベースの既存 Push + Periodic Sync フォールバックを維持し、再検討条件（2エンジン以上の安定実装・仕様安定化）を文書化。（2026-03-06）
