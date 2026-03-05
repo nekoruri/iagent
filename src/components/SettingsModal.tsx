@@ -372,6 +372,19 @@ export function SettingsModal({ open, onClose }: Props) {
     }
   })();
 
+  const normalizedDailyTokenBudget = (() => {
+    const raw = Number(heartbeatCostControl.dailyTokenBudget);
+    if (!Number.isFinite(raw)) return 0;
+    return Math.min(50000, Math.max(0, Math.floor(raw)));
+  })();
+
+  const normalizedPressureThresholdPercent = (() => {
+    const raw = Number(heartbeatCostControl.pressureThreshold);
+    const base = Number.isFinite(raw) ? raw : 0.8;
+    const clamped = Math.min(0.95, Math.max(0.5, base));
+    return Math.round(clamped * 100);
+  })();
+
   const toggleSection = (id: SectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -700,24 +713,24 @@ export function SettingsModal({ open, onClose }: Props) {
                   コスト制御を有効化
                 </label>
                 <label className="hb-range-label">
-                  日次トークン予算: {heartbeatCostControl.dailyTokenBudget === 0 ? '無制限' : `${heartbeatCostControl.dailyTokenBudget.toLocaleString()} tokens`}
+                  日次トークン予算: {normalizedDailyTokenBudget === 0 ? '無制限' : `${normalizedDailyTokenBudget.toLocaleString()} tokens`}
                   <input
                     type="range"
                     min={0}
                     max={50000}
                     step={500}
-                    value={heartbeatCostControl.dailyTokenBudget ?? 0}
+                    value={normalizedDailyTokenBudget}
                     onChange={(e) => updateHeartbeatCostControl({ dailyTokenBudget: Number(e.target.value) })}
                   />
                 </label>
                 <label className="hb-range-label">
-                  予算逼迫しきい値: {Math.round((heartbeatCostControl.pressureThreshold ?? 0.8) * 100)}%
+                  予算逼迫しきい値: {normalizedPressureThresholdPercent}%
                   <input
                     type="range"
                     min={50}
                     max={95}
                     step={5}
-                    value={Math.round((heartbeatCostControl.pressureThreshold ?? 0.8) * 100)}
+                    value={normalizedPressureThresholdPercent}
                     onChange={(e) => updateHeartbeatCostControl({ pressureThreshold: Number(e.target.value) / 100 })}
                   />
                 </label>

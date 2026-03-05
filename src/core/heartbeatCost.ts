@@ -116,12 +116,18 @@ export function getHeartbeatTokenBudgetState(
   usedTokensToday: number,
 ): HeartbeatTokenBudgetState {
   const enabled = Boolean(config?.enabled);
-  const dailyTokenBudget = Math.max(0, Math.floor(config?.dailyTokenBudget ?? 0));
+  const rawBudget = Number(config?.dailyTokenBudget);
+  const dailyTokenBudget = Number.isFinite(rawBudget)
+    ? Math.max(0, Math.floor(rawBudget))
+    : 0;
   const thresholdRaw = Number.isFinite(config?.pressureThreshold)
     ? Number(config?.pressureThreshold)
     : 0.8;
   const pressureThreshold = Math.max(0.1, Math.min(0.95, thresholdRaw));
-  const used = Math.max(0, Math.floor(usedTokensToday));
+  const rawUsed = Number(usedTokensToday);
+  const used = Number.isFinite(rawUsed)
+    ? Math.max(0, Math.floor(rawUsed))
+    : 0;
 
   if (!enabled || dailyTokenBudget <= 0) {
     return {

@@ -223,6 +223,25 @@ function sanitizeWebSpeechConfig(config: WebSpeechConfig): WebSpeechConfig {
   };
 }
 
+function sanitizeHeartbeatCostControlConfig(
+  config: HeartbeatCostControlConfig,
+): HeartbeatCostControlConfig {
+  const rawDailyBudget = Number(config.dailyTokenBudget);
+  const rawThreshold = Number(config.pressureThreshold);
+  return {
+    enabled: typeof config.enabled === 'boolean' ? config.enabled : true,
+    dailyTokenBudget: Number.isFinite(rawDailyBudget)
+      ? Math.max(0, Math.floor(rawDailyBudget))
+      : 0,
+    pressureThreshold: Number.isFinite(rawThreshold)
+      ? Math.max(0.5, Math.min(0.95, rawThreshold))
+      : 0.8,
+    deferNonCriticalTasks: typeof config.deferNonCriticalTasks === 'boolean'
+      ? config.deferNonCriticalTasks
+      : true,
+  };
+}
+
 function getDefaultAppConfig(): AppConfig {
   return {
     openaiApiKey: '',
@@ -258,6 +277,7 @@ export function getConfig(): AppConfig {
   heartbeat.costControl = parsed.heartbeat?.costControl
     ? { ...getDefaultHeartbeatCostControlConfig(), ...parsed.heartbeat.costControl }
     : getDefaultHeartbeatCostControlConfig();
+  heartbeat.costControl = sanitizeHeartbeatCostControlConfig(heartbeat.costControl);
   // 不足しているビルトインタスクを補完
   heartbeat.tasks = mergeBuiltinTasks(heartbeat.tasks);
   return {
