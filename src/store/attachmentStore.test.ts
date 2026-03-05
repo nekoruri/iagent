@@ -3,6 +3,7 @@ import { __resetStores } from './__mocks__/db';
 import {
   saveAttachment,
   getAttachmentsByMessageId,
+  getAttachmentsByMessageIds,
   deleteAttachmentsByConversationId,
 } from './attachmentStore';
 
@@ -90,6 +91,74 @@ describe('getAttachmentsByMessageId', () => {
   it('該当なしなら空配列を返す', async () => {
     const results = await getAttachmentsByMessageId('no-such-msg');
     expect(results).toHaveLength(0);
+  });
+});
+
+describe('getAttachmentsByMessageIds', () => {
+  it('複数メッセージの添付をまとめて取得して messageId ごとに返す', async () => {
+    await saveAttachment({
+      id: 'att-1',
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      filename: 'a.jpg',
+      mimeType: 'image/jpeg',
+      size: 100,
+      dataUri: 'data:image/jpeg;base64,a',
+    });
+    await saveAttachment({
+      id: 'att-2',
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      filename: 'b.jpg',
+      mimeType: 'image/jpeg',
+      size: 200,
+      dataUri: 'data:image/jpeg;base64,b',
+    });
+    await saveAttachment({
+      id: 'att-3',
+      messageId: 'msg-2',
+      conversationId: 'conv-1',
+      filename: 'c.jpg',
+      mimeType: 'image/jpeg',
+      size: 300,
+      dataUri: 'data:image/jpeg;base64,c',
+    });
+
+    const grouped = await getAttachmentsByMessageIds(['msg-1', 'msg-2']);
+    expect(grouped['msg-1'].map((a) => a.id).sort()).toEqual(['att-1', 'att-2']);
+    expect(grouped['msg-2'].map((a) => a.id)).toEqual(['att-3']);
+  });
+
+  it('該当しない messageId も空配列で返す', async () => {
+    await saveAttachment({
+      id: 'att-1',
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      filename: 'a.jpg',
+      mimeType: 'image/jpeg',
+      size: 100,
+      dataUri: 'data:image/jpeg;base64,a',
+    });
+
+    const grouped = await getAttachmentsByMessageIds(['msg-1', 'msg-404']);
+    expect(grouped['msg-1']).toHaveLength(1);
+    expect(grouped['msg-404']).toEqual([]);
+  });
+
+  it('重複した messageId が渡されても一意化して返す', async () => {
+    await saveAttachment({
+      id: 'att-1',
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      filename: 'a.jpg',
+      mimeType: 'image/jpeg',
+      size: 100,
+      dataUri: 'data:image/jpeg;base64,a',
+    });
+
+    const grouped = await getAttachmentsByMessageIds(['msg-1', 'msg-1']);
+    expect(Object.keys(grouped)).toEqual(['msg-1']);
+    expect(grouped['msg-1']).toHaveLength(1);
   });
 });
 
