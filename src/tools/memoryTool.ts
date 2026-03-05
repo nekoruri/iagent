@@ -112,8 +112,8 @@ category:
     }
 
     if (action === 'reevaluate') {
-      const stale = parseInt(minStaleDays, 10);
-      const maxImp = parseInt(maxImportance, 10);
+      const stale = typeof minStaleDays === 'string' ? parseInt(minStaleDays, 10) : NaN;
+      const maxImp = typeof maxImportance === 'string' ? parseInt(maxImportance, 10) : NaN;
       const candidates = await listMemoryReevaluationCandidates({
         ...(Number.isFinite(stale) ? { minStaleDays: stale } : {}),
         ...(Number.isFinite(maxImp) ? { maxImportance: maxImp } : {}),
