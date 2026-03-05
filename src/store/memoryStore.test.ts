@@ -346,6 +346,17 @@ describe('updateMemory', () => {
     const a = await saveMemory('内容A', 'fact', { tags: ['a'], importance: 2 });
     const b = await saveMemory('内容B', 'fact', { tags: ['b'], importance: 4 });
 
+    const { getDB: db } = await import('./__mocks__/db');
+    const mockDb = await db();
+    const aStored = await mockDb.get('memories', a.id);
+    const bStored = await mockDb.get('memories', b.id);
+    aStored!.accessCount = 2;
+    bStored!.accessCount = 3;
+    aStored!.lastAccessedAt = 100;
+    bStored!.lastAccessedAt = 200;
+    await mockDb.put('memories', aStored!);
+    await mockDb.put('memories', bStored!);
+
     const merged = await updateMemory(a.id, { content: '内容B', importance: 5, tags: ['merged'] });
     expect(merged).toBeDefined();
 
@@ -354,6 +365,8 @@ describe('updateMemory', () => {
     expect(all[0].id).toBe(b.id);
     expect(all[0].importance).toBe(5);
     expect(all[0].tags).toEqual(expect.arrayContaining(['b', 'merged']));
+    expect(all[0].accessCount).toBe(6); // duplicate(3) + current(2) + update access(1)
+    expect(all[0].lastAccessedAt).toBeGreaterThanOrEqual(200);
   });
 });
 

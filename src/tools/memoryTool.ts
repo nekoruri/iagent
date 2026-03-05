@@ -36,14 +36,14 @@ category:
 - other: その他`,
   parameters: z.object({
     action: z.enum(['save', 'search', 'list', 'update', 'archive', 'reevaluate', 'delete']),
-    content: z.string().describe('保存するメモリの内容。save 時に必須、他は空文字'),
-    category: z.string().describe('カテゴリ（preference/fact/context/routine/goal/personality/reflection/other）。save 時に必須、list 時はフィルタ用、他は空文字'),
-    query: z.string().describe('検索キーワード。search 時に必須、他は空文字'),
-    id: z.string().describe('対象メモリID。update/archive/delete 時に必須、他は空文字'),
-    importance: z.string().describe('重要度（1-5）。save 時のみ有効、不要時は空文字'),
-    tags: z.string().describe('タグ（カンマ区切り）。save 時のみ有効、不要時は空文字'),
-    minStaleDays: z.string().describe('再評価候補の最小未参照日数（reevaluate 時のみ有効）'),
-    maxImportance: z.string().describe('再評価候補の最大重要度（reevaluate 時のみ有効）'),
+    content: z.string().optional().describe('保存/更新するメモリの内容。save 時は必須、他は省略可'),
+    category: z.string().optional().describe('カテゴリ（preference/fact/context/routine/goal/personality/reflection/other）。save 時に必須、list 時はフィルタ用'),
+    query: z.string().optional().describe('検索キーワード。search 時に必須'),
+    id: z.string().optional().describe('対象メモリID。update/archive/delete 時に必須'),
+    importance: z.string().optional().describe('重要度（1-5）。save/update 時に有効'),
+    tags: z.string().optional().describe('タグ（カンマ区切り）。save/update 時に有効。空文字でクリア'),
+    minStaleDays: z.string().optional().describe('再評価候補の最小未参照日数（reevaluate 時のみ有効）'),
+    maxImportance: z.string().optional().describe('再評価候補の最大重要度（reevaluate 時のみ有効）'),
   }),
   execute: async ({ action, content, category, query, id, importance, tags, minStaleDays, maxImportance }) => {
     if (action === 'save') {
@@ -80,13 +80,22 @@ category:
     if (action === 'update') {
       if (!id) return JSON.stringify({ error: 'id は必須です' });
       const patch: { content?: string; importance?: number; tags?: string[] } = {};
-      if (content) patch.content = content;
+      if (typeof content === 'string' && content.trim().length === 0 && content.length > 0) {
+        return JSON.stringify({ error: 'content は空白のみを指定できません' });
+      }
+      if (typeof content === 'string' && content.trim().length > 0) {
+        patch.content = content;
+      }
       if (importance) {
         const parsed = parseInt(importance, 10);
         if (!isNaN(parsed)) patch.importance = parsed;
       }
-      if (tags) {
-        patch.tags = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+      if (tags !== undefined) {
+        if (tags === '') {
+          patch.tags = [];
+        } else {
+          patch.tags = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+        }
       }
       const updated = await updateMemory(id, patch);
       return JSON.stringify(

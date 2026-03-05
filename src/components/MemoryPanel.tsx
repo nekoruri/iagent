@@ -214,7 +214,7 @@ export function MemoryPanel({
                 <div className="memory-dropdown-empty">アーカイブはありません</div>
               ) : (
                 archivedMemories.map((m) => (
-                  <div key={m.id} className="memory-card">
+                  <div key={m.id} className="memory-card" tabIndex={0}>
                     <div className="memory-card-header">
                       <span
                         className="memory-category-badge"
@@ -260,7 +260,7 @@ export function MemoryPanel({
                 <div className="memory-dropdown-empty">記憶がありません</div>
               ) : (
                 memories.map((m) => (
-                  <div key={m.id} className="memory-card">
+                  <div key={m.id} className="memory-card" tabIndex={0}>
                     <div className="memory-card-header">
                       <span
                         className="memory-category-badge"

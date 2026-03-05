@@ -154,6 +154,22 @@ describe('memoryTool invoke', () => {
       const parsed = await invoke({ ...base, action: 'update', id: '' });
       expect(parsed.error).toBe('id は必須です');
     });
+
+    it('tags に空文字を渡すと既存タグをクリアできる', async () => {
+      const saveResult = await invoke({ ...base, action: 'save', content: 'タグ付き', category: 'fact', tags: 'a,b' });
+      const id = (saveResult.memory as Record<string, unknown>).id;
+
+      const parsed = await invoke({ ...base, action: 'update', id, tags: '' });
+      expect(parsed.message).toBe('メモリを更新しました');
+      expect((parsed.memory as Record<string, unknown>).tags).toEqual([]);
+    });
+
+    it('content に空白のみを渡した場合はエラーを返す', async () => {
+      const saveResult = await invoke({ ...base, action: 'save', content: '更新対象', category: 'fact' });
+      const id = (saveResult.memory as Record<string, unknown>).id;
+      const parsed = await invoke({ ...base, action: 'update', id, content: '   ' });
+      expect(parsed.error).toBe('content は空白のみを指定できません');
+    });
   });
 
   describe('action: archive', () => {

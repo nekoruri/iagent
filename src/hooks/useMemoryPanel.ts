@@ -28,12 +28,14 @@ export function useMemoryPanel() {
     const id = ++refreshIdRef.current;
     setIsLoading(true);
     try {
-      const [data, candidates] = await Promise.all([
-        listMemories(category),
-        listMemoryReevaluationCandidates(),
-      ]);
+      const allMemories = await listMemories();
       if (id !== refreshIdRef.current) return;
-      setMemories(data);
+      const visibleMemories = category
+        ? allMemories.filter((m) => m.category === category)
+        : allMemories;
+      setMemories(visibleMemories);
+      const candidates = await listMemoryReevaluationCandidates({ sourceMemories: allMemories });
+      if (id !== refreshIdRef.current) return;
       if (category) {
         setReevaluationCandidates(candidates.filter((m) => m.category === category));
       } else {

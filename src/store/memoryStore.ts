@@ -244,11 +244,17 @@ export async function updateMemory(id: string, patch: UpdateMemoryInput): Promis
     const all = (await db.getAll(STORE_NAME) as Memory[]).map(normalizeMemory);
     const duplicate = all.find((m) => m.id !== id && m.contentHash === nextHash);
     if (duplicate) {
+      const mergedAccessCount = (duplicate.accessCount ?? 0) + (current.accessCount ?? 0) + 1;
+      const mergedLastAccessedAt = Math.max(
+        now,
+        duplicate.lastAccessedAt ?? 0,
+        current.lastAccessedAt ?? 0,
+      );
       const merged: Memory = {
         ...duplicate,
         updatedAt: now,
-        lastAccessedAt: now,
-        accessCount: (duplicate.accessCount ?? 0) + 1,
+        lastAccessedAt: mergedLastAccessedAt,
+        accessCount: mergedAccessCount,
         importance: Math.max(duplicate.importance, nextImportance),
         tags: [...new Set([...duplicate.tags, ...nextTags])],
       };
@@ -300,6 +306,7 @@ export interface ReevaluateCandidateOptions {
   minStaleDays?: number;
   maxImportance?: number;
   limit?: number;
+  sourceMemories?: Memory[];
 }
 
 /** 長期間未参照かつ低重要度の記憶を再評価候補として抽出 */
@@ -312,7 +319,7 @@ export async function listMemoryReevaluationCandidates(
   const staleMs = minStaleDays * DAY_MS;
   const now = Date.now();
 
-  const all = await listMemories();
+  const all = options?.sourceMemories ?? await listMemories();
   const candidates = all.filter((m) => {
     if (m.category === 'personality' || m.category === 'routine') return false;
     if (m.importance > maxImportance) return false;
