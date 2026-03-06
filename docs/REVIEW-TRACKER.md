@@ -9,6 +9,25 @@
 
 以下は過去の PR レビューで指摘され、すでに修正済みの項目です。
 
+### 2026-03-07 更新で対応反映
+
+| タイトル | カテゴリ | 対応メモ |
+|---|---|---|
+| Notification API パーミッション再レンダリング | UX | W12 で設定再表示時の権限同期・権限喪失時の UI 整合を修正（Issue #33） |
+| TaskProgress クリック可能インジケーター | UX | W12 で開閉 affordance・キーボード操作・展開状態表示を追加（Issue #36） |
+| HeartbeatPanel ピン / 変更ありスタイル競合 | UX | W12 で状態ラベルと優先表示を明示化（Issue #43） |
+| getConfig() ビルトインタスクマージの永続化 | バグ | 正規化後の設定を localStorage / IndexedDB に再保存し、Worker と main thread のタスク一覧ずれを解消（Issue #41） |
+| memoryTool category バリデーション | コード品質 | save/list で無効カテゴリを明示エラーに変更し、silent fallback を廃止（Issue #35） |
+| デスクトップ通知にアイコンを追加 | UX | Notification API の icon / badge に PWA アイコンを設定（Issue #34） |
+| scoreMemory 負の age 対策 | コード品質 | future timestamp を 0 へクランプし、減衰スコアが不正増幅しないよう修正（Issue #45） |
+| React.lazy SettingsModal ローディング表示 | UX | SettingsModal / SetupWizard の lazy import 中に loading shell を表示（Issue #40） |
+| contentHash 後方互換バックフィル | バグ | 旧メモリの空 contentHash を一覧取得 / 重複判定時に自動 backfill し、後方互換を回復（Issue #39） |
+| フィードサイズ上限のバイト数ベース化 | バグ | 文字数ではなく UTF-8 バイト長で 2MB 上限を判定するよう修正（Issue #38） |
+| clearMessages 完全トランザクション化 | パフォーマンス | 会話削除時に `messages / attachments / conversation-meta` を 1 transaction で削除する `deleteConversationData()` に統合（Issue #44） |
+| KV list ページング | バグ | `server/src/index.ts` の購読列挙を `listAllSubscriptionKeys()` に集約し、`handleTestPush` / `handleCron` の両方で cursor を最後まで辿る回帰テストを追加（Issue #47） |
+| KV レート制限の強整合化 | パフォーマンス | `/proxy` のレート制限を `KV get/put` カウンタから Workers Rate Limiting binding へ置換し、token 保管用 KV と責務分離（Issue #37） |
+| cron Push 同時送信（サンダリングハード問題） | パフォーマンス | `handleCron()` を `processInBatches()` 経由の fixed-size concurrency 制御へ変更し、全購読への一括 fan-out を抑制（Issue #46） |
+
 ### PR-C で対応
 
 | ID | タイトル | カテゴリ | 元 PR |
@@ -67,6 +86,7 @@
 | telemetry markExported バッチ化 | パフォーマンス | #4 | MAX_TRACES=200 の小規模で実害なし |
 | Heartbeat Layer 1 ツール不足 | コード品質 | #13 | Layer 1 は通知表示に特化した設計 |
 | PeriodicSync 最小間隔のドキュメント | ドキュメント | #11 | Push 通知が主要な wake-up 手段で影響限定的 |
+| ブリーフィング hasChanges ルール矛盾 | コード品質 | #42 | `config.ts` と `instructionBuilder.ts` の両方で「ブリーフィングタスクは必ず hasChanges: true」を明示しており、特殊ルールとして整合している |
 
 ---
 
@@ -76,18 +96,3 @@
 
 | Issue | タイトル | カテゴリ |
 |---|---|---|
-| #33 | Notification API パーミッション再レンダリング | UX |
-| #34 | デスクトップ通知にアイコンを追加 | UX |
-| #35 | memoryTool category バリデーション | コード品質 |
-| #36 | TaskProgress クリック可能インジケーター | UX |
-| #37 | KV レート制限の強整合化 | パフォーマンス |
-| #38 | フィードサイズ上限のバイト数ベース化 | バグ |
-| #39 | contentHash 後方互換バックフィル | バグ |
-| #40 | React.lazy SettingsModal ローディング表示 | UX |
-| #41 | getConfig() ビルトインタスクマージの永続化 | バグ |
-| #42 | ブリーフィング hasChanges ルール矛盾 | コード品質 |
-| #43 | HeartbeatPanel ピン / 変更ありスタイル競合 | UX |
-| #44 | clearMessages 完全トランザクション化 | パフォーマンス |
-| #45 | scoreMemory 負の age 対策 | コード品質 |
-| #46 | cron Push 同時送信（サンダリングハード問題） | パフォーマンス |
-| #47 | KV list ページング | バグ |

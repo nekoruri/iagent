@@ -14,7 +14,7 @@ interface Props {
   isStreaming: boolean;
   activeTools: ToolCallInfo[];
   isOnline: boolean;
-  onSend: (text: string, attachments?: PendingAttachment[]) => void;
+  onSend: (text: string, attachments?: PendingAttachment[]) => void | Promise<void>;
   onStop: () => void;
   webSpeechLang?: string;
   webSpeechSttEnabled?: boolean;
@@ -77,13 +77,13 @@ export function ChatView({ messages, isStreaming, activeTools, isOnline, onSend,
             <h2>iAgent</h2>
             <p>AIアシスタントに話しかけてみましょう</p>
             <div className="chat-suggestions">
-              <button onClick={() => onSend('こんにちは！何ができますか？')} disabled={!isOnline}>
+              <button onClick={() => { void onSend('こんにちは！何ができますか？'); }} disabled={!isOnline}>
                 こんにちは！何ができますか？
               </button>
-              <button onClick={() => onSend('バッテリー残量を教えて')} disabled={!isOnline}>
+              <button onClick={() => { void onSend('バッテリー残量を教えて'); }} disabled={!isOnline}>
                 バッテリー残量を教えて
               </button>
-              <button onClick={() => onSend('最新のテクノロジーニュースを検索して')} disabled={!isOnline}>
+              <button onClick={() => { void onSend('最新のテクノロジーニュースを検索して'); }} disabled={!isOnline}>
                 最新ニュースを検索
               </button>
             </div>

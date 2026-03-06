@@ -10,9 +10,10 @@ import {
   formatFileSize,
 } from '../core/fileUtils';
 import { useSpeechInput } from '../hooks/useSpeechInput';
+import { AttachmentImage } from './AttachmentImage';
 
 interface Props {
-  onSend: (text: string, attachments?: PendingAttachment[]) => void;
+  onSend: (text: string, attachments?: PendingAttachment[]) => void | Promise<void>;
   disabled: boolean;
   isStreaming: boolean;
   onStop: () => void;
@@ -25,6 +26,7 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,13 +43,22 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
 
   const handleSend = useCallback(() => {
     if (!hasContent || disabled) return;
-    onSend(text.trim(), attachments.length > 0 ? attachments : undefined);
-    setText('');
-    setAttachments([]);
-    setAttachError(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    const nextText = text.trim();
+    const nextAttachments = attachments.length > 0 ? attachments : undefined;
+    setSendError(null);
+    void Promise.resolve(onSend(nextText, nextAttachments))
+      .then(() => {
+        setText('');
+        setAttachments([]);
+        setAttachError(null);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+      })
+      .catch((error) => {
+        console.error('[InputBar] メッセージ送信エラー:', error);
+        setSendError('メッセージの送信に失敗しました');
+      });
   }, [text, attachments, hasContent, disabled, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -59,6 +70,7 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
+    setSendError(null);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
@@ -66,6 +78,7 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     setAttachError(null);
+    setSendError(null);
     const fileArray = Array.from(files);
 
     for (const file of fileArray) {
@@ -133,6 +146,7 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
     setAttachError(null);
+    setSendError(null);
   }, []);
 
   return (
@@ -142,10 +156,13 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
           {attachments.map((att) => (
             <div key={att.id} className="attachment-preview-item">
               {isImageMimeType(att.file.type) ? (
-                <img
-                  src={att.thumbnailUri ?? att.dataUri}
+                <AttachmentImage
+                  key={`${att.id}:${att.thumbnailUri ?? att.dataUri}:${att.dataUri}`}
+                  previewSrc={att.thumbnailUri ?? att.dataUri}
+                  fallbackSrc={att.dataUri}
                   alt={att.file.name}
-                  className="attachment-preview-img"
+                  imgClassName="attachment-preview-img"
+                  fallbackClassName="attachment-image-fallback attachment-preview-fallback"
                 />
               ) : (
                 <div className="attachment-file-icon">
@@ -168,6 +185,9 @@ export function InputBar({ onSend, disabled, isStreaming, onStop, isOnline = tru
       )}
       {attachError && (
         <div className="attachment-error" role="alert">{attachError}</div>
+      )}
+      {sendError && (
+        <div className="attachment-error" role="alert">{sendError}</div>
       )}
       {speechInput.error && (
         <div className="attachment-error" role="alert">{speechInput.error}</div>

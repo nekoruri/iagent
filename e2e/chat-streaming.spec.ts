@@ -74,7 +74,6 @@ test.describe('チャットストリーミング', () => {
     await mockOpenAIResponses(page);
 
     const textarea = page.locator('.input-bar textarea');
-    const sendButton = page.locator('.input-bar button[type="submit"], .input-bar .send-btn');
 
     // 空の状態では送信ボタンが無効（または非表示）
     await expect(textarea).toBeVisible();
@@ -83,5 +82,32 @@ test.describe('チャットストリーミング', () => {
     await textarea.fill('テスト');
     // 何かテキストがあれば送信ボタンは存在
     await expect(textarea).toHaveValue('テスト');
+  });
+
+  test('停止ボタンで進行中のストリーミングを中断できる', async ({ page }) => {
+    await page.route('**/api.openai.com/v1/responses**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+        body: createSSEResponse('このレスポンスは中断後に反映されないはずです。'),
+      });
+    });
+
+    const textarea = page.locator('.input-bar textarea');
+    await textarea.fill('中断テスト');
+    await textarea.press('Enter');
+
+    const stopButton = page.locator('.input-bar .btn-stop');
+    await expect(stopButton).toBeVisible({ timeout: 5000 });
+    await stopButton.click();
+
+    await expect(stopButton).toBeHidden({ timeout: 5000 });
+    await page.waitForTimeout(2300);
+    await expect(page.locator('.message-assistant').last()).not.toContainText('このレスポンスは中断後に反映されないはずです。');
   });
 });

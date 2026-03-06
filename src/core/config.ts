@@ -295,19 +295,7 @@ function getDefaultAppConfig(): AppConfig {
   };
 }
 
-export function getConfig(): AppConfig {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return getDefaultAppConfig();
-  }
-  let parsed: Partial<AppConfig>;
-  try {
-    parsed = JSON.parse(raw) as Partial<AppConfig>;
-  } catch {
-    console.warn('[iAgent] 設定 JSON のパースに失敗しました。デフォルト設定を使用します。');
-    localStorage.removeItem(STORAGE_KEY);
-    return getDefaultAppConfig();
-  }
+function normalizeConfig(parsed: Partial<AppConfig>): AppConfig {
   const heartbeat = parsed.heartbeat
     ? { ...getDefaultHeartbeatConfig(), ...parsed.heartbeat }
     : getDefaultHeartbeatConfig();
@@ -345,10 +333,36 @@ export function getConfig(): AppConfig {
   };
 }
 
-export function saveConfig(config: AppConfig): void {
+function persistConfig(config: AppConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   // Worker 向け: IndexedDB にも非同期書き込み
   saveConfigToIDB(config).catch((e) => console.warn('[iAgent] IndexedDB 設定保存失敗:', e));
+}
+
+export function getConfig(): AppConfig {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return getDefaultAppConfig();
+  }
+  let parsed: Partial<AppConfig>;
+  try {
+    parsed = JSON.parse(raw) as Partial<AppConfig>;
+  } catch {
+    console.warn('[iAgent] 設定 JSON のパースに失敗しました。デフォルト設定を使用します。');
+    localStorage.removeItem(STORAGE_KEY);
+    return getDefaultAppConfig();
+  }
+
+  const normalized = normalizeConfig(parsed);
+  const serialized = JSON.stringify(normalized);
+  if (raw !== serialized) {
+    persistConfig(normalized);
+  }
+  return normalized;
+}
+
+export function saveConfig(config: AppConfig): void {
+  persistConfig(normalizeConfig(config));
 }
 
 export function getConfigValue(key: ConfigKey): string {

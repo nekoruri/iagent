@@ -1001,8 +1001,24 @@ describe('SettingsModal', () => {
       expect(screen.getByRole('checkbox', { name: 'Push 通知を有効化' })).toBeEnabled();
     });
 
+    it('モーダル再表示時に最新の通知権限へ追従する', async () => {
+      const { getNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getNotificationPermission).mockReturnValue('granted');
+
+      const { rerender } = render(<SettingsModal open={false} onClose={vi.fn()} />);
+
+      vi.mocked(getNotificationPermission).mockReturnValue('denied');
+      rerender(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
+      });
+      expect(screen.getByRole('checkbox', { name: 'デスクトップ通知' })).toBeDisabled();
+    });
+
     it('通知許可が denied の場合、デスクトップ通知は ON にならない', async () => {
-      const { requestNotificationPermission } = await import('../core/notifier');
+      const { getNotificationPermission, requestNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getNotificationPermission).mockReturnValue('default');
       vi.mocked(requestNotificationPermission).mockResolvedValue('denied');
 
       render(<SettingsModal open={true} onClose={vi.fn()} />);
@@ -1012,6 +1028,26 @@ describe('SettingsModal', () => {
 
       expect(requestNotificationPermission).toHaveBeenCalled();
       expect(desktopToggle).not.toBeChecked();
+      expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
+    });
+
+    it('保存済みで ON でも権限喪失時は unchecked と blocked 表示を優先する', async () => {
+      const { getConfig } = await import('../core/config');
+      const { getNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getConfig).mockReturnValue({
+        ...createMockConfig(),
+        heartbeat: {
+          ...createMockConfig().heartbeat,
+          desktopNotification: true,
+        },
+      });
+      vi.mocked(getNotificationPermission).mockReturnValue('denied');
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      const desktopToggle = screen.getByRole('checkbox', { name: 'デスクトップ通知' });
+      expect(desktopToggle).not.toBeChecked();
+      expect(desktopToggle).toBeDisabled();
       expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
     });
   });

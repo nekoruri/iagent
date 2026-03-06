@@ -13,8 +13,6 @@ import type { Env } from './index';
 const MAX_RESPONSE_SIZE = 2 * 1024 * 1024; // 2MB
 const REQUEST_TIMEOUT_MS = 15_000; // 15秒
 const MAX_REDIRECTS = 5;
-const RATE_LIMIT_WINDOW_SEC = 60;
-const RATE_LIMIT_MAX_REQUESTS = 30;
 const TOKEN_TTL_SEC = 90 * 24 * 3600; // 90日
 
 // 転送する安全なレスポンスヘッダー
@@ -110,22 +108,20 @@ export function validateProxyUrl(url: string): { valid: true; parsed: URL } | { 
 
 // --- レート制限 ---
 
-/** KV ベースのレート制限チェック（KV 障害時は許可して続行） */
-async function checkRateLimit(ip: string, kv: KVNamespace): Promise<boolean> {
-  try {
-    const key = `rate:${ip}`;
-    const raw = await kv.get(key);
-    const parsed = parseInt(raw ?? '', 10);
-    const count = Number.isFinite(parsed) ? parsed : 0;
-
-    if (count >= RATE_LIMIT_MAX_REQUESTS) {
-      return false; // レート超過
-    }
-
-    await kv.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW_SEC });
+/** Rate Limiting binding チェック（binding 未設定/障害時は許可して続行） */
+async function checkRateLimit(
+  key: string,
+  rateLimiter?: { limit: (options: { key: string }) => Promise<{ success: boolean }> },
+): Promise<boolean> {
+  if (!rateLimiter) {
+    console.warn('[RateLimit] binding 未設定（スキップして続行）');
     return true;
+  }
+  try {
+    const result = await rateLimiter.limit({ key });
+    return result.success;
   } catch (err) {
-    console.warn('[RateLimit] KV エラー（スキップして続行）:', err instanceof Error ? err.message : String(err));
+    console.warn('[RateLimit] binding エラー（スキップして続行）:', err instanceof Error ? err.message : String(err));
     return true;
   }
 }
@@ -272,7 +268,7 @@ export async function handleProxy(request: Request, env: Env): Promise<Response>
   }
 
   // レート制限
-  const allowed = await checkRateLimit(ip, env.RATE_LIMIT);
+  const allowed = await checkRateLimit(`proxy:${token}`, env.PROXY_RATE_LIMITER);
   if (!allowed) {
     console.log(`[Proxy] ip=${ip} token=${tokenPrefix}... status=429 error="レート制限超過"`);
     return proxyError(429, 'レート制限超過');

@@ -2,6 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { __resetStores } from '../store/__mocks__/db';
 
 vi.mock('../store/db');
+const mockFetchViaProxy = vi.fn();
+const mockParseFeed = vi.fn();
+vi.mock('../core/corsProxy', () => ({
+  fetchViaProxy: (...args: unknown[]) => mockFetchViaProxy(...args),
+}));
+vi.mock('../core/feedParser', () => ({
+  parseFeed: (...args: unknown[]) => mockParseFeed(...args),
+}));
 vi.mock('dompurify', () => ({
   default: {
     sanitize: (html: string) => html,
@@ -20,11 +28,35 @@ import {
 
 beforeEach(() => {
   __resetStores();
+  mockFetchViaProxy.mockReset();
+  mockParseFeed.mockReset();
+  mockParseFeed.mockReturnValue({ title: 'テストフィード', siteUrl: 'https://example.com', items: [] });
 });
 
 describe('feedTool 定義', () => {
   it('ツール名が設定されている', () => {
     expect(feedTool.name).toBe('feed');
+  });
+});
+
+describe('feedTool invoke', () => {
+  it('多バイト文字で 2MB を超えるフィードをバイト数ベースで拒否する', async () => {
+    const oversized = 'あ'.repeat(Math.ceil((2 * 1024 * 1024) / 3) + 1);
+    mockFetchViaProxy.mockResolvedValue({
+      text: vi.fn().mockResolvedValue(oversized),
+    });
+
+    const result = await feedTool.invoke({}, JSON.stringify({
+      action: 'subscribe',
+      url: 'https://example.com/rss.xml',
+      feed_id: '',
+      unread_only: '',
+      limit: '',
+    }));
+    const parsed = JSON.parse(result);
+
+    expect(parsed.error).toContain('フィードサイズが上限');
+    expect(mockParseFeed).not.toHaveBeenCalled();
   });
 });
 

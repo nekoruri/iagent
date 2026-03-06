@@ -4,6 +4,8 @@
 
 スマートフォンや PC 上で、サーバーに依存せずブラウザ上でエージェントが自律的に動作し、ユーザーの日常タスクを支援する世界観を実現する。
 
+長期探索の上位方針: [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md)
+
 ---
 
 ## 現状（2026-03-04 時点）
@@ -264,9 +266,9 @@
 - [x] Codex CLI レビュー自動化（`openai/codex-action@v1` + PR コメント投稿）
 - [x] Copilot レビュー完了チェック（カスタム status check、Critical 指摘のみブロック）
 - [x] Claude Code レビュースキル（`/review`, `/security-review`, `/test-review` + 4 並列サブエージェント）
-- [ ] GitHub Rulesets 設定（Copilot 自動レビュー + Review new pushes）— UI から手動設定
-- [ ] Required status checks 追加（copilot-review, codeql, semgrep）— UI から手動設定
-- [ ] `OPENAI_API_KEY` シークレット追加 — GitHub Settings から手動設定
+- [x] GitHub Rulesets 設定（Copilot 自動レビュー + Review new pushes）— `main` / `review` ruleset が active。`review` ruleset で `copilot_code_review.review_on_push=true` を確認。（2026-03-07 確認）
+- [x] Required status checks 追加（copilot-review, codeql, semgrep）— branch protection API で `strict=true` と 3 checks を設定済み。（2026-03-07 反映）
+- [x] `OPENAI_API_KEY` シークレット追加 — repository Actions secret に登録済み（created_at: 2026-03-03T02:56:22Z）。（2026-03-07 確認）
 
 ### 横断的課題
 - [x] CORS プロキシ（Cloudflare Workers 拡張 — トークン認証 + SSRF 防止 + レート制限）

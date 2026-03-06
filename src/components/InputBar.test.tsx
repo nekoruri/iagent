@@ -39,6 +39,25 @@ describe('InputBar', () => {
     expect(textarea).toHaveValue('');
   });
 
+  it('送信失敗時は入力内容を保持する', async () => {
+    const onSend = vi.fn().mockRejectedValue(new Error('send failed'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<InputBar {...defaultProps} onSend={onSend} />);
+
+    const textarea = screen.getByPlaceholderText('メッセージを入力...');
+    await userEvent.type(textarea, '失敗ケース');
+
+    await userEvent.click(screen.getByText('送信'));
+
+    await vi.waitFor(() => {
+      expect(onSend).toHaveBeenCalledWith('失敗ケース', undefined);
+    });
+    expect(textarea).toHaveValue('失敗ケース');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('[InputBar] メッセージ送信エラー:', expect.any(Error));
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it('Enter キーでメッセージを送信できる', async () => {
     const onSend = vi.fn();
     render(<InputBar {...defaultProps} onSend={onSend} />);
@@ -47,6 +66,20 @@ describe('InputBar', () => {
     await userEvent.type(textarea, 'テスト{Enter}');
 
     expect(onSend).toHaveBeenCalledWith('テスト', undefined);
+  });
+
+  it('送信失敗時は入力内容を保持してエラーを表示する', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onSend = vi.fn().mockRejectedValue(new Error('send failed'));
+    render(<InputBar {...defaultProps} onSend={onSend} />);
+
+    const textarea = screen.getByPlaceholderText('メッセージを入力...');
+    await userEvent.type(textarea, '失敗テスト');
+    await userEvent.click(screen.getByText('送信'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('メッセージの送信に失敗しました');
+    expect(textarea).toHaveValue('失敗テスト');
+    consoleErrorSpy.mockRestore();
   });
 
   it('Shift+Enter では送信されない', async () => {

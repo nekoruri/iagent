@@ -11,8 +11,11 @@ import {
 } from './heartbeatCost';
 import type { HeartbeatResult, HeartbeatTask, CalendarEvent, Memory, PersonaConfig } from '../types';
 
-const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL
-  || 'https://api.openai.com/v1/chat/completions';
+declare const __HEARTBEAT_OPENAI_API_URL__: string;
+
+const OPENAI_API_URL = typeof __HEARTBEAT_OPENAI_API_URL__ === 'string' && __HEARTBEAT_OPENAI_API_URL__.length > 0
+  ? __HEARTBEAT_OPENAI_API_URL__
+  : 'https://api.openai.com/v1/chat/completions';
 const MAX_TOOL_ROUNDS = 5;
 const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
 

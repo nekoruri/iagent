@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { isImageMimeType, formatFileSize } from '../core/fileUtils';
 import type { ChatMessage } from '../types';
 import type { Attachment } from '../types/attachment';
+import { AttachmentImage } from './AttachmentImage';
 
 marked.setOptions({
   breaks: true,
@@ -52,10 +53,13 @@ export const MessageBubble = memo(function MessageBubble({ message, attachments,
             {attachments.map((att) => (
               <div key={att.id} className="message-attachment">
                 {isImageMimeType(att.mimeType) ? (
-                  <img
-                    src={att.thumbnailUri ?? att.dataUri}
+                  <AttachmentImage
+                    key={`${att.id}:${att.thumbnailUri ?? att.dataUri}:${att.dataUri}`}
+                    previewSrc={att.thumbnailUri ?? att.dataUri}
+                    fallbackSrc={att.dataUri}
                     alt={att.filename}
-                    className="message-attachment-image"
+                    imgClassName="message-attachment-image"
+                    fallbackClassName="attachment-image-fallback message-attachment-fallback"
                     onClick={() => {
                       try {
                         if (!att.dataUri.startsWith('data:')) return;

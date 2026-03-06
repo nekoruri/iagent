@@ -12,6 +12,13 @@ import {
 import type { MemoryCategory } from '../types';
 
 const validCategories: MemoryCategory[] = ['preference', 'fact', 'context', 'routine', 'goal', 'personality', 'reflection', 'other'];
+const validCategoryLabel = validCategories.join('/');
+
+function parseMemoryCategory(category: string): MemoryCategory | null {
+  return validCategories.includes(category as MemoryCategory)
+    ? (category as MemoryCategory)
+    : null;
+}
 
 export const memoryTool = tool({
   name: 'memory',
@@ -36,21 +43,22 @@ category:
 - other: その他`,
   parameters: z.object({
     action: z.enum(['save', 'search', 'list', 'update', 'archive', 'reevaluate', 'delete']),
-    content: z.string().optional().describe('保存/更新するメモリの内容。save 時は必須、他は省略可'),
-    category: z.string().optional().describe('カテゴリ（preference/fact/context/routine/goal/personality/reflection/other）。save 時に必須、list 時はフィルタ用'),
-    query: z.string().optional().describe('検索キーワード。search 時に必須'),
-    id: z.string().optional().describe('対象メモリID。update/archive/delete 時に必須'),
-    importance: z.string().optional().describe('重要度（1-5）。save/update 時に有効'),
-    tags: z.string().optional().describe('タグ（カンマ区切り）。save/update 時に有効。空文字でクリア'),
-    minStaleDays: z.string().optional().describe('再評価候補の最小未参照日数（reevaluate 時のみ有効）'),
-    maxImportance: z.string().optional().describe('再評価候補の最大重要度（reevaluate 時のみ有効）'),
+    content: z.string().describe('保存/更新するメモリの内容。未使用時は空文字。save 時は必須'),
+    category: z.string().describe('カテゴリ（preference/fact/context/routine/goal/personality/reflection/other）。未使用時は空文字。save 時に必須、list 時はフィルタ用'),
+    query: z.string().describe('検索キーワード。未使用時は空文字。search 時に必須'),
+    id: z.string().describe('対象メモリID。未使用時は空文字。update/archive/delete 時に必須'),
+    importance: z.string().describe('重要度（1-5）。未使用時は空文字。save/update 時に有効'),
+    tags: z.string().describe('タグ（カンマ区切り）。未使用時は空文字。save/update 時に有効。空文字でクリア'),
+    minStaleDays: z.string().describe('再評価候補の最小未参照日数。未使用時は空文字。reevaluate 時のみ有効'),
+    maxImportance: z.string().describe('再評価候補の最大重要度。未使用時は空文字。reevaluate 時のみ有効'),
   }),
   execute: async ({ action, content, category, query, id, importance, tags, minStaleDays, maxImportance }) => {
     if (action === 'save') {
       if (!content) return JSON.stringify({ error: 'content は必須です' });
-      const cat: MemoryCategory = validCategories.includes(category as MemoryCategory)
-        ? (category as MemoryCategory)
-        : 'other';
+      const cat = parseMemoryCategory(category);
+      if (!cat) {
+        return JSON.stringify({ error: `category は ${validCategoryLabel} のいずれかを指定してください` });
+      }
       const options: { importance?: number; tags?: string[] } = {};
       if (importance) {
         const parsed = parseInt(importance, 10);
@@ -70,9 +78,10 @@ category:
     }
 
     if (action === 'list') {
-      const cat: MemoryCategory | undefined = validCategories.includes(category as MemoryCategory)
-        ? (category as MemoryCategory)
-        : undefined;
+      if (category && !parseMemoryCategory(category)) {
+        return JSON.stringify({ error: `category は ${validCategoryLabel} のいずれか、または空文字を指定してください` });
+      }
+      const cat = category ? parseMemoryCategory(category) ?? undefined : undefined;
       const memories = await listMemories(cat);
       return JSON.stringify({ memories, count: memories.length });
     }

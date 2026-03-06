@@ -213,7 +213,7 @@ server/
 | SSRF 防止 | プライベート IP レンジ拒否（127/10/172.16/192.168/169.254）+ localhost 拒否 |
 | HTTPS 強制 | `https:` プロトコルのみ許可 |
 | リダイレクト検証 | `redirect: 'manual'` で手動追跡、各リダイレクト先も SSRF 検証、上限 5 回 |
-| レート制限 | KV ベース、60 秒ウィンドウ / 30 リクエスト（`CF-Connecting-IP` ベース） |
+| レート制限 | Workers Rate Limiting binding、60 秒ウィンドウ / 30 リクエスト（proxy token ベース） |
 | サイズ制限 | 2MB 上限、ストリーミング読み取りで超過時 abort |
 | タイムアウト | 15 秒（`AbortController`） |
 | ドメイン制御 | クライアント側の許可ドメインリスト（`ProxyConfig.allowedDomains`） |
@@ -281,7 +281,7 @@ VitePWA({
 
 ## データ永続化
 
-### IndexedDB (`iagent-db`, version 10)
+### IndexedDB (`iagent-db`, version 11)
 
 | ストア | keyPath | 用途 |
 |---|---|---|
@@ -297,6 +297,7 @@ VitePWA({
 | `feeds` | `id` | RSS フィード購読情報 |
 | `feed-items` | `id` | フィード記事（`feedId`, `publishedAt`, `guid` インデックス） |
 | `monitors` | `id` | Web ページ監視対象 |
+| `attachments` | `id` | 添付ファイル（`messageId`, `conversationId` インデックス、Blob 優先保存） |
 
 ### localStorage (`iagent-config`)
 
@@ -304,6 +305,7 @@ VitePWA({
 - MCP サーバー設定
 - Heartbeat 設定
 - OTel 設定
+- 保存時に `config` ストアへも同期し、Worker / Service Worker からは IndexedDB 側の `app-config` を参照する
 
 ---
 

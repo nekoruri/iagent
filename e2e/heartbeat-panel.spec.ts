@@ -15,7 +15,7 @@ const heartbeatConfig = {
 /**
  * ページロード前に IndexedDB へ Heartbeat 結果をシードする。
  * page.addInitScript を使い、ページスクリプトより先に IDB を書き込む。
- * DB をバージョン 1 で作成し、アプリ側のバージョン 10 へのアップグレードで
+ * DB をバージョン 1 で作成し、アプリ側のバージョン 11 へのアップグレードで
  * 他ストアが追加されても heartbeat データは保持される。
  */
 function seedHeartbeatResults(page: import('@playwright/test').Page, results: unknown[]) {
@@ -114,5 +114,46 @@ test.describe('Heartbeat パネル操作', () => {
 
     await page.locator('.heartbeat-bell').click();
     await expect(page.locator('.heartbeat-badge')).toBeHidden({ timeout: 5000 });
+  });
+
+  test('ピン留め操作で状態表示が更新される', async ({ page }) => {
+    await seedHeartbeatResults(page, [
+      { taskId: 'test-task', timestamp: Date.now(), hasChanges: true, summary: 'ピン対象' },
+    ]);
+    await injectConfig(page, heartbeatConfig);
+    await page.goto('/');
+    await waitForAppReady(page);
+
+    await page.locator('.heartbeat-bell').click();
+    const item = page.locator('.heartbeat-result-item').first();
+    const pinButton = item.locator('.btn-pin');
+
+    await expect(pinButton).toHaveAttribute('title', 'ピン留め');
+    await pinButton.click();
+
+    await expect(pinButton).toHaveAttribute('title', 'ピン留め解除');
+    await expect(item).toHaveClass(/heartbeat-result-pinned/);
+    await expect(item.locator('.heartbeat-result-badge-pinned')).toContainText('ピン留め');
+  });
+
+  test('フィードバック操作で確認済み表示と非表示が切り替わる', async ({ page }) => {
+    const baseTimestamp = Date.now();
+    await seedHeartbeatResults(page, [
+      { taskId: 'accept-task', timestamp: baseTimestamp, hasChanges: true, summary: '役に立つ結果' },
+      { taskId: 'dismiss-task', timestamp: baseTimestamp - 1000, hasChanges: true, summary: '不要な結果' },
+    ]);
+    await injectConfig(page, heartbeatConfig);
+    await page.goto('/');
+    await waitForAppReady(page);
+
+    await page.locator('.heartbeat-bell').click();
+
+    const acceptItem = page.locator('.heartbeat-result-item').filter({ hasText: '役に立つ結果' });
+    await acceptItem.locator('[title="役に立った"]').click();
+    await expect(acceptItem.locator('.feedback-label-accepted')).toContainText('確認済み');
+
+    const dismissItem = page.locator('.heartbeat-result-item').filter({ hasText: '不要な結果' });
+    await dismissItem.locator('[title="不要"]').click();
+    await expect(page.locator('.heartbeat-result-item').filter({ hasText: '不要な結果' })).toHaveCount(0);
   });
 });

@@ -27,6 +27,8 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
     const notificationTag = `heartbeat-${result.taskId}-${result.timestamp}`;
     const notification = new Notification('iAgent Heartbeat', {
       body: result.summary,
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
       tag: notificationTag,
     });
     void appendOpsEvent({

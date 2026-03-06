@@ -63,6 +63,12 @@ const server = http.createServer((req, res) => {
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       console.log(`[mock-openai] POST /v1/chat/completions (${body.length} bytes)`);
+      const authHeader = req.headers.authorization ?? '';
+      if (typeof authHeader === 'string' && authHeader.includes('push-e2e-error')) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'mock push heartbeat error' }));
+        return;
+      }
       const response = createChatCompletionResponse(true);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response));

@@ -20,6 +20,17 @@ function summarizeResult(result?: string): string | null {
   }
 }
 
+function getStatusIcon(status: ToolCallInfo['status']): string {
+  switch (status) {
+    case 'running':
+      return '\u23F3';
+    case 'completed':
+      return '\u2705';
+    default:
+      return '\u274C';
+  }
+}
+
 export function TaskProgress({ tools }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -48,18 +59,44 @@ export function TaskProgress({ tools }: Props) {
         {tools.map((tool) => {
           const summary = summarizeResult(tool.result);
           const isExpanded = expandedIds.has(tool.id);
+          const isExpandable = Boolean(summary);
 
           return (
             <div
               key={tool.id}
-              className={`task-step task-step-${tool.status}`}
-              onClick={() => summary && toggleExpand(tool.id)}
+              className={`task-step task-step-${tool.status}${isExpandable ? ' task-step-expandable' : ''}${isExpanded ? ' task-step-expanded' : ''}`}
             >
-              <span className="task-step-icon">
-                {tool.status === 'running' ? '\u23F3' : tool.status === 'completed' ? '\u2705' : '\u274C'}
-              </span>
-              <span className="task-step-name">{tool.name}</span>
-              {summary && isExpanded && (
+              {isExpandable ? (
+                <button
+                  type="button"
+                  className="task-step-toggle"
+                  aria-expanded={isExpanded}
+                  onClick={() => toggleExpand(tool.id)}
+                >
+                  <span className="task-step-main">
+                    <span className="task-step-icon" aria-hidden="true">
+                      {getStatusIcon(tool.status)}
+                    </span>
+                    <span className="task-step-name">{tool.name}</span>
+                  </span>
+                  <span className="task-step-affordance">
+                    <span className="task-step-toggle-label">
+                      {isExpanded ? '詳細を閉じる' : '詳細を開く'}
+                    </span>
+                    <span className={`task-step-chevron${isExpanded ? ' expanded' : ''}`} aria-hidden="true">
+                      ▸
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <div className="task-step-static">
+                  <span className="task-step-icon" aria-hidden="true">
+                    {getStatusIcon(tool.status)}
+                  </span>
+                  <span className="task-step-name">{tool.name}</span>
+                </div>
+              )}
+              {isExpandable && isExpanded && (
                 <div className="task-step-result">{summary}</div>
               )}
             </div>
