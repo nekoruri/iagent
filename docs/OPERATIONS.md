@@ -7,6 +7,22 @@
 
 端末 / ブラウザ別の current capability は [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md) を参照してください。
 
+## この文書の役割
+
+この文書は、**Push / Proxy / server 運用の現在手順**を説明する source of truth です。
+
+主に支える長期トラック:
+
+- `T1 自律実行基盤`
+- `T8 端末制約最適化`
+
+proposal との違い:
+
+- proposal は方向性や検討事項
+- operations は実際に運用するときの手順
+
+を扱います。
+
 ## 1. 役割
 
 `server/` は次の機能を提供します。
