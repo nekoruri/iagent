@@ -109,7 +109,7 @@ export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose
               results.map((r, i) => (
                 <div
                   key={`${r.taskId}-${r.timestamp}-${i}`}
-                  className={`heartbeat-result-item${r.hasChanges ? ' heartbeat-result-changed' : ''}${r.pinned ? ' heartbeat-result-pinned' : ''}`}
+                  className={`heartbeat-result-item${r.hasChanges ? ' heartbeat-result-changed' : ''}${r.pinned ? ' heartbeat-result-pinned' : ''}${r.hasChanges && r.pinned ? ' heartbeat-result-changed-pinned' : ''}`}
                 >
                   <div className="heartbeat-result-header">
                     <div className="heartbeat-result-summary">{r.summary || '変化なし'}</div>
@@ -124,7 +124,11 @@ export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose
                     </button>
                   </div>
                   <div className="heartbeat-result-meta">
-                    <span>{r.taskId}</span>
+                    <div className="heartbeat-result-meta-primary">
+                      <span>{r.taskId}</span>
+                      {r.hasChanges && <span className="heartbeat-result-badge heartbeat-result-badge-changed">変更あり</span>}
+                      {r.pinned && <span className="heartbeat-result-badge heartbeat-result-badge-pinned">ピン留め</span>}
+                    </div>
                     <span>{formatTime(r.timestamp)}</span>
                   </div>
                   <div className="heartbeat-result-actions">

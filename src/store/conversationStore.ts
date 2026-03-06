@@ -1,8 +1,11 @@
 import { getDB } from './db';
 import { createConversation } from './conversationMetaStore';
 import type { ChatMessage } from '../types';
+import type { Attachment } from '../types/attachment';
 
 const STORE_NAME = 'conversations';
+const CONVERSATION_META_STORE = 'conversation-meta';
+const ATTACHMENT_STORE = 'attachments';
 
 export async function loadMessages(conversationId: string): Promise<ChatMessage[]> {
   const db = await getDB();
@@ -22,6 +25,28 @@ export async function clearMessages(conversationId: string): Promise<void> {
   for (const msg of messages) {
     tx.store.delete((msg as ChatMessage).id);
   }
+  await tx.done;
+}
+
+/** 会話メッセージ・添付・メタデータを 1 トランザクションで削除する */
+export async function deleteConversationData(conversationId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction([STORE_NAME, CONVERSATION_META_STORE, ATTACHMENT_STORE], 'readwrite');
+  const messageStore = tx.objectStore(STORE_NAME);
+  const attachmentStore = tx.objectStore(ATTACHMENT_STORE);
+  const metaStore = tx.objectStore(CONVERSATION_META_STORE);
+
+  const messages = await messageStore.index('conversationId').getAll(conversationId);
+  for (const msg of messages) {
+    messageStore.delete((msg as ChatMessage).id);
+  }
+
+  const attachments = await attachmentStore.index('conversationId').getAll(conversationId);
+  for (const attachment of attachments) {
+    attachmentStore.delete((attachment as Attachment).id);
+  }
+
+  metaStore.delete(conversationId);
   await tx.done;
 }
 

@@ -3,10 +3,8 @@ import {
   listConversations,
   createConversation,
   updateConversation,
-  deleteConversation,
 } from '../store/conversationMetaStore';
-import { deleteAttachmentsByConversationId } from '../store/attachmentStore';
-import { clearMessages, migrateOrphanMessages } from '../store/conversationStore';
+import { deleteConversationData, migrateOrphanMessages } from '../store/conversationStore';
 import type { Conversation } from '../types';
 
 export function useConversations() {
@@ -42,9 +40,7 @@ export function useConversations() {
   }, []);
 
   const remove = useCallback(async (id: string) => {
-    await clearMessages(id);
-    await deleteAttachmentsByConversationId(id);
-    await deleteConversation(id);
+    await deleteConversationData(id);
     setConversations((prev) => {
       const updated = prev.filter((c) => c.id !== id);
       // 削除した会話がアクティブなら別の会話にフォーカス

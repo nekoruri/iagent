@@ -21,6 +21,7 @@
 - Node.js（`server/package.json` のスクリプトを実行できる環境）
 - Wrangler CLI
 - KV Namespace を 2 つ作成できる権限
+- Rate Limiting binding を設定できる権限
 
 ## 3. サーバーセットアップ
 
@@ -49,6 +50,25 @@ wrangler kv namespace create RATE_LIMIT
 
 - `[[kv_namespaces]] binding = "SUBSCRIPTIONS"`
 - `[[kv_namespaces]] binding = "RATE_LIMIT"`
+
+## 5.1 Rate Limiting binding の設定
+
+`/proxy` のレート制限は Cloudflare Workers Rate Limiting binding を利用する。
+
+`wrangler.toml` に以下を設定する:
+
+```toml
+[[ratelimits]]
+name = "PROXY_RATE_LIMITER"
+namespace_id = "1001" # アカウント内で一意な整数
+simple = { limit = 30, period = 60 }
+```
+
+補足:
+
+- `namespace_id` は KV のような作成済みリソース ID ではなく、アカウント内で一意な整数
+- 既存の rate limiting 設定と衝突する場合は別の整数へ変更する
+- `RATE_LIMIT` KV は proxy token 保管に継続利用し、レートカウンタ用途では使わない
 
 ## 6. Secret の設定
 
@@ -150,7 +170,7 @@ curl -X POST https://your-worker.workers.dev/test-push
 `/proxy` には次の防御が実装されています。
 
 - Bearer トークン認証
-- レート制限（60秒あたり30リクエスト）
+- レート制限（Workers Rate Limiting binding、60秒あたり30リクエスト）
 - SSRF 防止（localhost/プライベートIP拒否）
 - HTTPS 強制
 - リダイレクト追跡時の再検証（最大5回）

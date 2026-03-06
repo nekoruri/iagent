@@ -858,6 +858,8 @@ export function SettingsModal({ open, onClose }: Props) {
   const builtinTasks = heartbeat.tasks.filter((t) => t.type === 'builtin');
   const customTasks = heartbeat.tasks.filter((t) => t.type === 'custom');
   const canEnablePush = notificationPermission === 'granted';
+  const isDesktopNotificationChecked = heartbeat.desktopNotification && notificationPermission === 'granted';
+  const isDesktopNotificationDisabled = notificationPermission === 'denied' || notificationPermission === 'unsupported';
 
   const permissionStatusLabel = (() => {
     switch (notificationPermission) {
@@ -1275,8 +1277,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 <label className="mcp-toggle-label">
                   <input
                     type="checkbox"
-                    checked={heartbeat.desktopNotification}
-                    disabled={notificationPermission === 'denied' || notificationPermission === 'unsupported'}
+                    checked={isDesktopNotificationChecked}
+                    disabled={isDesktopNotificationDisabled}
                     onChange={async (e) => {
                       if (e.target.checked) {
                         const result = await requestNotificationPermission();

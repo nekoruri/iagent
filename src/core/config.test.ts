@@ -76,6 +76,7 @@ describe('BUILTIN_HEARTBEAT_TASKS', () => {
     const briefing = BUILTIN_HEARTBEAT_TASKS.find((t) => t.id === 'briefing-morning');
     expect(briefing).toBeDefined();
     expect(briefing!.description).toContain('getCrossSourceTopics');
+    expect(briefing!.description).toContain('必ず hasChanges: true');
   });
 
   it('monthly-review が無効で定義され、fixed-time 08:00 スケジュールを持つ', () => {
@@ -260,7 +261,8 @@ describe('getConfig / saveConfig', () => {
     });
   });
 
-  it('保存済み tasks に不足しているビルトインタスクが自動追加される', () => {
+  it('保存済み tasks に不足しているビルトインタスクが自動追加され、永続化される', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
     const oldTasks = [
       { id: 'calendar-check', name: 'カレンダーチェック', description: '', enabled: true, type: 'builtin' as const },
     ];
@@ -279,9 +281,19 @@ describe('getConfig / saveConfig', () => {
     // 既存タスクの設定は上書きされない
     const cal = config.heartbeat!.tasks.find((t) => t.id === 'calendar-check');
     expect(cal!.enabled).toBe(true);
+    const persisted = JSON.parse(localStorage.getItem('iagent-config') ?? '{}') as AppConfig;
+    expect(persisted.heartbeat.tasks).toHaveLength(BUILTIN_HEARTBEAT_TASKS.length);
+    expect(saveConfigToIDB).toHaveBeenCalledWith(expect.objectContaining({
+      heartbeat: expect.objectContaining({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({ id: 'calendar-check', enabled: true }),
+        ]),
+      }),
+    }));
   });
 
-  it('全ビルトインタスクが揃っている場合は重複追加されない', () => {
+  it('全ビルトインタスクが揃っている場合は getConfig で再保存しない', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
     const config1: AppConfig = {
       openaiApiKey: 'sk-test',
       braveApiKey: '',
@@ -290,9 +302,11 @@ describe('getConfig / saveConfig', () => {
       heartbeat: getDefaultHeartbeatConfig(),
     };
     saveConfig(config1);
+    vi.mocked(saveConfigToIDB).mockClear();
     const loaded = getConfig();
     const builtinCount = loaded.heartbeat!.tasks.filter((t) => t.type === 'builtin').length;
     expect(builtinCount).toBe(BUILTIN_HEARTBEAT_TASKS.length);
+    expect(saveConfigToIDB).not.toHaveBeenCalled();
   });
 
   it('タスク時間帯条件（condition）が保存データから復元される', () => {

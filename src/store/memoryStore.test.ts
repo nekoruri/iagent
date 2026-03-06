@@ -138,6 +138,12 @@ describe('scoreMemory', () => {
     const twenty = makeMemory({ accessCount: 20 });
     expect(scoreMemory(ten, now)).toBe(scoreMemory(twenty, now));
   });
+
+  it('updatedAt が未来でも減衰を増幅しない', () => {
+    const future = makeMemory({ updatedAt: now + HALF_LIFE_MS.fact });
+    const fresh = makeMemory({ updatedAt: now });
+    expect(scoreMemory(future, now)).toBeCloseTo(scoreMemory(fresh, now), 5);
+  });
 });
 
 describe('saveMemory', () => {
@@ -163,6 +169,29 @@ describe('saveMemory', () => {
   it('tags を指定して保存できる', async () => {
     const memory = await saveMemory('タグ付きメモリ', 'preference', { tags: ['tokyo', 'weather'] });
     expect(memory.tags).toEqual(['tokyo', 'weather']);
+  });
+
+  it('contentHash が空の旧データとも重複判定できる', async () => {
+    const { getDB } = await import('./__mocks__/db');
+    const db = await getDB();
+    await db.put('memories', {
+      id: 'legacy-1',
+      content: '重複テスト',
+      category: 'fact',
+      importance: 3,
+      tags: [],
+      createdAt: 100,
+      updatedAt: 100,
+      accessCount: 0,
+      lastAccessedAt: 100,
+      contentHash: '',
+    });
+
+    const memory = await saveMemory('重複テスト', 'fact');
+    const all = await listMemories();
+    expect(all).toHaveLength(1);
+    expect(memory.id).toBe('legacy-1');
+    expect(all[0].contentHash).toHaveLength(64);
   });
 
   it('importance の範囲外はクランプされる', async () => {
@@ -299,6 +328,30 @@ describe('listMemories', () => {
     const prefs = await listMemories('preference');
     expect(prefs).toHaveLength(2);
     prefs.forEach((m) => expect(m.category).toBe('preference'));
+  });
+
+  it('旧データの空 contentHash を一覧取得時にバックフィルする', async () => {
+    const { getDB } = await import('./__mocks__/db');
+    const db = await getDB();
+    await db.put('memories', {
+      id: 'legacy-1',
+      content: 'バックフィル対象',
+      category: 'fact',
+      importance: 3,
+      tags: [],
+      createdAt: 100,
+      updatedAt: 100,
+      accessCount: 0,
+      lastAccessedAt: 100,
+      contentHash: '',
+    });
+
+    const memories = await listMemories();
+    expect(memories).toHaveLength(1);
+    expect(memories[0].contentHash).toHaveLength(64);
+
+    const stored = await db.get('memories', 'legacy-1') as Memory;
+    expect(stored.contentHash).toHaveLength(64);
   });
 });
 

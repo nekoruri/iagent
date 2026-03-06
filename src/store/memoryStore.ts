@@ -49,7 +49,7 @@ export function scoreMemory(m: Memory, now: number): number {
   score += categoryBonus[m.category] ?? 0;
 
   // 指数減衰: decay = exp(-ln2 * age / halfLife)
-  const age = now - m.updatedAt;
+  const age = Math.max(0, now - m.updatedAt);
   const halfLife = HALF_LIFE_MS[m.category] ?? HALF_LIFE_MS.other;
   const decay = Math.exp(-Math.LN2 * age / halfLife);
   score += decay * 3;  // 最大 +3（最新時）、半減期で +1.5
@@ -71,6 +71,39 @@ export function normalizeMemory(raw: Partial<Memory> & { id: string; content: st
     lastAccessedAt: raw.lastAccessedAt ?? raw.updatedAt ?? raw.createdAt,
     contentHash: raw.contentHash ?? '',
   };
+}
+
+async function backfillContentHashes(
+  db: Awaited<ReturnType<typeof getDB>>,
+  rows: Memory[],
+): Promise<Memory[]> {
+  const normalized = rows.map(normalizeMemory);
+  const updates = await Promise.all(normalized.map(async (memory) => {
+    if (memory.contentHash) return null;
+    return {
+      ...memory,
+      contentHash: await computeContentHash(memory.content),
+    };
+  }));
+  const backfilled = updates.filter((memory): memory is Memory => memory !== null);
+  if (backfilled.length === 0) return normalized;
+
+  await Promise.all(backfilled.map((memory) => db.put(STORE_NAME, memory)));
+  const backfilledMap = new Map(backfilled.map((memory) => [memory.id, memory]));
+  return normalized.map((memory) => backfilledMap.get(memory.id) ?? memory);
+}
+
+async function ensureContentHash(
+  db: Awaited<ReturnType<typeof getDB>>,
+  memory: Memory,
+): Promise<Memory> {
+  if (memory.contentHash) return memory;
+  const updated = {
+    ...memory,
+    contentHash: await computeContentHash(memory.content),
+  };
+  await db.put(STORE_NAME, updated);
+  return updated;
 }
 
 /** アクセスメトリクスを非同期更新 */
@@ -146,8 +179,8 @@ export async function saveMemory(
   const contentHash = await computeContentHash(content);
 
   // 重複チェック: 同一ハッシュの既存メモリがあれば updatedAt のみ更新
-  const all = await db.getAll(STORE_NAME);
-  const existing = (all as Memory[]).find((m) => m.contentHash === contentHash);
+  const all = await backfillContentHashes(db, await db.getAll(STORE_NAME) as Memory[]);
+  const existing = all.find((m) => m.contentHash === contentHash);
   if (existing) {
     const updated: Memory = {
       ...normalizeMemory(existing),
@@ -173,9 +206,8 @@ export async function saveMemory(
   };
 
   // 上限チェック: 品質ベースアーカイブ
-  const normalized = (all as Memory[]).map(normalizeMemory);
-  if (normalized.length >= MAX_MEMORIES) {
-    await archiveLowestScored(db, normalized);
+  if (all.length >= MAX_MEMORIES) {
+    await archiveLowestScored(db, all);
   }
 
   await db.put(STORE_NAME, memory);
@@ -184,10 +216,9 @@ export async function saveMemory(
 
 export async function searchMemories(query: string): Promise<Memory[]> {
   const db = await getDB();
-  const all = await db.getAll(STORE_NAME);
+  const all = await backfillContentHashes(db, await db.getAll(STORE_NAME) as Memory[]);
   const lowerQuery = query.toLowerCase();
-  return (all as Memory[])
-    .map(normalizeMemory)
+  return all
     .filter((m) => m.content.toLowerCase().includes(lowerQuery))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -196,10 +227,10 @@ export async function listMemories(category?: MemoryCategory): Promise<Memory[]>
   const db = await getDB();
   if (category) {
     const results = await db.getAllFromIndex(STORE_NAME, 'category', category);
-    return (results as Memory[]).map(normalizeMemory).sort((a, b) => b.updatedAt - a.updatedAt);
+    return (await backfillContentHashes(db, results as Memory[])).sort((a, b) => b.updatedAt - a.updatedAt);
   }
-  const all = await db.getAll(STORE_NAME);
-  return (all as Memory[]).map(normalizeMemory).sort((a, b) => b.updatedAt - a.updatedAt);
+  const all = await backfillContentHashes(db, await db.getAll(STORE_NAME) as Memory[]);
+  return all.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function deleteMemory(id: string): Promise<boolean> {
@@ -222,7 +253,7 @@ export async function updateMemory(id: string, patch: UpdateMemoryInput): Promis
   const existing = await db.get(STORE_NAME, id);
   if (!existing) return null;
 
-  const current = normalizeMemory(existing as Memory);
+  const current = await ensureContentHash(db, normalizeMemory(existing as Memory));
   const now = Date.now();
   const hasContent = typeof patch.content === 'string';
   const nextContent = hasContent ? patch.content!.trim() : current.content;
@@ -241,7 +272,7 @@ export async function updateMemory(id: string, patch: UpdateMemoryInput): Promis
 
   // 編集後コンテンツが別 ID と重複する場合は統合
   if (nextHash && nextHash !== current.contentHash) {
-    const all = (await db.getAll(STORE_NAME) as Memory[]).map(normalizeMemory);
+    const all = await backfillContentHashes(db, await db.getAll(STORE_NAME) as Memory[]);
     const duplicate = all.find((m) => m.id !== id && m.contentHash === nextHash);
     if (duplicate) {
       const mergedAccessCount = (duplicate.accessCount ?? 0) + (current.accessCount ?? 0) + 1;
@@ -288,7 +319,7 @@ export async function archiveMemory(
   const db = await getDB();
   const existing = await db.get(STORE_NAME, id);
   if (!existing) return false;
-  const memory = normalizeMemory(existing as Memory);
+  const memory = await ensureContentHash(db, normalizeMemory(existing as Memory));
   const now = Date.now();
   const archived: ArchivedMemory = {
     ...memory,
@@ -488,14 +519,19 @@ export async function restoreArchivedMemory(id: string): Promise<boolean> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { archivedAt: _at, archiveReason: _reason, ...memory } = archived as ArchivedMemory;
   const now = Date.now();
-  const restored: Memory = normalizeMemory({
+  let restored: Memory = normalizeMemory({
     ...memory,
     updatedAt: now,
   });
+  if (!restored.contentHash) {
+    restored = {
+      ...restored,
+      contentHash: await computeContentHash(restored.content),
+    };
+  }
 
   // 重複チェック: 同一 contentHash のアクティブ記憶がある場合はマージ
-  const all = await db.getAll(STORE_NAME);
-  const normalized = (all as Memory[]).map(normalizeMemory);
+  const normalized = await backfillContentHashes(db, await db.getAll(STORE_NAME) as Memory[]);
   const duplicate = restored.contentHash
     ? normalized.find((m) => m.contentHash === restored.contentHash)
     : undefined;

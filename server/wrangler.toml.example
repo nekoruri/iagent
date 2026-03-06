@@ -13,6 +13,11 @@ id = "YOUR_KV_NAMESPACE_ID_HERE"  # `wrangler kv namespace create SUBSCRIPTIONS`
 binding = "RATE_LIMIT"
 id = "YOUR_RATE_LIMIT_KV_ID_HERE"  # `wrangler kv namespace create RATE_LIMIT` で取得した ID を設定
 
+[[ratelimits]]
+name = "PROXY_RATE_LIMITER"
+namespace_id = "1001"  # アカウント内で一意な整数を指定
+simple = { limit = 30, period = 60 }
+
 # VAPID 秘密鍵は `wrangler secret put VAPID_PRIVATE_KEY` で設定
 # VAPID 公開鍵は `wrangler secret put VAPID_PUBLIC_KEY` で設定
 # VAPID subject は `wrangler secret put VAPID_SUBJECT` で設定

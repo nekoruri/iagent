@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense, type TouchEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, useEffectEvent, type TouchEvent } from 'react';
 import { ChatView } from './components/ChatView';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { FeedPanel } from './components/FeedPanel';
@@ -34,6 +34,16 @@ const SIDEBAR_EDGE_SWIPE_ZONE_PX = 24;
 const SIDEBAR_CLOSE_SWIPE_ZONE_PX = 320;
 const SIDEBAR_SWIPE_LOCK_PX = 24;
 const SIDEBAR_SWIPE_TRIGGER_PX = 72;
+
+function LazyModalFallback() {
+  return (
+    <div className="modal-overlay" role="status" aria-live="polite">
+      <div className="modal modal-loading">
+        <p>読み込み中...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   useViewportHeight();
@@ -215,15 +225,19 @@ export default function App() {
 
   // TTS 自動読み上げ: ストリーミング終了時に最新 AI メッセージを読み上げ
   const prevStreamingRef = useRef(isStreaming);
+  const autoSpeakAssistantMessage = useEffectEvent((content: string) => {
+    if (!speechOutput.isSupported) return;
+    speechOutput.speak(content);
+  });
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreaming;
-    if (!webSpeech.ttsAutoRead || !speechOutput.isSupported || isStreaming || !wasStreaming) return;
+    if (!webSpeech.ttsAutoRead || isStreaming || !wasStreaming) return;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.role === 'assistant' && lastMsg.content) {
-      speechOutput.speak(lastMsg.content);
+      autoSpeakAssistantMessage(lastMsg.content);
     }
-  }, [isStreaming, webSpeech.ttsAutoRead, speechOutput.isSupported, speechOutput.speak, messages]);
+  }, [isStreaming, webSpeech.ttsAutoRead, messages]);
 
   // メッセージ送信時にタイトル自動設定 & touch
   const handleSend = useCallback(async (text: string, attachments?: PendingAttachment[]) => {
@@ -430,7 +444,7 @@ export default function App() {
             speechOutput={speechOutput}
           />
         </main>
-        <Suspense fallback={null}>
+        <Suspense fallback={(showWizard || settingsOpen) ? <LazyModalFallback /> : null}>
           {showWizard && <SetupWizard onComplete={handleWizardComplete} />}
           {settingsOpen && <SettingsModal open={settingsOpen} onClose={handleSettingsClose} />}
         </Suspense>

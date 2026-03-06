@@ -149,6 +149,8 @@ describe('sendHeartbeatNotifications', () => {
 
     expect(Notification).toHaveBeenCalledWith('iAgent Heartbeat', {
       body: 'テスト通知',
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
       tag: 'heartbeat-test-1-1000',
     });
     expect(mockAppendOpsEvent).toHaveBeenCalledWith(

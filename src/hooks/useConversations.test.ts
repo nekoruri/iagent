@@ -19,17 +19,12 @@ vi.mock('../store/conversationMetaStore', () => ({
     messageCount: 0,
   })),
   updateConversation: vi.fn(async () => {}),
-  deleteConversation: vi.fn(async () => {}),
 }));
 
+const mockDeleteConversationData = vi.fn(async () => {});
 vi.mock('../store/conversationStore', () => ({
-  clearMessages: vi.fn(async () => {}),
+  deleteConversationData: (...args: unknown[]) => mockDeleteConversationData(...args),
   migrateOrphanMessages: vi.fn(async () => null),
-}));
-
-const mockDeleteAttachments = vi.fn(async () => {});
-vi.mock('../store/attachmentStore', () => ({
-  deleteAttachmentsByConversationId: (...args: unknown[]) => mockDeleteAttachments(...args),
 }));
 
 describe('useConversations', () => {
@@ -93,8 +88,7 @@ describe('useConversations', () => {
 
     expect(result.current.conversations).toHaveLength(1);
     expect(result.current.activeConversationId).toBe('conv-2');
-    // 添付データも削除される
-    expect(mockDeleteAttachments).toHaveBeenCalledWith('conv-1');
+    expect(mockDeleteConversationData).toHaveBeenCalledWith('conv-1');
   });
 
   it('rename() で会話のタイトルを変更する', async () => {

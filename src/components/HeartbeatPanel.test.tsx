@@ -49,6 +49,18 @@ describe('HeartbeatPanel', () => {
     expect(items[1].classList.contains('heartbeat-result-pinned')).toBe(false);
   });
 
+  it('変更ありかつピン留めの結果は両方の状態ラベルを表示する', () => {
+    const results: HeartbeatResult[] = [
+      { taskId: 'task-pinned', timestamp: 3000, hasChanges: true, summary: 'ピン留め結果', pinned: true },
+    ];
+    const { container } = render(<HeartbeatPanel {...baseProps} results={results} />);
+
+    const item = container.querySelector('.heartbeat-result-item');
+    expect(item?.classList.contains('heartbeat-result-changed-pinned')).toBe(true);
+    expect(screen.getByText('変更あり')).toBeInTheDocument();
+    expect(screen.getByText('ピン留め')).toBeInTheDocument();
+  });
+
   it('フィードバック未送信の結果にフィードバックボタンが表示される', () => {
     const results: HeartbeatResult[] = [
       { taskId: 'task-1', timestamp: 1000, hasChanges: true, summary: 'テスト' },

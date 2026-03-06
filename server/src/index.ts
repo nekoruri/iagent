@@ -15,6 +15,9 @@ import { handleRegister, handleProxy } from './proxy';
 export interface Env {
   SUBSCRIPTIONS: KVNamespace;
   RATE_LIMIT: KVNamespace;
+  PROXY_RATE_LIMITER?: {
+    limit: (options: { key: string }) => Promise<{ success: boolean }>;
+  };
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT: string;
@@ -32,6 +35,12 @@ interface PushSubscriptionJSON {
 interface SubscribeRequest {
   subscription: PushSubscriptionJSON;
 }
+
+interface KvListKey {
+  name: string;
+}
+
+const CRON_PUSH_CONCURRENCY = 20;
 
 // CORS ヘッダー
 const CORS_HEADERS = {
@@ -456,17 +465,40 @@ async function handleUnsubscribe(request: Request, env: Env): Promise<Response> 
   return jsonResponse({ ok: true });
 }
 
+/** KV list のページネーションを最後まで辿って全キーを取得する */
+export async function listAllSubscriptionKeys(kv: KVNamespace): Promise<KvListKey[]> {
+  let cursor: string | undefined;
+  const allKeys: KvListKey[] = [];
+  do {
+    const list = await kv.list({ prefix: 'sub:', cursor });
+    allKeys.push(...list.keys.map((key) => ({ name: key.name })));
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  return allKeys;
+}
+
+/** 配列を固定サイズのバッチで逐次処理する */
+export async function processInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  handler: (item: T) => Promise<R>,
+): Promise<Array<PromiseSettledResult<R>>> {
+  const settledResults: Array<PromiseSettledResult<R>> = [];
+  const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+
+  for (let index = 0; index < items.length; index += normalizedBatchSize) {
+    const batch = items.slice(index, index + normalizedBatchSize);
+    const batchResults = await Promise.allSettled(batch.map((item) => handler(item)));
+    settledResults.push(...batchResults);
+  }
+
+  return settledResults;
+}
+
 /** 手動 push テスト — 全購読に即時送信して結果を返す */
 async function handleTestPush(env: Env): Promise<Response> {
   const payload = JSON.stringify({ type: 'heartbeat-wake' });
-
-  let cursor: string | undefined;
-  const allKeys: { name: string }[] = [];
-  do {
-    const list = await env.SUBSCRIPTIONS.list({ prefix: 'sub:', cursor });
-    allKeys.push(...list.keys);
-    cursor = list.list_complete ? undefined : list.cursor;
-  } while (cursor);
+  const allKeys = await listAllSubscriptionKeys(env.SUBSCRIPTIONS);
 
   if (allKeys.length === 0) {
     return jsonResponse({ message: '登録済み購読なし', total: 0 });
@@ -509,20 +541,14 @@ async function handleTestPush(env: Env): Promise<Response> {
 
 async function handleCron(env: Env): Promise<void> {
   const payload = JSON.stringify({ type: 'heartbeat-wake' });
-
-  // KV list のページネーション対応
-  let cursor: string | undefined;
-  const allKeys: { name: string }[] = [];
-  do {
-    const list = await env.SUBSCRIPTIONS.list({ prefix: 'sub:', cursor });
-    allKeys.push(...list.keys);
-    cursor = list.list_complete ? undefined : list.cursor;
-  } while (cursor);
+  const allKeys = await listAllSubscriptionKeys(env.SUBSCRIPTIONS);
 
   console.log(`[Cron] 開始: ${allKeys.length} 件の購読に push 送信`);
 
-  const results = await Promise.allSettled(
-    allKeys.map(async ({ name }) => {
+  const results = await processInBatches(
+    allKeys,
+    CRON_PUSH_CONCURRENCY,
+    async ({ name }) => {
       const data = await env.SUBSCRIPTIONS.get(name);
       if (!data) return;
 
@@ -545,7 +571,7 @@ async function handleCron(env: Env): Promise<void> {
         console.warn(`[Cron] 無効な購読を削除: ${name.slice(0, 60)}...`);
         await env.SUBSCRIPTIONS.delete(name);
       }
-    }),
+    },
   );
 
   const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');

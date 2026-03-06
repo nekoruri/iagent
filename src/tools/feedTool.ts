@@ -7,6 +7,10 @@ import { fetchViaProxy } from '../core/corsProxy';
 const MIN_FETCH_INTERVAL_MS = 5 * 60 * 1000; // 5分
 const MAX_FEED_SIZE = 2 * 1024 * 1024; // 2MB
 
+function getTextSizeBytes(text: string): number {
+  return new TextEncoder().encode(text).byteLength;
+}
+
 export const feedTool = tool({
   name: 'feed',
   description: `RSSフィード（RSS 2.0 / Atom 1.0）を購読・取得します。
@@ -31,7 +35,7 @@ action:
         // フィードを取得してパース
         const response = await fetchViaProxy(url);
         const text = await response.text();
-        if (text.length > MAX_FEED_SIZE) {
+        if (getTextSizeBytes(text) > MAX_FEED_SIZE) {
           return JSON.stringify({ error: `フィードサイズが上限（${MAX_FEED_SIZE / 1024 / 1024}MB）を超えています` });
         }
         const parsed = parseFeed(text);
@@ -136,7 +140,7 @@ async function fetchFeedById(feedId: string): Promise<{
 
   const response = await fetchViaProxy(feed.url);
   const text = await response.text();
-  if (text.length > MAX_FEED_SIZE) {
+  if (getTextSizeBytes(text) > MAX_FEED_SIZE) {
     throw new Error('フィードサイズが上限を超えています');
   }
 

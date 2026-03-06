@@ -273,6 +273,7 @@ describe('buildHeartbeatInstructions', () => {
     expect(result).toContain('ブリーフィングタスク');
     expect(result).toContain('briefing-');
     expect(result).toContain('総合サマリー');
+    expect(result).toContain('必ず hasChanges: true');
   });
 
   it('goal メモリは「目標・締切」セクションに分離表示される', () => {

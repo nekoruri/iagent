@@ -35,8 +35,9 @@ vi.mock('../core/config', () => ({
   getConfigValue: (...args: unknown[]) => mockGetConfigValue(...args),
 }));
 
+const mockGetActiveServers = vi.fn(() => []);
 vi.mock('../core/mcpManager', () => ({
-  mcpManager: { getActiveServers: () => [] },
+  mcpManager: { getActiveServers: () => mockGetActiveServers() },
 }));
 
 const mockLoadMessages = vi.fn();
@@ -139,6 +140,7 @@ async function setupHook(conversationId: string | null) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetConfigValue.mockReturnValue('sk-test-key');
+  mockGetActiveServers.mockReturnValue([]);
   mockLoadMessages.mockResolvedValue([]);
   mockSaveMessage.mockResolvedValue(undefined);
 
@@ -273,6 +275,41 @@ describe('useAgentChat', () => {
       // テレメトリにツールスパンが記録される
       expect(mockTrace.startSpan).toHaveBeenCalledWith('tool.calendar', 'span-1', 'client');
       expect(mockTrace.endSpan).toHaveBeenCalled();
+    });
+
+    it('アクティブな MCP サーバー一覧とツール呼び出し結果を扱える', async () => {
+      const stream = createMockStream([
+        toolCalled('github/list_issues', '{"repo":"iagent"}'),
+        toolOutput('{"issues":[]}'),
+        textDelta('MCP 付き応答'),
+      ]);
+      stream.finalOutput = 'MCP 付き応答';
+      mockRun.mockResolvedValue(stream);
+      mockGetActiveServers.mockReturnValue([
+        { id: 'mcp-1', name: 'github' },
+        { id: 'mcp-2', name: 'notion' },
+      ]);
+
+      const { result } = await setupHook('conv-1');
+
+      await act(async () => {
+        await result.current.sendMessage('MCP を使って');
+      });
+
+      expect(mockCreateAgent).toHaveBeenCalledWith(
+        [
+          { id: 'mcp-1', name: 'github' },
+          { id: 'mcp-2', name: 'notion' },
+        ],
+        'MCP を使って',
+      );
+      expect(result.current.messages[1].toolCalls).toEqual([
+        expect.objectContaining({
+          name: 'github/list_issues',
+          status: 'completed',
+          result: '{"issues":[]}',
+        }),
+      ]);
     });
 
     it('ストリーミングエラー時にエラーメッセージを表示する', async () => {

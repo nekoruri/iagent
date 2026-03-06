@@ -2,6 +2,7 @@
 
 > 実施日: 2026-03-02
 > 対象: iAgent クライアントのテスト基盤全体
+> 注記: 本文の件数は 2026-03-02 時点のスナップショット。現行の完了状況は [ROADMAP.md](ROADMAP.md) を優先する。
 
 ---
 
@@ -162,14 +163,14 @@ src/core/swHandlers.ts  — sw.ts からのロジック抽出
 
 ---
 
-## 今後の改善候補
+## 今後の改善候補（2026-03-07 再整理）
 
-- [ ] Visual Regression テスト（Playwright スクリーンショット比較）
-- [ ] E2E: ストリーミング中の停止ボタン（abort）テスト
-- [ ] E2E: Heartbeat パネルのピン留め/フィードバック操作テスト
-- [ ] E2E: Push 受信エラー時のエラー通知テスト
-- [ ] useAgentChat: MCP ツール呼び出しフローのテスト
-- [ ] カバレッジ: components/** を対象に追加
+- [x] Visual Regression テスト（Playwright スクリーンショット比較）
+- [x] E2E: ストリーミング中の停止ボタン（abort）テスト
+- [x] E2E: Heartbeat パネルのピン留め/フィードバック操作テスト
+- [x] E2E: Push 受信エラー時のエラー通知テスト
+- [x] useAgentChat: MCP ツール呼び出しフローのテスト
+- [x] カバレッジ: components/** を対象に追加
 
 ---
 

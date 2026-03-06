@@ -139,10 +139,17 @@ function createMockKV(store: Record<string, string> = {}): KVNamespace {
   } as unknown as KVNamespace;
 }
 
+function createMockRateLimiter(success = true) {
+  return {
+    limit: vi.fn(async () => ({ success })),
+  };
+}
+
 function createMockEnv(overrides: Partial<Env> = {}): Env {
   return {
     SUBSCRIPTIONS: createMockKV(),
     RATE_LIMIT: createMockKV(),
+    PROXY_RATE_LIMITER: createMockRateLimiter(),
     VAPID_PUBLIC_KEY: 'test-public',
     VAPID_PRIVATE_KEY: 'test-private',
     VAPID_SUBJECT: 'mailto:test@example.com',
@@ -277,10 +284,9 @@ describe('handleProxy', () => {
   });
 
   it('レート制限超過で 429 を返す', async () => {
-    // KV の get が既にレート超過を示す値を返すようにモック
-    const store: Record<string, string> = { 'token:valid-token': '1', 'rate:203.0.113.1': '30' };
     env = createMockEnv({
-      RATE_LIMIT: createMockKV(store),
+      RATE_LIMIT: createMockKV({ 'token:valid-token': '1' }),
+      PROXY_RATE_LIMITER: createMockRateLimiter(false),
     });
 
     const req = createRequest('/proxy', {
@@ -291,13 +297,13 @@ describe('handleProxy', () => {
     expect(res.status).toBe(429);
   });
 
-  it('KV 障害時はレート制限をスキップして処理を続行する', async () => {
-    const kv = createMockKV({ 'token:valid-token': '1' });
-    vi.mocked(kv.get).mockImplementation(async (key: string) => {
-      if ((key as string).startsWith('rate:')) throw new Error('KV read error');
-      return key === 'token:valid-token' ? '1' : null;
+  it('binding 障害時はレート制限をスキップして処理を続行する', async () => {
+    const rateLimiter = createMockRateLimiter();
+    vi.mocked(rateLimiter.limit).mockRejectedValue(new Error('binding unavailable'));
+    env = createMockEnv({
+      RATE_LIMIT: createMockKV({ 'token:valid-token': '1' }),
+      PROXY_RATE_LIMITER: rateLimiter,
     });
-    env = createMockEnv({ RATE_LIMIT: kv });
 
     const req = createRequest('/proxy', {
       headers: { Authorization: 'Bearer valid-token' },
@@ -310,10 +316,10 @@ describe('handleProxy', () => {
     expect(body.error).toContain('プライベート');
   });
 
-  it('レートカウントが不正な値のとき 0 にフォールバックする', async () => {
-    const store: Record<string, string> = { 'token:valid-token': '1', 'rate:203.0.113.1': 'corrupted' };
+  it('binding 未設定時はレート制限をスキップして処理を続行する', async () => {
     env = createMockEnv({
-      RATE_LIMIT: createMockKV(store),
+      RATE_LIMIT: createMockKV({ 'token:valid-token': '1' }),
+      PROXY_RATE_LIMITER: undefined,
     });
 
     const req = createRequest('/proxy', {
@@ -321,8 +327,22 @@ describe('handleProxy', () => {
       body: { url: 'https://10.0.0.1/secret' },
     });
     const res = await handleProxy(req, env);
-    // NaN でレート制限が壊れるのではなく、0 にフォールバックして正常に処理が続く
-    expect(res.status).toBe(400); // URL バリデーションの 400
-    expect(res.status).not.toBe(429);
+    expect(res.status).toBe(400);
+  });
+
+  it('レート制限キーに proxy token を使う', async () => {
+    const rateLimiter = createMockRateLimiter(true);
+    env = createMockEnv({
+      RATE_LIMIT: createMockKV({ 'token:valid-token': '1' }),
+      PROXY_RATE_LIMITER: rateLimiter,
+    });
+
+    const req = createRequest('/proxy', {
+      headers: { Authorization: 'Bearer valid-token' },
+      body: { url: 'https://10.0.0.1/secret' },
+    });
+    await handleProxy(req, env);
+
+    expect(rateLimiter.limit).toHaveBeenCalledWith({ key: 'proxy:valid-token' });
   });
 });

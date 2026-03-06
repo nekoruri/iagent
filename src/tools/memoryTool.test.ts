@@ -49,9 +49,14 @@ describe('memoryTool invoke', () => {
       expect(parsed.error).toBe('content は必須です');
     });
 
-    it('無効な category は "other" にフォールバックする', async () => {
+    it('無効な category はエラーを返す', async () => {
       const parsed = await invoke({ ...base, action: 'save', content: 'テスト', category: 'invalid-category' });
-      expect((parsed.memory as Record<string, unknown>).category).toBe('other');
+      expect(parsed.error).toBe('category は preference/fact/context/routine/goal/personality/reflection/other のいずれかを指定してください');
+    });
+
+    it('category が空の場合はエラーを返す', async () => {
+      const parsed = await invoke({ ...base, action: 'save', content: 'テスト', category: '' });
+      expect(parsed.error).toBe('category は preference/fact/context/routine/goal/personality/reflection/other のいずれかを指定してください');
     });
 
     it('importance を数値としてパースする', async () => {
@@ -120,11 +125,11 @@ describe('memoryTool invoke', () => {
       expect(parsed.count).toBe(2);
     });
 
-    it('無効な category は全件扱いになる', async () => {
+    it('無効な category はエラーを返す', async () => {
       await invoke({ ...base, action: 'save', content: 'A', category: 'fact' });
 
       const parsed = await invoke({ ...base, action: 'list', category: 'nonexistent' });
-      expect(parsed.count).toBe(1);
+      expect(parsed.error).toBe('category は preference/fact/context/routine/goal/personality/reflection/other のいずれか、または空文字を指定してください');
     });
   });
 

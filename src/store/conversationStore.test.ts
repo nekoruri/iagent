@@ -3,7 +3,8 @@ import { __resetStores } from './__mocks__/db';
 
 vi.mock('./db');
 
-import { loadMessages, saveMessage, clearMessages, migrateOrphanMessages } from './conversationStore';
+import { getDB } from './db';
+import { loadMessages, saveMessage, clearMessages, deleteConversationData, migrateOrphanMessages } from './conversationStore';
 import { getConversation } from './conversationMetaStore';
 import type { ChatMessage } from '../types';
 
@@ -75,6 +76,63 @@ describe('clearMessages', () => {
 
     const messagesB = await loadMessages(CONV_ID_B);
     expect(messagesB).toHaveLength(1);
+  });
+});
+
+describe('deleteConversationData', () => {
+  it('会話メッセージ・添付・会話メタデータを 1 回で削除する', async () => {
+    const db = await getDB();
+    await db.put('conversation-meta', {
+      id: CONV_ID_A,
+      title: '会話A',
+      createdAt: 1000,
+      updatedAt: 1000,
+      messageCount: 1,
+    });
+    await db.put('conversation-meta', {
+      id: CONV_ID_B,
+      title: '会話B',
+      createdAt: 2000,
+      updatedAt: 2000,
+      messageCount: 1,
+    });
+    await saveMessage({
+      id: 'msg-1', role: 'user', content: '会話A', timestamp: 1000, conversationId: CONV_ID_A,
+    });
+    await saveMessage({
+      id: 'msg-2', role: 'user', content: '会話B', timestamp: 2000, conversationId: CONV_ID_B,
+    });
+    await db.put('attachments', {
+      id: 'att-1',
+      messageId: 'msg-1',
+      conversationId: CONV_ID_A,
+      filename: 'a.png',
+      mimeType: 'image/png',
+      size: 10,
+      dataUri: 'data:image/png;base64,AAA',
+      createdAt: 1000,
+    });
+    await db.put('attachments', {
+      id: 'att-2',
+      messageId: 'msg-2',
+      conversationId: CONV_ID_B,
+      filename: 'b.png',
+      mimeType: 'image/png',
+      size: 10,
+      dataUri: 'data:image/png;base64,BBB',
+      createdAt: 2000,
+    });
+
+    await deleteConversationData(CONV_ID_A);
+
+    expect(await loadMessages(CONV_ID_A)).toEqual([]);
+    expect(await loadMessages(CONV_ID_B)).toHaveLength(1);
+    expect(await getConversation(CONV_ID_A)).toBeUndefined();
+    expect(await getConversation(CONV_ID_B)).toBeDefined();
+
+    const attachments = await db.getAll('attachments') as Array<Record<string, unknown>>;
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].conversationId).toBe(CONV_ID_B);
   });
 });
 
