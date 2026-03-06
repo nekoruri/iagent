@@ -5,6 +5,7 @@
 スマートフォンや PC 上で、サーバーに依存せずブラウザ上でエージェントが自律的に動作し、ユーザーの日常タスクを支援する世界観を実現する。
 
 長期探索の上位方針: [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md)
+docs 全体の読み方: [README.md](README.md)
 
 ---
 

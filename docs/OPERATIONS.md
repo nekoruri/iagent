@@ -5,6 +5,8 @@
 - Heartbeat 用 Push wake-up サーバー
 - CORS プロキシ（RSS / Web監視用）
 
+端末 / ブラウザ別の current capability は [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md) を参照してください。
+
 ## 1. 役割
 
 `server/` は次の機能を提供します。

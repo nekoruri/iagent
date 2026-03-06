@@ -147,6 +147,8 @@ Heartbeat は定期チェック機能です。設定項目:
 - Layer 2: タブ非表示（Dedicated Worker）
 - Layer 3: タブ閉鎖後（Service Worker + Push/Periodic Sync）
 
+端末 / ブラウザごとの current capability は [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md) を参照。
+
 補足:
 
 - `focusMode` が ON の間は通知実行を停止
