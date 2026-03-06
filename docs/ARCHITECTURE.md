@@ -2,6 +2,26 @@
 
 iAgent のアーキテクチャ詳細。全体像は [README.md](../README.md) を参照。
 利用者向けの操作手順は [USER-GUIDE.md](USER-GUIDE.md)、Push/Proxy の運用手順は [OPERATIONS.md](OPERATIONS.md) を参照。
+長期トラックとの関係は [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md) と [tracks/README.md](tracks/README.md) を参照。
+
+---
+
+## この文書の役割
+
+この文書は、**現在の実装構造**を説明する source of truth です。  
+proposal が「なぜそうするか」を扱うのに対し、architecture は「いま何があるか」を扱います。
+
+主に支える長期トラック:
+
+- `T1 自律実行基盤`
+- `T4 オブザーバビリティ基盤`
+- `T8 端末制約最適化`
+
+関連:
+
+- [tracks/T1-autonomy-runtime.md](tracks/T1-autonomy-runtime.md)
+- [tracks/T4-observability.md](tracks/T4-observability.md)
+- [tracks/T8-device-constraints.md](tracks/T8-device-constraints.md)
 
 ---
 
