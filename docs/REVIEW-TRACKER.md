@@ -2,6 +2,37 @@
 
 > **2026-02-28 以降、未対応項目は [GitHub Issues](https://github.com/nekoruri/iagent/issues?q=label%3Areview-comment) で管理しています。**
 > ラベル `review-comment` でフィルタしてください。
+> 長期トラックとの関係は [tracks/README.md](tracks/README.md) と [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md) を参照してください。
+
+---
+
+## この文書の役割
+
+この文書は、review-comment 起点の差分を
+
+- 何が未対応か
+- 何が修正済みか
+- どの長期トラックに効くか
+
+という観点で追うためのトラッカーです。
+
+主に接続する長期トラック:
+
+- `T1 自律実行基盤`
+- `T4 オブザーバビリティ基盤`
+- `T5 信頼・安全・可視化`
+- `T8 端末制約最適化`
+
+---
+
+## 長期トラックとの対応
+
+| トラック | この tracker で主に見る論点 |
+|---|---|
+| `T1` | push / worker / runtime failure、background 実行の欠陥 |
+| `T4` | 通知、feedback、ops-events、説明可能性に関わる追跡性 |
+| `T5` | permission、least privilege、notification UX、設定整合 |
+| `T8` | rate limiting、fan-out、storage / performance 制約 |
 
 ---
 
@@ -94,5 +125,8 @@
 
 以下の項目は GitHub Issues に移行しました:
 
-| Issue | タイトル | カテゴリ |
-|---|---|---|
+| Issue | タイトル | カテゴリ | 主トラック |
+|---|---|---|---|
+
+現時点では、この tracker 上で明示管理している未対応項目はありません。
+今後 review-comment 起点の open issue を追加するときは、`主トラック` を併記すること。

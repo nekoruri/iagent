@@ -2,6 +2,25 @@
 
 このドキュメントは、iAgent を日常利用するための操作手順と設定方法をまとめたガイドです。
 実装の現在値（`src/` と `server/`）に合わせて作成しています。
+長期トラックとの関係は [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md) と [tracks/README.md](tracks/README.md) を参照してください。
+
+## この文書の役割
+
+この文書は、**利用者から見た現在仕様**を説明する source of truth です。
+
+主に支える長期トラック:
+
+- `T1 自律実行基盤`
+- `T2 常用デバイス文脈の取得`
+- `T3 介入設計`
+- `T5 信頼・安全・可視化`
+
+proposal との違い:
+
+- proposal は「どの方向へ進めるか」
+- user guide は「いま何が使えるか」
+
+を扱います。
 
 ## 1. iAgent の概要
 
@@ -146,6 +165,8 @@ Heartbeat は定期チェック機能です。設定項目:
 - Layer 1: タブ表示中（メインスレッド）
 - Layer 2: タブ非表示（Dedicated Worker）
 - Layer 3: タブ閉鎖後（Service Worker + Push/Periodic Sync）
+
+端末 / ブラウザごとの current capability は [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md) を参照。
 
 補足:
 
