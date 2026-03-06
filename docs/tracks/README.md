@@ -38,6 +38,7 @@
 - T4 autonomy event schema: [T4-autonomy-event-schema.md](T4-autonomy-event-schema.md)
 - T5 trust model: [T5-trust-model.md](T5-trust-model.md)
 - T8 budget inventory: [T8-budget-inventory.md](T8-budget-inventory.md)
+- T9 scenario evaluation template: [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
 
 読み方:
 

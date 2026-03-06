@@ -18,6 +18,17 @@
 - 定量 / 定性 / 観測ログの 3 層をどう結び付けるか決める
 - 「端末上エージェントらしさ」を評価する設問を定義する
 
+## Issue 粒度の分解
+
+### T9-1 シナリオ評価テンプレート
+
+- 出力:
+  - 生活シナリオ単位の評価テンプレート
+- 完了条件:
+  - KPI / interview / logs を 1 シナリオに結び付けて記録できる
+- 成果物:
+  - [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
+
 ### Next
 
 - longitudinal dogfooding の記録フォーマットを作る
