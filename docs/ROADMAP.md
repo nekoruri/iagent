@@ -33,7 +33,210 @@ docs 全体の読み方: [README.md](README.md)
 
 ---
 
-## フェーズ 1: 基盤強化
+## このロードマップの読み方
+
+この文書は現在、**長期研究トラックを上位**、**フェーズ構造を履歴**として扱う。
+
+読む順番:
+
+1. ミッションと長期方針: [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md)
+2. 横断優先順位: [tracks/BACKLOG.md](tracks/BACKLOG.md)
+3. トラック別具体タスク: [tracks/README.md](tracks/README.md)
+4. その上で、この `ROADMAP` で「現在値」と「歴史」を確認する
+
+---
+
+## 現在の優先順位
+
+直近は、長期研究トラックのうち次を優先する。
+
+1. `P0-1` 常用デバイス capability matrix  
+   参照: [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md)
+2. `P0-2` 介入 taxonomy  
+   参照: [tracks/T3-intervention-taxonomy.md](tracks/T3-intervention-taxonomy.md)
+3. `P0-3` autonomy event schema  
+   参照: [tracks/T4-autonomy-event-schema.md](tracks/T4-autonomy-event-schema.md)
+4. `P0-4` context snapshot schema  
+   参照: [tracks/T2-context-snapshot.md](tracks/T2-context-snapshot.md)
+5. `P1-1` trust model  
+   参照: [tracks/T5-trust-model.md](tracks/T5-trust-model.md)
+6. `P1-2` device-side budget inventory  
+   参照: [tracks/T8-budget-inventory.md](tracks/T8-budget-inventory.md)
+
+横断バックログ全体: [tracks/BACKLOG.md](tracks/BACKLOG.md)
+
+---
+
+## 長期トラック別ロードマップ
+
+### T1 自律実行基盤
+
+参照:
+
+- [tracks/T1-autonomy-runtime.md](tracks/T1-autonomy-runtime.md)
+- [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md)
+
+現在地:
+
+- Heartbeat 3 層構成
+- Push / Periodic Sync / Worker / main thread の経路は実装済み
+- closed-state の現実的な capability は browser / install state 依存
+
+次にやること:
+
+- capability matrix を source of truth 化する
+- wake-up state machine と fallback 優先順位を固定する
+- runtime failure path の回帰テスト棚卸し
+
+### T2 常用デバイス文脈の取得
+
+参照:
+
+- [tracks/T2-device-context.md](tracks/T2-device-context.md)
+- [tracks/T2-context-snapshot.md](tracks/T2-context-snapshot.md)
+
+現在地:
+
+- 時刻、カレンダー、オンライン状態、install 状態などのシグナルは部分的にある
+- ただし、共通の `context snapshot` と場面分類は未確立
+
+次にやること:
+
+- context snapshot schema v1 を固定する
+- coarse-grained 場面分類を決める
+- 既存シグナル -> 文脈推定の mapping を明示する
+
+### T3 介入設計
+
+参照:
+
+- [tracks/T3-intervention-design.md](tracks/T3-intervention-design.md)
+- [tracks/T3-intervention-taxonomy.md](tracks/T3-intervention-taxonomy.md)
+
+現在地:
+
+- notification / badge / panel / digest はある
+- ただし介入レベルと landing UX の共通設計が弱い
+
+次にやること:
+
+- intervention taxonomy v1 を起点に既存機能を再分類する
+- landing UX の基本パターンを固定する
+- suppression rule を明文化する
+
+### T4 オブザーバビリティ基盤
+
+参照:
+
+- [tracks/T4-observability.md](tracks/T4-observability.md)
+- [tracks/T4-autonomy-event-schema.md](tracks/T4-autonomy-event-schema.md)
+
+現在地:
+
+- OTel tracer、ops-events、weekly metrics はある
+- ただし trigger -> reaction を一連で追う標準スキーマはまだない
+
+次にやること:
+
+- autonomy event schema v1 を標準化する
+- flow correlation 方針を決める
+- user-facing log と developer trace の境界を固定する
+
+### T5 信頼・安全・可視化
+
+参照:
+
+- [tracks/T5-trust-safety.md](tracks/T5-trust-safety.md)
+- [tracks/T5-trust-model.md](tracks/T5-trust-model.md)
+
+現在地:
+
+- least privilege preset、focus mode、permission recovery、action log はある
+- ただし trust model はまだ散在している
+
+次にやること:
+
+- trust model v1 を source of truth 化する
+- stop / disable / permission 状態の表現を揃える
+- explanation UI と action log の境界整理
+
+### T6 学習とパーソナライズ
+
+参照:
+
+- [tracks/T6-learning-personalization.md](tracks/T6-learning-personalization.md)
+
+現在地:
+
+- feedback loop、pattern recognition、suggestion optimization はある
+- 学習対象と rollback / 監査の考え方はまだ弱い
+
+次にやること:
+
+- 何を学習対象とするか棚卸しする
+- 学習前後の差分を weekly で比較できる形にする
+- memory quality と提案品質の接続を強める
+
+### T7 行動実行の境界設計
+
+参照:
+
+- [tracks/T7-action-boundaries.md](tracks/T7-action-boundaries.md)
+
+現在地:
+
+- Action Planning によるローカル設定変更はある
+- advisory / action の境界はまだ曖昧
+
+次にやること:
+
+- action taxonomy を定義する
+- confirmation 必須 / 不要の判定基準を決める
+- 自動実行可能な低リスク操作を限定する
+
+### T8 端末制約最適化
+
+参照:
+
+- [tracks/T8-device-constraints.md](tracks/T8-device-constraints.md)
+- [tracks/T8-budget-inventory.md](tracks/T8-budget-inventory.md)
+
+現在地:
+
+- token budget、storage persistence、offline fallback はある
+- ただし device-side budget は個別機能に散在している
+
+次にやること:
+
+- budget inventory をもとに battery / token / latency / storage / network を同一表で扱う
+- degrade mapping を標準化する
+- どの budget が効いたかを説明可能にする
+
+### T9 研究評価設計
+
+参照:
+
+- [tracks/T9-evaluation.md](tracks/T9-evaluation.md)
+
+現在地:
+
+- KPI / SLO / interview の運用はある
+- ただし feature 単位ではなく生活シナリオ単位の評価設計は未完成
+
+次にやること:
+
+- シナリオ評価テンプレートを作る
+- ペルソナ別代表シナリオを固定する
+- PoC exit criteria を研究ミッション基準で明文化する
+
+---
+
+## 履歴: フェーズ構造（完了分）
+
+以下は、ここまでの実装を積み上げた**歴史的なフェーズ構造**です。  
+現在の優先順位は上の T1〜T9 を優先してください。
+
+### フェーズ 1: 基盤強化
 
 ### Heartbeat バックグラウンド実行（3層構成）
 - [x] 層2: Dedicated Worker — タブ非表示時に Worker で Heartbeat 実行 + Visibility API 切り替え
@@ -123,7 +326,7 @@ docs 全体の読み方: [README.md](README.md)
 
 ---
 
-## フェーズ 2: エージェント体験の深化
+### フェーズ 2: エージェント体験の深化
 
 ### 会話履歴の複数管理
 - [x] 会話一覧 UI（サイドバー / モバイルドロワー）
@@ -161,7 +364,7 @@ docs 全体の読み方: [README.md](README.md)
 
 ---
 
-## フェーズ 3: UX 改善
+### フェーズ 3: UX 改善
 
 > 詳細: [docs/PROPOSAL-mobile-enhancement.md](PROPOSAL-mobile-enhancement.md)
 
@@ -206,7 +409,7 @@ docs 全体の読み方: [README.md](README.md)
 
 ---
 
-## フェーズ 4: 外部情報収集・自律行動の強化
+### フェーズ 4: 外部情報収集・自律行動の強化
 
 > 詳細: [docs/PROPOSAL-external-integration.md](PROPOSAL-external-integration.md)
 
