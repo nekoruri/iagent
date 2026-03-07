@@ -7,6 +7,7 @@
 ## 現在地
 
 - token budget、storage persistence、offline fallback はある
+- Settings の Heartbeat セクションで `デバイス budget サマリー` を確認できる
 - ただし battery / latency / storage / network の統合 budget 設計はまだ弱い
 
 ## 具体タスク

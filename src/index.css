@@ -1356,6 +1356,49 @@ body {
   line-height: 1.5;
 }
 
+.budget-status-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.budget-status-header h4 {
+  margin: 0;
+}
+
+.budget-status-list {
+  display: grid;
+  gap: 10px;
+}
+
+.budget-status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.budget-status-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.budget-status-item-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.budget-status-detail {
+  margin: 0;
+}
+
 .btn-danger {
   background: transparent;
   color: var(--status-error);

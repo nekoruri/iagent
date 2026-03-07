@@ -136,3 +136,8 @@ budget inventory を運用に活かすには、少なくとも次を記録した
 - budget の一覧が 1 枚にまとまる
 - 各 budget に current fallback が紐づく
 - observability で何を残すべきかが明確になる
+
+current implementation:
+
+- Settings の Heartbeat セクションで `デバイス budget サマリー` を表示
+- `battery / token / latency / storage / network` を `ok / watch / limited` で確認可能

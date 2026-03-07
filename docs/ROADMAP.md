@@ -217,7 +217,8 @@ docs 全体の読み方: [README.md](README.md)
 現在地:
 
 - token budget、storage persistence、offline fallback はある
-- ただし device-side budget は個別機能に散在している
+- Settings の Heartbeat セクションで `デバイス budget サマリー` を確認できる
+- ただし device-side budget はまだ個別機能に散在している
 
 次にやること:
 

@@ -180,6 +180,7 @@ Heartbeat は定期チェック機能です。設定項目:
 - FeedPanel でも `理由を見る` から最新の `feed-check` / `rss-digest-daily` flow に基づく説明を開ける
 - chat 内に入る Heartbeat proactive message にも explanation card を折りたたみで表示
 - 通知本文の短い理由（例: `朝 / 予定が近い`）は重要タスクのみ付与
+- `デバイス budget サマリー` で `battery / token / latency / storage / network` の状態と fallback を確認できる
 - `dismissed` はパネル非表示、`snoozed` は期限まで非表示
 
 ### 4.5 バックグラウンド Push
