@@ -335,6 +335,17 @@ describe('executeHeartbeatAndStore', () => {
     expect(configChanged).toBe(false);
     expect(spy).not.toHaveBeenCalled();
     expect(await getTaskLastRun('budget-test')).toBeGreaterThan(0);
+    const events = await loadOpsEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'heartbeat-run',
+        reason: 'token_budget_exceeded',
+        budgetType: 'token',
+        budgetAction: 'skip',
+        budgetValue: 150,
+        budgetThreshold: 100,
+      }),
+    ]));
     spy.mockRestore();
   });
 
@@ -377,6 +388,17 @@ describe('executeHeartbeatAndStore', () => {
     expect(results).toEqual([]);
     expect(spy).not.toHaveBeenCalled();
     expect(await getTaskLastRun('feed-check')).toBeGreaterThan(0);
+    const events = await loadOpsEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'heartbeat-run',
+        reason: 'token_budget_deferred',
+        budgetType: 'token',
+        budgetAction: 'defer',
+        budgetValue: 850,
+        budgetThreshold: 1000,
+      }),
+    ]));
     spy.mockRestore();
   });
 

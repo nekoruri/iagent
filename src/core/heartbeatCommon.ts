@@ -227,6 +227,10 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
       'skipped',
       {
         reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
+        budgetType: 'token',
+        budgetAction: tokenBudget.isOverBudget ? 'skip' : 'defer',
+        budgetValue: tokenBudget.usedTokensToday,
+        budgetThreshold: tokenBudget.dailyTokenBudget,
         taskCount: tasks.length,
         deferredTaskCount: deferredTasks.length,
         tokenBudget: tokenBudget.dailyTokenBudget,

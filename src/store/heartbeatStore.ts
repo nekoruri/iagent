@@ -43,6 +43,8 @@ export type OpsEventType =
   | 'setup-wizard';
 export type OpsEventStatus = 'success' | 'failure' | 'skipped';
 export type OpsChannel = 'desktop' | 'push' | 'periodic-sync';
+export type OpsBudgetType = 'battery' | 'token' | 'latency' | 'storage' | 'network';
+export type OpsBudgetAction = 'warn' | 'defer' | 'skip' | 'degrade' | 'disable';
 
 export interface OpsEvent {
   type: OpsEventType;
@@ -76,6 +78,10 @@ export interface OpsEvent {
   tokenBudget?: number;
   tokensUsedToday?: number;
   pressureMode?: boolean;
+  budgetType?: OpsBudgetType;
+  budgetAction?: OpsBudgetAction;
+  budgetValue?: number;
+  budgetThreshold?: number;
   modelUsage?: Record<string, { requests: number; inputTokens: number; outputTokens: number; totalTokens: number }>;
   errorMessage?: string;
   wizardSessionId?: string;

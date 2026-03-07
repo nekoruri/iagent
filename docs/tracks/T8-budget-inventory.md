@@ -141,3 +141,4 @@ current implementation:
 
 - Settings の Heartbeat セクションで `デバイス budget サマリー` を表示
 - `battery / token / latency / storage / network` を `ok / watch / limited` で確認可能
+- `heartbeat-run` の skip/defer に `budgetType=token` などの minimal な budget-specific stop reason を記録
