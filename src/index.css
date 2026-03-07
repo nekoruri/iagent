@@ -262,6 +262,63 @@ body {
   border-bottom-left-radius: 4px;
 }
 
+.explanation-disclosure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.explanation-disclosure-toggle:hover,
+.explanation-disclosure-toggle:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.message-explanation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+}
+
+.message-explanation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-explanation-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.message-explanation-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.message-explanation-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* Message attachments */
 .message-attachments {
   display: flex;
@@ -1469,6 +1526,231 @@ body {
 }
 
 /* Heartbeat notification settings */
+.hb-capability-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+
+.hb-capability-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.hb-capability-summary h4 {
+  margin: 0;
+}
+
+.hb-capability-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hb-capability-item {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.hb-capability-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.hb-capability-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hb-capability-detail {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.autonomy-flow-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.autonomy-flow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.autonomy-flow-header h4 {
+  margin: 0;
+}
+
+.autonomy-flow-list {
+  display: grid;
+  gap: 10px;
+}
+
+.autonomy-flow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.autonomy-flow-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.autonomy-flow-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.autonomy-flow-id {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.autonomy-flow-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.autonomy-flow-stage {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.autonomy-flow-stage-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+}
+
+.autonomy-flow-detail {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.autonomy-flow-detail-alert {
+  color: var(--status-warning);
+}
+
+.autonomy-flow-trace-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.autonomy-trace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.autonomy-trace-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.autonomy-trace-span-list {
+  display: grid;
+  gap: 10px;
+}
+
+.autonomy-trace-span-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.autonomy-trace-span-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.autonomy-trace-attributes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.autonomy-trace-attribute {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.autonomy-trace-attribute dt {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.autonomy-trace-attribute dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.autonomy-trace-events {
+  display: grid;
+  gap: 6px;
+}
+
+.autonomy-trace-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .hb-notification-row {
   display: flex;
   flex-direction: column;
@@ -1599,6 +1881,32 @@ body {
   gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.heartbeat-result-explanation {
+  margin-top: 8px;
+}
+
+.heartbeat-result-explanation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+}
+
+.heartbeat-result-explanation-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.heartbeat-result-explanation-label {
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* Heartbeat pinned result */
@@ -1972,6 +2280,36 @@ body {
   font-size: 12px;
   font-weight: 400;
   color: var(--text-muted);
+}
+
+.feed-panel-explanation {
+  padding: 10px 16px 0;
+}
+
+.feed-panel-explanation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.feed-panel-explanation-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.feed-panel-explanation-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.feed-panel-explanation-label {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .feed-tier-tabs {

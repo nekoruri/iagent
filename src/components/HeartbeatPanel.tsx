@@ -1,9 +1,15 @@
 import { useRef, useEffect, useState } from 'react';
 import type { HeartbeatResult, FeedbackType } from '../types';
+import { ExplanationDisclosure } from './ExplanationDisclosure';
+
+export interface HeartbeatPanelResult extends HeartbeatResult {
+  explanationWhyNow?: string;
+  explanationOutcome?: string;
+}
 
 interface HeartbeatPanelProps {
   isOpen: boolean;
-  results: HeartbeatResult[];
+  results: HeartbeatPanelResult[];
   unreadCount: number;
   onToggle: () => void;
   onClose: () => void;
@@ -131,6 +137,17 @@ export function HeartbeatPanel({ isOpen, results, unreadCount, onToggle, onClose
                     </div>
                     <span>{formatTime(r.timestamp)}</span>
                   </div>
+                  {r.explanationWhyNow && (
+                    <ExplanationDisclosure
+                      className="heartbeat-result-explanation"
+                      toggleClassName="explanation-disclosure-toggle"
+                      bodyClassName="heartbeat-result-explanation-body"
+                      textClassName="heartbeat-result-explanation-text"
+                      labelClassName="heartbeat-result-explanation-label"
+                      whyNow={r.explanationWhyNow}
+                      outcome={r.explanationOutcome}
+                    />
+                  )}
                   <div className="heartbeat-result-actions">
                     {r.feedback?.type === 'accepted' ? (
                       <span className="feedback-label feedback-label-accepted">&#10003; 確認済み</span>

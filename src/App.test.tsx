@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, fireEvent, screen } from '@testing-library/react';
 
+const mockHeartbeatPanelOpen = vi.fn();
+
 // 依存モジュールのモック
 vi.mock('./components/ChatView', () => ({
   ChatView: () => <div data-testid="chat-view" />,
@@ -60,6 +62,7 @@ vi.mock('./hooks/useHeartbeatPanel', () => ({
     results: [],
     unreadCount: 0,
     toggle: vi.fn(),
+    open: mockHeartbeatPanelOpen,
     close: vi.fn(),
     togglePin: vi.fn(),
     refresh: vi.fn(),
@@ -74,6 +77,7 @@ vi.mock('./hooks/useFeedPanel', () => ({
     selectedTier: undefined,
     isLoading: false,
     unreadCount: 0,
+    explanation: null,
     toggle: vi.fn(),
     close: vi.fn(),
     changeTier: vi.fn(),
@@ -159,16 +163,30 @@ function setMobileViewport(matches: boolean) {
 
 describe('App', () => {
   let persistMock: ReturnType<typeof vi.fn>;
+  let serviceWorkerMessageHandler: ((event: MessageEvent) => void) | null;
 
   beforeEach(() => {
     vi.clearAllMocks();
     setMobileViewport(false);
+    serviceWorkerMessageHandler = null;
     persistMock = vi.fn(async () => true);
     Object.defineProperty(navigator, 'storage', {
       value: {
         persist: persistMock,
         persisted: vi.fn(async () => false),
         estimate: vi.fn(async () => ({ usage: 0, quota: 0 })),
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        addEventListener: vi.fn((type: string, handler: (event: MessageEvent) => void) => {
+          if (type === 'message') {
+            serviceWorkerMessageHandler = handler;
+          }
+        }),
+        removeEventListener: vi.fn(),
       },
       writable: true,
       configurable: true,
@@ -282,5 +300,19 @@ describe('App', () => {
     });
 
     expect(screen.getByTestId('sidebar')).toHaveAttribute('data-open', 'false');
+  });
+
+  it('Service Worker から heartbeat-open を受けると Heartbeat パネルを開く', async () => {
+    vi.resetModules();
+    const { default: App } = await import('./App');
+    render(<App />);
+
+    await waitFor(() => {
+      expect(typeof serviceWorkerMessageHandler).toBe('function');
+    });
+
+    serviceWorkerMessageHandler?.(new MessageEvent('message', { data: { type: 'heartbeat-open' } }));
+
+    expect(mockHeartbeatPanelOpen).toHaveBeenCalled();
   });
 });

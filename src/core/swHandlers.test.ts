@@ -100,7 +100,7 @@ describe('handlePush', () => {
   it('結果ありの場合はサマリー付き通知を表示する', async () => {
     const notifier = createMockNotifier();
     mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
-      { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: 'ニュース更新あり' },
+      { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: 'ニュース更新あり', notificationReason: '朝 / 予定が近い' },
       { taskId: 'task-2', timestamp: Date.now(), hasChanges: true, summary: 'カレンダー通知' },
     ], configChanged: false });
 
@@ -109,7 +109,7 @@ describe('handlePush', () => {
     expect(notifier.showNotification).toHaveBeenCalledWith(
       'iAgent Heartbeat [push]',
       expect.objectContaining({
-        body: 'ニュース更新あり\nカレンダー通知',
+        body: 'ニュース更新あり\nカレンダー通知\n朝 / 予定が近い',
         tag: 'heartbeat-result',
         data: expect.objectContaining({
           source: 'push',
@@ -205,7 +205,7 @@ describe('handlePeriodicSync', () => {
   it('結果ありの場合は通知を表示する', async () => {
     const notifier = createMockNotifier();
     mockExecuteHeartbeatAndStore.mockResolvedValue({ results: [
-      { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: '定期チェック結果' },
+      { taskId: 'task-1', timestamp: Date.now(), hasChanges: true, summary: '定期チェック結果', notificationReason: '日中 / 今日は予定あり' },
     ], configChanged: false });
 
     await handlePeriodicSync(notifier);
@@ -214,7 +214,7 @@ describe('handlePeriodicSync', () => {
     expect(notifier.showNotification).toHaveBeenCalledWith(
       'iAgent Heartbeat [periodic-sync]',
       expect.objectContaining({
-        body: '定期チェック結果',
+        body: '定期チェック結果\n日中 / 今日は予定あり',
         tag: 'heartbeat-result',
         data: expect.objectContaining({
           source: 'periodic-sync',
@@ -432,6 +432,7 @@ describe('handleNotificationClick', () => {
 
     await handleNotificationClick({ url: '/', source: 'push', trackKpi: true }, 'heartbeat-result', 'https://app.example.com', clients);
 
+    expect(mockClient.postMessage).toHaveBeenCalledWith({ type: 'heartbeat-open' });
     expect(mockClient.focus).toHaveBeenCalled();
     expect(clients.openWindow).not.toHaveBeenCalled();
     expect(mockAppendOpsEvent).toHaveBeenCalledWith(
@@ -451,7 +452,7 @@ describe('handleNotificationClick', () => {
 
     await handleNotificationClick({ url: '/heartbeat' }, 'heartbeat-result', 'https://app.example.com', clients);
 
-    expect(clients.openWindow).toHaveBeenCalledWith('/heartbeat');
+    expect(clients.openWindow).toHaveBeenCalledWith('https://app.example.com/heartbeat?heartbeat=open');
   });
 
   it('別オリジンのタブしかない場合は新規タブを開く', async () => {
@@ -462,7 +463,7 @@ describe('handleNotificationClick', () => {
     await handleNotificationClick({ url: '/' }, 'heartbeat-result', 'https://app.example.com', clients);
 
     expect(mockClient.focus).not.toHaveBeenCalled();
-    expect(clients.openWindow).toHaveBeenCalledWith('/');
+    expect(clients.openWindow).toHaveBeenCalledWith('https://app.example.com/?heartbeat=open');
   });
 
   it('notificationData が undefined の場合はルートを開く', async () => {
@@ -471,7 +472,7 @@ describe('handleNotificationClick', () => {
 
     await handleNotificationClick(undefined, 'heartbeat-result', 'https://app.example.com', clients);
 
-    expect(clients.openWindow).toHaveBeenCalledWith('/');
+    expect(clients.openWindow).toHaveBeenCalledWith('https://app.example.com/?heartbeat=open');
   });
 
   it('matchAll に正しいオプションを渡す', async () => {

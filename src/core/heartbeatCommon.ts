@@ -14,7 +14,17 @@ import { getHeartbeatTokenBudgetState, selectTasksForCostPressure } from './hear
 import { getDB } from '../store/db';
 import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStore';
 import { getDefaultPersonaConfig } from './config';
-import type { HeartbeatConfig, HeartbeatResult, HeartbeatSource, HeartbeatTask, CalendarEvent } from '../types';
+import { createAutonomyEventMetadata, createAutonomyFlowId, createContextSnapshotId } from './autonomyEvent';
+import { createDeviceContextSnapshot } from './contextSnapshot';
+import { buildHeartbeatNotificationReason, shouldIncludeNotificationReason } from './heartbeatNotificationText';
+import type {
+  CalendarEvent,
+  DeviceContextSnapshotV1,
+  HeartbeatConfig,
+  HeartbeatResult,
+  HeartbeatSource,
+  HeartbeatTask,
+} from '../types';
 
 /** executeHeartbeatAndStore の戻り値 */
 export interface HeartbeatAndStoreResult {
@@ -101,16 +111,51 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const EMPTY: HeartbeatAndStoreResult = { results: [], configChanged: false };
   const startedAt = Date.now();
   const sourceLabel = source ?? 'unknown';
-  const logRun = async (status: 'success' | 'failure' | 'skipped', extras: Record<string, unknown> = {}) => {
+  const flowId = createAutonomyFlowId(startedAt);
+  const contextSnapshotId = createContextSnapshotId(flowId);
+  const logStage = async (
+    stage: 'trigger' | 'context',
+    contextSnapshot?: DeviceContextSnapshotV1,
+  ) => {
     await appendOpsEvent({
+      ...createAutonomyEventMetadata({
+        flowId,
+        stage,
+        interventionLevel: 'L0',
+        contextSnapshotId,
+        nowTs: Date.now(),
+      }),
+      type: 'autonomy-stage',
+      timestamp: Date.now(),
+      source: sourceLabel,
+      contextSnapshot,
+    }).catch(() => {});
+  };
+  const logRun = async (
+    status: 'success' | 'failure' | 'skipped',
+    extras: Record<string, unknown> = {},
+    contextSnapshot?: DeviceContextSnapshotV1,
+  ) => {
+    await appendOpsEvent({
+      ...createAutonomyEventMetadata({
+        flowId,
+        stage: 'decision',
+        interventionLevel: 'L0',
+        contextSnapshotId,
+        traceId: typeof extras.traceId === 'string' ? extras.traceId : undefined,
+        nowTs: Date.now(),
+      }),
       type: 'heartbeat-run',
       timestamp: Date.now(),
       source: sourceLabel,
+      contextSnapshot,
       status,
       durationMs: Date.now() - startedAt,
       ...extras,
     }).catch(() => {});
   };
+
+  await logStage('trigger');
 
   // IndexedDB から最新設定を読み込む
   const freshConfig = await loadConfigFromIDB();
@@ -119,13 +164,25 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     await logRun('skipped', { reason: 'disabled' });
     return EMPTY;
   }
+
+  const db = await getDB();
+  const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
+  const contextSnapshot = createDeviceContextSnapshot({
+    now: new Date(startedAt),
+    calendarEvents,
+    focusMode: hbConfig.focusMode,
+    isQuietPeriod: isQuietHours(hbConfig, new Date(startedAt)),
+  });
+  const notificationReason = buildHeartbeatNotificationReason(contextSnapshot);
+  await logStage('context', contextSnapshot);
+
   if (isQuietHours(hbConfig)) {
-    await logRun('skipped', { reason: 'quiet_hours' });
+    await logRun('skipped', { reason: 'quiet_hours' }, contextSnapshot);
     return EMPTY;
   }
   if (hbConfig.focusMode) {
     console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
-    await logRun('skipped', { reason: 'focus_mode' });
+    await logRun('skipped', { reason: 'focus_mode' }, contextSnapshot);
     return EMPTY;
   }
 
@@ -135,21 +192,21 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     const todayCount = getTodayNotificationCount(state.recentResults);
     if (todayCount >= hbConfig.maxNotificationsPerDay) {
       console.debug(`[Heartbeat:${source ?? 'unknown'}] 日次通知上限到達 — スキップ`);
-      await logRun('skipped', { reason: 'daily_quota_reached' });
+      await logRun('skipped', { reason: 'daily_quota_reached' }, contextSnapshot);
       return EMPTY;
     }
   }
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
   if (!resolvedApiKey) {
-    await logRun('skipped', { reason: 'no_api_key' });
+    await logRun('skipped', { reason: 'no_api_key' }, contextSnapshot);
     return EMPTY;
   }
 
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(hbConfig);
   if (tasks.length === 0) {
-    await logRun('skipped', { reason: 'no_due_tasks' });
+    await logRun('skipped', { reason: 'no_due_tasks' }, contextSnapshot);
     return EMPTY;
   }
 
@@ -166,22 +223,23 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     await batchUpdateTaskLastRun(deferredTasks.map((task) => task.id), Date.now());
   }
   if (runnableTasks.length === 0) {
-    await logRun('skipped', {
-      reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
-      taskCount: tasks.length,
-      deferredTaskCount: deferredTasks.length,
-      tokenBudget: tokenBudget.dailyTokenBudget,
-      tokensUsedToday: tokenBudget.usedTokensToday,
-    });
+    await logRun(
+      'skipped',
+      {
+        reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
+        taskCount: tasks.length,
+        deferredTaskCount: deferredTasks.length,
+        tokenBudget: tokenBudget.dailyTokenBudget,
+        tokensUsedToday: tokenBudget.usedTokensToday,
+      },
+      contextSnapshot,
+    );
     return EMPTY;
   }
 
   // 先制的に taskLastRun を更新（パース失敗時の再実行ループ防止）
   await batchUpdateTaskLastRun(runnableTasks.map(t => t.id), Date.now());
 
-  // IndexedDB からカレンダーイベントを取得、メモリは関連性スコアリングで取得
-  const db = await getDB();
-  const calendarEvents: CalendarEvent[] = await db.getAll('calendar');
   const hasBriefing = runnableTasks.some((t) => t.id.startsWith('briefing-'));
   const memories = hasBriefing
     ? await getMemoriesForBriefing(15)
@@ -210,6 +268,9 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
         ...r,
         source,
         pinned: r.taskId.startsWith('briefing-') || r.taskId === 'reflection' || r.taskId === 'monthly-review' || r.taskId === 'suggestion-optimization',
+        flowId,
+        contextSnapshotId,
+        notificationReason: shouldIncludeNotificationReason(r.taskId) ? notificationReason : undefined,
       };
       await addHeartbeatResult(tagged);
       await updateTaskLastRun(r.taskId, now);
@@ -220,30 +281,38 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
 
     console.log(`[Heartbeat:${sourceLabel}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
 
-    await logRun('success', {
-      taskCount: runnableTasks.length,
-      deferredTaskCount: deferredTasks.length,
-      resultCount: results.length,
-      changedCount: heartbeatResults.length,
-      requestCount: usage.requests,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      totalTokens: usage.totalTokens,
-      modelUsage: usage.byModel,
-      tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
-      tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
-      pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
-    });
+    await logRun(
+      'success',
+      {
+        taskCount: runnableTasks.length,
+        deferredTaskCount: deferredTasks.length,
+        resultCount: results.length,
+        changedCount: heartbeatResults.length,
+        requestCount: usage.requests,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        modelUsage: usage.byModel,
+        tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
+        tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
+        pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
+      },
+      contextSnapshot,
+    );
     return { results: heartbeatResults, configChanged };
   } catch (error) {
-    await logRun('failure', {
-      taskCount: runnableTasks.length,
-      deferredTaskCount: deferredTasks.length,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
-      tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
-      pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
-    });
+    await logRun(
+      'failure',
+      {
+        taskCount: runnableTasks.length,
+        deferredTaskCount: deferredTasks.length,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
+        tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
+        pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
+      },
+      contextSnapshot,
+    );
     throw error;
   }
 }

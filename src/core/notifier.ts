@@ -1,4 +1,6 @@
 import type { HeartbeatResult } from '../types';
+import { createAutonomyEventMetadata, createAutonomyFlowId } from './autonomyEvent';
+import { buildHeartbeatNotificationBody } from './heartbeatNotificationText';
 import { appendOpsEvent } from '../store/heartbeatStore';
 
 /** ブラウザが Notification API をサポートしているか */
@@ -25,13 +27,21 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
   for (const result of results) {
     const source = result.source ?? 'tab';
     const notificationTag = `heartbeat-${result.taskId}-${result.timestamp}`;
+    const flowId = result.flowId ?? createAutonomyFlowId(result.timestamp);
     const notification = new Notification('iAgent Heartbeat', {
-      body: result.summary,
+      body: buildHeartbeatNotificationBody([result]),
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
       tag: notificationTag,
     });
     void appendOpsEvent({
+      ...createAutonomyEventMetadata({
+        flowId,
+        stage: 'delivery',
+        interventionLevel: 'L3',
+        contextSnapshotId: result.contextSnapshotId,
+        nowTs: Date.now(),
+      }),
       type: 'notification-shown',
       timestamp: Date.now(),
       source,
@@ -41,6 +51,13 @@ export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
     }).catch(() => {});
     notification.onclick = () => {
       void appendOpsEvent({
+        ...createAutonomyEventMetadata({
+          flowId,
+          stage: 'reaction',
+          interventionLevel: 'L3',
+          contextSnapshotId: result.contextSnapshotId,
+          nowTs: Date.now(),
+        }),
         type: 'notification-clicked',
         timestamp: Date.now(),
         source,

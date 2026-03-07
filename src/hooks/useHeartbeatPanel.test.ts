@@ -7,6 +7,7 @@ import type { HeartbeatResult, FeedbackType } from '../types';
 const mockLoadHeartbeatState = vi.fn();
 const mockTogglePin = vi.fn();
 const mockSetFeedback = vi.fn();
+const mockLoadAutonomyFlowsByIds = vi.fn();
 
 vi.mock('../store/heartbeatStore', () => ({
   loadHeartbeatState: (...args: unknown[]) => mockLoadHeartbeatState(...args),
@@ -24,6 +25,14 @@ vi.mock('../store/heartbeatStore', () => ({
     }),
 }));
 
+vi.mock('../core/autonomyDiagnostics', () => ({
+  loadAutonomyFlowsByIds: (...args: unknown[]) => mockLoadAutonomyFlowsByIds(...args),
+  buildUserFacingAutonomyExplanation: () => ({
+    whyNow: 'Push 通知に確認し、朝 / 予定が近い / 通常モードとして扱いました。',
+    outcome: '通知から開きました。',
+  }),
+}));
+
 // --- テストデータ ---
 function makeResult(overrides?: Partial<HeartbeatResult>): HeartbeatResult {
   return {
@@ -39,14 +48,24 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   mockLoadHeartbeatState.mockResolvedValue({ recentResults: [] });
+  mockLoadAutonomyFlowsByIds.mockResolvedValue({});
   mockTogglePin.mockResolvedValue(undefined);
   mockSetFeedback.mockResolvedValue(undefined);
 });
 
+async function renderHeartbeatPanelHook() {
+  const rendered = renderHook(() => useHeartbeatPanel());
+  await act(async () => {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await Promise.resolve();
+  });
+  return rendered;
+}
+
 describe('useHeartbeatPanel', () => {
   // --- 初期状態 ---
   it('初期状態は閉じた状態で空配列', async () => {
-    const { result } = renderHook(() => useHeartbeatPanel());
+    const { result } = await renderHeartbeatPanelHook();
 
     await vi.waitFor(() => {
       expect(mockLoadHeartbeatState).toHaveBeenCalled();
@@ -58,22 +77,38 @@ describe('useHeartbeatPanel', () => {
   });
 
   it('初回マウント時にデータを読み込む', async () => {
-    const results = [makeResult({ timestamp: 5000 })];
+    const results = [makeResult({ timestamp: 5000, flowId: 'flow-1' })];
     mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
+    mockLoadAutonomyFlowsByIds.mockResolvedValue({
+      'flow-1': {
+        flowId: 'flow-1',
+        startedAt: 1000,
+        endedAt: 5000,
+        source: 'push',
+        stages: ['decision', 'delivery', 'reaction'],
+        eventCount: 3,
+        taskIds: ['task-1'],
+        channels: ['push'],
+      },
+    });
 
-    const { result } = renderHook(() => useHeartbeatPanel());
+    const { result } = await renderHeartbeatPanelHook();
 
     await vi.waitFor(() => {
       expect(result.current.results).toHaveLength(1);
     });
 
     expect(result.current.results[0].summary).toBe('テスト結果');
+    expect(result.current.results[0]).toEqual(expect.objectContaining({
+      explanationWhyNow: 'Push 通知に確認し、朝 / 予定が近い / 通常モードとして扱いました。',
+      explanationOutcome: '通知から開きました。',
+    }));
   });
 
   // --- パネル開閉 ---
   describe('toggle / close', () => {
     it('toggle で開閉する', async () => {
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(mockLoadHeartbeatState).toHaveBeenCalled());
 
       act(() => result.current.toggle());
@@ -84,7 +119,7 @@ describe('useHeartbeatPanel', () => {
     });
 
     it('close でパネルを閉じる', async () => {
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(mockLoadHeartbeatState).toHaveBeenCalled());
 
       act(() => result.current.toggle()); // 開く
@@ -92,11 +127,24 @@ describe('useHeartbeatPanel', () => {
       expect(result.current.isOpen).toBe(false);
     });
 
+    it('open でパネルを開いて既読化する', async () => {
+      const results = [makeResult({ timestamp: 5000 })];
+      mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
+
+      const { result } = await renderHeartbeatPanelHook();
+      await vi.waitFor(() => expect(result.current.unreadCount).toBe(1));
+
+      act(() => result.current.open());
+
+      expect(result.current.isOpen).toBe(true);
+      expect(result.current.unreadCount).toBe(0);
+    });
+
     it('toggle で開くと markAsRead が呼ばれる', async () => {
       const results = [makeResult({ timestamp: 5000 })];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       expect(result.current.unreadCount).toBe(1);
@@ -119,7 +167,7 @@ describe('useHeartbeatPanel', () => {
       // lastReadTimestamp を 2000 に設定
       localStorage.setItem('iagent-heartbeat-last-read', '2000');
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(3));
 
       // timestamp > 2000 の結果が2件（3000, 5000）
@@ -130,7 +178,7 @@ describe('useHeartbeatPanel', () => {
       const results = [makeResult({ timestamp: 1000 })];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       expect(result.current.unreadCount).toBe(1);
@@ -140,7 +188,7 @@ describe('useHeartbeatPanel', () => {
       const results = [makeResult({ timestamp: 5000 })];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.unreadCount).toBe(1));
 
       act(() => result.current.markAsRead());
@@ -160,7 +208,7 @@ describe('useHeartbeatPanel', () => {
       ];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       expect(result.current.results[0].taskId).toBe('task-2');
@@ -176,7 +224,7 @@ describe('useHeartbeatPanel', () => {
       ];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(mockLoadHeartbeatState).toHaveBeenCalled());
 
       expect(result.current.results).toHaveLength(0);
@@ -188,7 +236,7 @@ describe('useHeartbeatPanel', () => {
       ];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
     });
 
@@ -196,7 +244,7 @@ describe('useHeartbeatPanel', () => {
       const results = [makeResult({ timestamp: 1000 })];
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: results });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
     });
   });
@@ -206,7 +254,7 @@ describe('useHeartbeatPanel', () => {
     it('togglePinHeartbeatResult を呼んで refresh する', async () => {
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: [makeResult()] });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       mockLoadHeartbeatState.mockResolvedValue({
@@ -228,7 +276,7 @@ describe('useHeartbeatPanel', () => {
     it('setHeartbeatFeedback を呼んで refresh する', async () => {
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: [makeResult()] });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: [] });
@@ -244,7 +292,7 @@ describe('useHeartbeatPanel', () => {
     it('snoozedUntil を指定できる', async () => {
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: [makeResult()] });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(result.current.results).toHaveLength(1));
 
       const snoozedUntil = Date.now() + 3_600_000;
@@ -261,7 +309,7 @@ describe('useHeartbeatPanel', () => {
     it('loadHeartbeatState を呼んで結果を更新する', async () => {
       mockLoadHeartbeatState.mockResolvedValue({ recentResults: [] });
 
-      const { result } = renderHook(() => useHeartbeatPanel());
+      const { result } = await renderHeartbeatPanelHook();
       await vi.waitFor(() => expect(mockLoadHeartbeatState).toHaveBeenCalledTimes(1));
 
       mockLoadHeartbeatState.mockResolvedValue({

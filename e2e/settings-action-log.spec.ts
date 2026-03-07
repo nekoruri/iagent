@@ -89,7 +89,7 @@ test.describe('設定モーダル Action log', () => {
       { type: 'toggle-task', reason: '最初のログ', detail: 'first', timestamp: 1000 },
     ]);
 
-    await page.getByRole('button', { name: '再読み込み' }).click();
+    await page.getByRole('button', { name: 'ログを再読み込み' }).click();
 
     await expect(page.locator('.hb-action-log-item').nth(0)).toContainText('再取得ログ');
     await expect(page.getByText('静寂曜日')).toBeVisible();

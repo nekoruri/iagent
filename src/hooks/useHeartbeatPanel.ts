@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { loadHeartbeatState, togglePinHeartbeatResult, setHeartbeatFeedback, filterVisibleResults } from '../store/heartbeatStore';
+import { buildUserFacingAutonomyExplanation, loadAutonomyFlowsByIds, type AutonomyFlowSummary } from '../core/autonomyDiagnostics';
 import type { HeartbeatResult, FeedbackType } from '../types';
 
 const LAST_READ_KEY = 'iagent-heartbeat-last-read';
@@ -7,6 +8,7 @@ const LAST_READ_KEY = 'iagent-heartbeat-last-read';
 export function useHeartbeatPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [results, setResults] = useState<HeartbeatResult[]>([]);
+  const [flowMap, setFlowMap] = useState<Record<string, AutonomyFlowSummary>>({});
   const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(
     () => Number(localStorage.getItem(LAST_READ_KEY)) || 0,
   );
@@ -18,12 +20,32 @@ export function useHeartbeatPanel() {
     return () => clearInterval(id);
   }, []);
 
-  const visibleResults = useMemo(() => filterVisibleResults(results, now), [results, now]);
+  const visibleResults = useMemo(() => (
+    filterVisibleResults(results, now).map((result) => {
+      const flow = result.flowId ? flowMap[result.flowId] : undefined;
+      if (!flow) return result;
+      const explanation = buildUserFacingAutonomyExplanation(flow);
+      return {
+        ...result,
+        explanationWhyNow: explanation.whyNow,
+        explanationOutcome: explanation.outcome,
+      };
+    })
+  ), [results, now, flowMap]);
   const unreadCount = visibleResults.filter((r) => r.timestamp > lastReadTimestamp).length;
 
   const refresh = useCallback(async () => {
     const state = await loadHeartbeatState();
     setResults(state.recentResults);
+    const flowIds = state.recentResults
+      .map((result) => result.flowId)
+      .filter((flowId): flowId is string => typeof flowId === 'string');
+    if (flowIds.length === 0) {
+      setFlowMap({});
+      return;
+    }
+    const flows = await loadAutonomyFlowsByIds(flowIds);
+    setFlowMap(flows);
   }, []);
 
   const markAsRead = useCallback(() => {
@@ -44,6 +66,11 @@ export function useHeartbeatPanel() {
     setIsOpen(false);
   }, []);
 
+  const open = useCallback(() => {
+    setIsOpen(true);
+    markAsRead();
+  }, [markAsRead]);
+
   const togglePin = useCallback(async (taskId: string, timestamp: number) => {
     await togglePinHeartbeatResult(taskId, timestamp);
     await refresh();
@@ -56,10 +83,11 @@ export function useHeartbeatPanel() {
 
   // 初回マウント時にデータ読み込み（非同期の外部ストア同期）
   useEffect(() => {
-    loadHeartbeatState().then((state) => {
-      setResults(state.recentResults);
-    });
-  }, []);
+    const refreshId = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(refreshId);
+  }, [refresh]);
 
-  return { isOpen, results: visibleResults, unreadCount, toggle, close, markAsRead, refresh, togglePin, sendFeedback };
+  return { isOpen, results: visibleResults, unreadCount, toggle, open, close, markAsRead, refresh, togglePin, sendFeedback };
 }

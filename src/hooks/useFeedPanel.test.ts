@@ -6,6 +6,7 @@ vi.mock('../store/db');
 
 import { useFeedPanel } from './useFeedPanel';
 import { saveFeed, saveFeedItems, updateItemTier } from '../store/feedStore';
+import { addHeartbeatResult, appendOpsEvent } from '../store/heartbeatStore';
 
 beforeEach(() => {
   __resetStores();
@@ -140,5 +141,46 @@ describe('useFeedPanel', () => {
     // items は 1 件だが unreadCount は全 tier の 2 件
     expect(result.current.items).toHaveLength(1);
     expect(result.current.unreadCount).toBe(2);
+  });
+
+  it('最新の feed-check flow から panel explanation を生成する', async () => {
+    await seedFeedWithItems();
+    await addHeartbeatResult({
+      taskId: 'feed-check',
+      timestamp: Date.now(),
+      hasChanges: true,
+      summary: 'フィードを更新しました',
+      flowId: 'flow-feed-1',
+    });
+    await appendOpsEvent({
+      type: 'autonomy-stage',
+      timestamp: Date.now(),
+      source: 'push',
+      flowId: 'flow-feed-1',
+      stage: 'context',
+      interventionLevel: 'L0',
+      contextSnapshotId: 'flow-feed-1-context',
+      contextSnapshot: {
+        capturedAt: Date.now(),
+        timeOfDay: 'morning',
+        calendarState: 'upcoming-soon',
+        onlineState: 'online',
+        focusState: 'normal',
+        deviceMode: 'desktop-browser',
+        installState: 'browser',
+      },
+    });
+
+    const { result } = renderHook(() => useFeedPanel());
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(result.current.explanation).toEqual(expect.objectContaining({
+      title: 'フィードの新着を確認した結果',
+    }));
+    expect(result.current.explanation?.whyNow).toContain('Push 通知');
+    expect(result.current.explanation?.whyNow).toContain('朝');
   });
 });

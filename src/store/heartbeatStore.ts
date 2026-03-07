@@ -1,5 +1,14 @@
 import { getDB } from './db';
-import type { HeartbeatState, HeartbeatResult, FeedbackType, HeartbeatSource, SuggestionFrequency } from '../types';
+import type {
+  AutonomyEventStage,
+  DeviceContextSnapshotV1,
+  FeedbackType,
+  HeartbeatResult,
+  HeartbeatSource,
+  HeartbeatState,
+  InterventionLevel,
+  SuggestionFrequency,
+} from '../types';
 
 const STORE_NAME = 'heartbeat';
 const STATE_KEY = 'state';
@@ -26,6 +35,7 @@ const OPS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 let opsEventsWriteQueue: Promise<void> = Promise.resolve();
 
 export type OpsEventType =
+  | 'autonomy-stage'
   | 'notification-shown'
   | 'notification-clicked'
   | 'heartbeat-run'
@@ -36,6 +46,13 @@ export type OpsChannel = 'desktop' | 'push' | 'periodic-sync';
 
 export interface OpsEvent {
   type: OpsEventType;
+  eventId?: string;
+  flowId?: string;
+  stage?: AutonomyEventStage;
+  interventionLevel?: InterventionLevel;
+  contextSnapshotId?: string;
+  contextSnapshot?: DeviceContextSnapshotV1;
+  traceId?: string;
   timestamp: number;
   source?: HeartbeatSource | 'unknown';
   channel?: OpsChannel;
@@ -76,6 +93,7 @@ function isOpsEvent(value: unknown): value is OpsEvent {
   const entry = value as Partial<OpsEvent>;
   return (
     (entry.type === 'notification-shown'
+      || entry.type === 'autonomy-stage'
       || entry.type === 'notification-clicked'
       || entry.type === 'heartbeat-run'
       || entry.type === 'heartbeat-feedback'
@@ -237,6 +255,10 @@ export async function setHeartbeatFeedback(
     await saveHeartbeatState(state);
     try {
       await appendOpsEvent({
+        flowId: target.flowId,
+        stage: 'reaction',
+        interventionLevel: 'L4',
+        contextSnapshotId: target.contextSnapshotId,
         type: 'heartbeat-feedback',
         timestamp: feedbackTimestamp,
         source: target.source ?? 'unknown',

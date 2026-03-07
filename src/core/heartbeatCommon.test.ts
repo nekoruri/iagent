@@ -4,7 +4,7 @@ import { __resetStores } from '../store/__mocks__/db';
 vi.mock('../store/db');
 
 import { loadFreshConfig, getTasksDueFromIDB, executeHeartbeatAndStore } from './heartbeatCommon';
-import { appendOpsEvent, getAllTaskLastRun, getTaskLastRun, updateTaskLastRun } from '../store/heartbeatStore';
+import { appendOpsEvent, getAllTaskLastRun, getTaskLastRun, loadOpsEvents, updateTaskLastRun } from '../store/heartbeatStore';
 import type { HeartbeatConfig, HeartbeatTask } from '../types';
 
 function makeConfig(overrides?: Partial<HeartbeatConfig>): HeartbeatConfig {
@@ -217,6 +217,27 @@ describe('executeHeartbeatAndStore', () => {
     const { results, configChanged } = await executeHeartbeatAndStore('');
     expect(results).toEqual([]);
     expect(configChanged).toBe(false);
+    const events = await loadOpsEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'autonomy-stage',
+        stage: 'trigger',
+        source: 'unknown',
+      }),
+      expect.objectContaining({
+        type: 'autonomy-stage',
+        stage: 'context',
+        source: 'unknown',
+        contextSnapshot: expect.objectContaining({
+          timeOfDay: expect.any(String),
+        }),
+      }),
+      expect.objectContaining({
+        type: 'heartbeat-run',
+        stage: 'decision',
+        reason: 'no_api_key',
+      }),
+    ]));
   });
 
   it('タスクがなければ空結果を返す', async () => {

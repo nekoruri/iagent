@@ -101,6 +101,11 @@ iAgent の current policy は次の通りです。
 - [../NOTE-declarative-web-push-2026-03.md](../NOTE-declarative-web-push-2026-03.md)
 - [T1-autonomy-runtime.md](T1-autonomy-runtime.md)
 
+UI 同期:
+
+- Settings の `Heartbeat` セクションでは、この matrix の current policy を簡略化した capability summary を表示する
+- 表示対象は `通知表示` / `Push 購読` / `タブ閉鎖後の wake-up` / `Periodic Sync 補助` / `推奨経路`
+
 ---
 
 ## 7. 参考

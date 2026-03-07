@@ -7,6 +7,9 @@ export interface ChatMessage {
   source?: 'chat' | 'heartbeat';
   conversationId?: string;
   attachmentIds?: string[];
+  explanationTitle?: string;
+  explanationWhyNow?: string;
+  explanationOutcome?: string;
 }
 
 export interface Conversation {
@@ -89,7 +92,30 @@ export interface HeartbeatResult {
   source?: HeartbeatSource;
   pinned?: boolean;
   feedback?: HeartbeatFeedback;
+  flowId?: string;
+  contextSnapshotId?: string;
+  notificationReason?: string;
 }
+
+export type DeviceTimeOfDay = 'morning' | 'daytime' | 'evening' | 'late-night';
+export type DeviceCalendarState = 'empty' | 'upcoming-soon' | 'in-meeting-window' | 'busy-today';
+export type DeviceOnlineState = 'online' | 'offline' | 'unknown';
+export type DeviceFocusState = 'focused' | 'normal' | 'quiet-hours';
+export type DeviceMode = 'desktop-browser' | 'desktop-pwa' | 'mobile-browser' | 'mobile-pwa' | 'unknown';
+export type InstallState = 'installed' | 'browser' | 'unknown';
+
+export interface DeviceContextSnapshotV1 {
+  capturedAt: number;
+  timeOfDay: DeviceTimeOfDay;
+  calendarState: DeviceCalendarState;
+  onlineState: DeviceOnlineState;
+  focusState: DeviceFocusState;
+  deviceMode: DeviceMode;
+  installState: InstallState;
+}
+
+export type AutonomyEventStage = 'trigger' | 'context' | 'decision' | 'delivery' | 'reaction';
+export type InterventionLevel = 'L0' | 'L1' | 'L2' | 'L3' | 'L4';
 
 export interface HeartbeatState {
   lastChecked: number;

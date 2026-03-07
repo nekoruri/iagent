@@ -6,6 +6,8 @@
  */
 
 import { executeHeartbeatAndStore } from './heartbeatCommon';
+import { createAutonomyEventMetadata, createAutonomyFlowId } from './autonomyEvent';
+import { buildHeartbeatNotificationBody } from './heartbeatNotificationText';
 import { appendOpsEvent } from '../store/heartbeatStore';
 
 // --- テスト可能にするための最小インターフェース定義 ---
@@ -39,15 +41,34 @@ export interface HeartbeatNotificationData {
   source?: 'push' | 'periodic-sync';
   trackKpi?: boolean;
   notificationId?: string;
+  flowId?: string;
+  contextSnapshotId?: string;
+}
+
+function buildNotificationOpenUrl(url: string, origin: string, notificationTag: string): string {
+  const resolved = new URL(url, origin);
+  if (notificationTag === 'heartbeat-result') {
+    resolved.searchParams.set('heartbeat', 'open');
+  }
+  return resolved.toString();
 }
 
 async function trackNotificationShown(
   source: 'push' | 'periodic-sync',
   notificationTag: string,
   notificationId: string,
+  flowId?: string,
+  contextSnapshotId?: string,
 ): Promise<void> {
   try {
     await appendOpsEvent({
+      ...createAutonomyEventMetadata({
+        flowId: flowId ?? createAutonomyFlowId(),
+        stage: 'delivery',
+        interventionLevel: 'L3',
+        contextSnapshotId,
+        nowTs: Date.now(),
+      }),
       type: 'notification-shown',
       timestamp: Date.now(),
       source,
@@ -70,6 +91,13 @@ async function trackNotificationClicked(
   const notificationId = notificationData?.notificationId ?? notificationTag;
   try {
     await appendOpsEvent({
+      ...createAutonomyEventMetadata({
+        flowId: notificationData?.flowId ?? createAutonomyFlowId(),
+        stage: 'reaction',
+        interventionLevel: 'L3',
+        contextSnapshotId: notificationData?.contextSnapshotId,
+        nowTs: Date.now(),
+      }),
       type: 'notification-clicked',
       timestamp: Date.now(),
       source,
@@ -102,16 +130,17 @@ export async function handlePush(
     }
 
     if (results.length > 0) {
-      const summaries = results.map((r) => r.summary).join('\n');
       const notificationId = `heartbeat-push-${Date.now()}`;
+      const flowId = results[0]?.flowId;
+      const contextSnapshotId = results[0]?.contextSnapshotId;
       await notifier.showNotification('iAgent Heartbeat [push]', {
-        body: summaries,
+        body: buildHeartbeatNotificationBody(results),
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: 'heartbeat-result',
-        data: { url: '/', source: 'push', trackKpi: true, notificationId } satisfies HeartbeatNotificationData,
+        data: { url: '/', source: 'push', trackKpi: true, notificationId, flowId, contextSnapshotId } satisfies HeartbeatNotificationData,
       });
-      await trackNotificationShown('push', 'heartbeat-result', notificationId);
+      await trackNotificationShown('push', 'heartbeat-result', notificationId, flowId, contextSnapshotId);
     } else {
       // Chrome は push 受信時に通知表示が必須 — サイレント通知を出して即閉じ
       await notifier.showNotification('iAgent [push]', {
@@ -150,16 +179,17 @@ export async function handlePeriodicSync(notifier: SwNotifier, clients?: SwClien
     }
 
     if (results.length > 0) {
-      const summaries = results.map((r) => r.summary).join('\n');
       const notificationId = `heartbeat-periodic-sync-${Date.now()}`;
+      const flowId = results[0]?.flowId;
+      const contextSnapshotId = results[0]?.contextSnapshotId;
       await notifier.showNotification('iAgent Heartbeat [periodic-sync]', {
-        body: summaries,
+        body: buildHeartbeatNotificationBody(results),
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
         tag: 'heartbeat-result',
-        data: { url: '/', source: 'periodic-sync', trackKpi: true, notificationId } satisfies HeartbeatNotificationData,
+        data: { url: '/', source: 'periodic-sync', trackKpi: true, notificationId, flowId, contextSnapshotId } satisfies HeartbeatNotificationData,
       });
-      await trackNotificationShown('periodic-sync', 'heartbeat-result', notificationId);
+      await trackNotificationShown('periodic-sync', 'heartbeat-result', notificationId, flowId, contextSnapshotId);
     }
   } catch (error) {
     console.error('[SW] Periodic sync エラー:', error);
@@ -249,17 +279,21 @@ export async function handleNotificationClick(
 ): Promise<void> {
   await trackNotificationClicked(notificationData, notificationTag);
   const url = notificationData?.url ?? '/';
+  const openUrl = buildNotificationOpenUrl(url, origin, notificationTag);
   const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
 
   // 既存タブがあればフォーカス
   for (const client of allClients) {
     if (new URL(client.url).origin === origin && client.focus) {
+      if (notificationTag === 'heartbeat-result') {
+        client.postMessage({ type: 'heartbeat-open' });
+      }
       await client.focus();
       return;
     }
   }
   // なければ新規タブを開く
-  await clients.openWindow(url);
+  await clients.openWindow(openUrl);
 }
 
 // --- ユーティリティ ---

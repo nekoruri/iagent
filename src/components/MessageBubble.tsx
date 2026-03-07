@@ -5,6 +5,7 @@ import { isImageMimeType, formatFileSize } from '../core/fileUtils';
 import type { ChatMessage } from '../types';
 import type { Attachment } from '../types/attachment';
 import { AttachmentImage } from './AttachmentImage';
+import { ExplanationDisclosure } from './ExplanationDisclosure';
 
 marked.setOptions({
   breaks: true,
@@ -94,10 +95,25 @@ export const MessageBubble = memo(function MessageBubble({ message, attachments,
         {isUser ? (
           <div className="message-content">{message.content}</div>
         ) : (
-          <div
-            className="message-content markdown"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <>
+            <div
+              className="message-content markdown"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+            {message.explanationWhyNow && (
+              <ExplanationDisclosure
+                className="message-explanation-card"
+                toggleClassName="explanation-disclosure-toggle"
+                bodyClassName="message-explanation-body"
+                titleClassName="message-explanation-title"
+                textClassName="message-explanation-text"
+                labelClassName="message-explanation-label"
+                title={message.explanationTitle}
+                whyNow={message.explanationWhyNow}
+                outcome={message.explanationOutcome}
+              />
+            )}
+          </>
         )}
         {!isUser && ttsSupported && message.content && (
           <button
