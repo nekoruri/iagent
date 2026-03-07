@@ -13,10 +13,12 @@
 - 情報収集型インタビューから得られた Must は「通知を開いたあとに次に何をすればよいか分かる導線」
 - `2026-03-07` に `#36` / `#43` / `#33` を実装し、関連コンポーネントテストと型確認を通過
 - 同日 `npm run metrics:poc -- --week 2026-W12 --user-data-dir /tmp/iagent-metrics-profile --seed-sample` を実行し、W12 baseline を更新
+- `2026-03-07 22:36 JST` に `npm run poc:run-week -- --week 2026-W12 --url http://127.0.0.1:5177 --user-data-dir /tmp/iagent-metrics-profile --skip-init` を試行したが、固定プロファイルに実利用データがなく、W12 KPI は `Action` / SLO は `NoData` の current evidence になっている
 - 続けて P0 基盤を実装し、`flowId` / `contextSnapshot` / `autonomy-stage` を Heartbeat 経路へ導入した
 - Settings のオブザーバビリティで recent autonomy flow / trace detail を確認できる
 - Heartbeat / Feed / chat に explanation disclosure を追加し、通知本文には重要タスクのみ短い理由を入れた
 - 追加のテスト warning 整理を行い、`SettingsModal` と `useHeartbeatPanel` の代表的な `act(...)` warning を削減した
+- W12 の scenario note は `docs/weekly/scenarios/2026-W12-S-*.md` として生成済み
 
 参照:
 
@@ -30,7 +32,8 @@
 
 1. 固定プロファイルで W12 メトリクスを継続計測し、P0 explanation / landing 改善後の数値変化を観測する
 2. notification 本文の `重要タスクのみ理由表示` が適切かを dogfooding で確認し、必要なら対象タスク集合を再調整する
-3. interview はいったん別枠保留のまま、`docs/weekly/2026-W12.md` に P0 所見と次週判断材料を反映する
+3. `docs/weekly/scenarios/2026-W12-S-*.md` を埋めて `npm run poc:sync-scenarios -- --week 2026-W12` を回し、scenario evidence を Exit Criteria に反映する
+4. interview はいったん別枠保留のまま、`docs/weekly/2026-W12.md` に P0 所見と次週判断材料を反映する
 
 ---
 
@@ -119,8 +122,9 @@
 
 1. W12 メトリクス継続計測
 2. explanation / landing の dogfooding
-3. 週次レビュー反映と次週タスク起票
-4. interview 再開判断（別枠）
+3. scenario note の記入と週次レビュー反映
+4. 次週タスク起票
+5. interview 再開判断（別枠）
 
 理由:
 
@@ -155,6 +159,13 @@ W12 ユーザー検証の同期:
 
 ```bash
 node scripts/sync-poc-validation.mjs --week 2026-W12
+```
+
+W12 シナリオ評価の同期:
+
+```bash
+node scripts/sync-poc-scenarios.mjs --week 2026-W12
+node scripts/sync-poc-exit-criteria.mjs --week 2026-W12
 ```
 
 ---
