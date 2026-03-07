@@ -794,7 +794,7 @@ describe('SettingsModal', () => {
     await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(1));
     const actionLogSection = screen.getByText('自動実行ログ（Action Planning）').closest('.hb-action-log-section');
     expect(actionLogSection).not.toBeNull();
-    await userEvent.click(within(actionLogSection as HTMLElement).getByRole('button', { name: '再読み込み' }));
+    await userEvent.click(within(actionLogSection as HTMLElement).getByRole('button', { name: 'ログを再読み込み' }));
     await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(2));
     expect(screen.getByText('再取得ログ')).toBeInTheDocument();
     expect(screen.getByText('静寂曜日')).toBeInTheDocument();
@@ -1144,7 +1144,7 @@ describe('SettingsModal', () => {
 
       const diagnosticsSection = screen.getByText('最近の自律実行フロー').closest('.autonomy-flow-section');
       expect(diagnosticsSection).not.toBeNull();
-      await userEvent.click(within(diagnosticsSection as HTMLElement).getByRole('button', { name: '再読み込み' }));
+      await userEvent.click(within(diagnosticsSection as HTMLElement).getByRole('button', { name: 'フローを再読み込み' }));
 
       expect(await screen.findByText('flow-1')).toBeInTheDocument();
       expect(mockLoadRecentAutonomyFlows).toHaveBeenCalledTimes(2);

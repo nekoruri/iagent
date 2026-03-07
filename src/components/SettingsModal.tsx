@@ -1605,7 +1605,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     onClick={handleRefreshActionLog}
                     disabled={actionLogRefreshing}
                   >
-                    {actionLogRefreshing ? '更新中...' : '再読み込み'}
+                    {actionLogRefreshing ? 'ログ更新中...' : 'ログを再読み込み'}
                   </button>
                 </div>
                 <p className="mcp-hint">
@@ -2097,7 +2097,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     onClick={loadAutonomyFlows}
                     disabled={autonomyFlowsRefreshing}
                   >
-                    {autonomyFlowsRefreshing ? '更新中...' : '再読み込み'}
+                    {autonomyFlowsRefreshing ? 'フロー更新中...' : 'フローを再読み込み'}
                   </button>
                 </div>
                 <p className="mcp-hint">
