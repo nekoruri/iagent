@@ -1334,6 +1334,20 @@ describe('SettingsModal', () => {
     });
   });
 
+  describe('action boundary サマリー', () => {
+    it('セキュリティセクションに現在の action boundary を表示する', async () => {
+      await renderOpenSettingsModal();
+
+      expect(screen.getByText('Action Boundary')).toBeInTheDocument();
+      expect(screen.getByText('read')).toBeInTheDocument();
+      expect(screen.getByText('suggest')).toBeInTheDocument();
+      expect(screen.getByText('prepare')).toBeInTheDocument();
+      expect(screen.getByText('execute (local)')).toBeInTheDocument();
+      expect(screen.getByText('execute (external)')).toBeInTheDocument();
+      expect(screen.getByText('ローカル再設定まで')).toBeInTheDocument();
+    });
+  });
+
   describe('デバイス budget サマリー', () => {
     it('Heartbeat セクションに budget 状態を表示する', async () => {
       await renderOpenSettingsModal();

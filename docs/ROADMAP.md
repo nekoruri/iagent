@@ -193,17 +193,19 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 参照:
 
 - [tracks/T7-action-boundaries.md](tracks/T7-action-boundaries.md)
+- [tracks/T7-action-taxonomy.md](tracks/T7-action-taxonomy.md)
 
 現在地:
 
 - Action Planning によるローカル設定変更はある
+- action taxonomy v1 を docs と Settings summary で確認できる
 - advisory / action の境界はまだ曖昧
 
 次にやること:
 
-- action taxonomy を定義する
-- confirmation 必須 / 不要の判定基準を決める
-- 自動実行可能な低リスク操作を限定する
+- confirmation 必須 / 不要の判定基準をより厳密にする
+- 自動実行可能な低リスク操作を限定し続ける
+- MCP / Web / OS 連携を taxonomy 上のどこに置くか決める
 
 ### T8 端末制約最適化
 
