@@ -24,6 +24,11 @@ import {
 } from '../core/heartbeatCapabilities';
 import { buildAutonomyTrustStatus } from '../core/autonomyTrustStatus';
 import { buildBudgetStatusSummary, loadHeartbeatLatencyP95 } from '../core/autonomyBudgetStatus';
+import {
+  loadAutonomyLearningSummary,
+  type AutonomyLearningSummary,
+  type LearningScopeState,
+} from '../core/autonomyLearningSummary';
 import { getTrace } from '../telemetry/store';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
@@ -320,6 +325,17 @@ function formatActionTypeLabel(type: string): string {
   }
 }
 
+function learningScopeStatusLabel(state: LearningScopeState): { text: string; className: string } {
+  switch (state) {
+    case 'active':
+      return { text: '学習中', className: 'mcp-status-connected' };
+    case 'limited':
+      return { text: '一部', className: 'mcp-status-warning' };
+    default:
+      return { text: '未着手', className: 'mcp-status-disconnected' };
+  }
+}
+
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: 'ダーク' },
   { value: 'light', label: 'ライト' },
@@ -351,6 +367,9 @@ export function SettingsModal({ open, onClose }: Props) {
   const [latencyP95Ms, setLatencyP95Ms] = useState<number | undefined>(undefined);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [capabilitySnapshot, setCapabilitySnapshot] = useState<HeartbeatCapabilitySnapshot | null>(null);
+  const [learningSummary, setLearningSummary] = useState<AutonomyLearningSummary | null>(null);
+  const [learningSummaryError, setLearningSummaryError] = useState('');
+  const [learningSummaryRefreshing, setLearningSummaryRefreshing] = useState(false);
   const [mcpPresetMessage, setMcpPresetMessage] = useState('');
   const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ApiKeyField, string>>(initApiKeyDrafts);
@@ -482,6 +501,20 @@ export function SettingsModal({ open, onClose }: Props) {
     }
   }, []);
 
+  const loadLearningSummaryData = useCallback(async () => {
+    setLearningSummaryRefreshing(true);
+    try {
+      const summary = await loadAutonomyLearningSummary();
+      setLearningSummary(summary);
+      setLearningSummaryError('');
+    } catch {
+      setLearningSummary(null);
+      setLearningSummaryError('学習サマリーの読み込みに失敗しました。');
+    } finally {
+      setLearningSummaryRefreshing(false);
+    }
+  }, []);
+
   const loadTraceDetail = useCallback(async (traceId: string) => {
     setSelectedTraceId(traceId);
     setSelectedTraceLoading(true);
@@ -517,6 +550,14 @@ export function SettingsModal({ open, onClose }: Props) {
     }, 0);
     return () => window.clearTimeout(refreshId);
   }, [open, loadAutonomyFlows]);
+
+  useEffect(() => {
+    if (!open) return;
+    const refreshId = window.setTimeout(() => {
+      void loadLearningSummaryData();
+    }, 0);
+    return () => window.clearTimeout(refreshId);
+  }, [open, loadLearningSummaryData]);
 
   useEffect(() => {
     if (!open) return;
@@ -1701,6 +1742,62 @@ export function SettingsModal({ open, onClose }: Props) {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="learning-summary-section">
+                <div className="learning-summary-header">
+                  <h4>学習とパーソナライズ（PoC）</h4>
+                  <div className="learning-summary-actions">
+                    {learningSummary && (
+                      <span className={`mcp-status ${learningSummary.overallClassName}`}>{learningSummary.overallText}</span>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small"
+                      onClick={() => { void loadLearningSummaryData(); }}
+                      disabled={learningSummaryRefreshing}
+                    >
+                      {learningSummaryRefreshing ? '学習状態を更新中...' : '学習状態を更新'}
+                    </button>
+                  </div>
+                </div>
+                <p className="mcp-hint">
+                  feedback / timing / category / memory quality のどこを学習対象にしているかを確認できます。
+                </p>
+                {learningSummaryError && <p className="mcp-error-text">{learningSummaryError}</p>}
+                {learningSummary && (
+                  <>
+                    <p className="mcp-hint learning-summary-meta">
+                      対象期間: {learningSummary.periodDays}日 / feedback: {learningSummary.totalWithFeedback}件 / Accept率: {Math.round(learningSummary.overallAcceptRate * 100)}%
+                    </p>
+                    <div className="budget-status-list">
+                      {learningSummary.items.map((item) => {
+                        const status = learningScopeStatusLabel(item.state);
+                        return (
+                          <div key={item.id} className="budget-status-item">
+                            <div className="budget-status-item-header">
+                              <span className="budget-status-item-label">{item.label}</span>
+                              <span className={`mcp-status ${status.className}`}>{status.text}</span>
+                            </div>
+                            <p className="mcp-hint budget-status-detail">{item.detail}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="learning-summary-rule">
+                      <p className="learning-summary-rule-title">最新の最適化ルール</p>
+                      <p className="learning-summary-rule-content">{learningSummary.latestRuleSummary}</p>
+                      <p className="mcp-hint">
+                        {learningSummary.latestRuleSource === 'memory'
+                          ? `保存済み rule を参照中（${new Date(learningSummary.latestRuleUpdatedAt ?? 0).toLocaleString()} 更新）`
+                          : learningSummary.latestRuleSource === 'computed'
+                            ? '保存済み rule がないため、現在の feedback から計算した summary を表示しています。'
+                            : 'rule はまだ未生成です。'}
+                        {' '}再評価候補: {learningSummary.reevaluationCandidateCount}件
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="hb-action-log-section">

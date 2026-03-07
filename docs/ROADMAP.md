@@ -174,15 +174,17 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 参照:
 
 - [tracks/T6-learning-personalization.md](tracks/T6-learning-personalization.md)
+- [tracks/T6-learning-scope.md](tracks/T6-learning-scope.md)
 
 現在地:
 
 - feedback loop、pattern recognition、suggestion optimization はある
+- learning scope v1 を docs と Settings summary で確認できる
 - 学習対象と rollback / 監査の考え方はまだ弱い
 
 次にやること:
 
-- 何を学習対象とするか棚卸しする
+- learning scope を weekly の evidence とつなぐ
 - 学習前後の差分を weekly で比較できる形にする
 - memory quality と提案品質の接続を強める
 

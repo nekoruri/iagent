@@ -86,6 +86,28 @@ function createMockTrace(): TraceRecord {
   };
 }
 
+function createMockLearningSummary() {
+  return {
+    periodDays: 14,
+    totalResults: 6,
+    totalWithFeedback: 4,
+    overallAcceptRate: 0.5,
+    overallText: '学習データ蓄積中',
+    overallClassName: 'mcp-status-warning',
+    latestRuleSummary: '朝の calendar-check は維持し、夜の feed-check は頻度を下げる。',
+    latestRuleUpdatedAt: 1234,
+    latestRuleSource: 'computed' as const,
+    reevaluationCandidateCount: 2,
+    items: [
+      { id: 'timing', label: 'timing', state: 'active' as const, detail: '受容されやすい時間帯: 8時' },
+      { id: 'task-frequency', label: 'task frequency', state: 'active' as const, detail: '維持 1件 / 改善 1件' },
+      { id: 'category-interest', label: 'category interest', state: 'limited' as const, detail: '関心上昇: calendar' },
+      { id: 'memory-quality', label: 'memory quality', state: 'active' as const, detail: '再評価候補 2 件。' },
+      { id: 'wording-channel', label: 'wording / channel', state: 'limited' as const, detail: '通知文面や channel の個別学習は未着手です。' },
+    ],
+  };
+}
+
 function createMockConfig() {
   return {
     openaiApiKey: '',
@@ -233,6 +255,13 @@ vi.mock('../core/autonomyDiagnostics', () => ({
   loadRecentAutonomyFlows: mockLoadRecentAutonomyFlows,
 }));
 
+const { mockLoadAutonomyLearningSummary } = vi.hoisted(() => ({
+  mockLoadAutonomyLearningSummary: vi.fn(),
+}));
+vi.mock('../core/autonomyLearningSummary', () => ({
+  loadAutonomyLearningSummary: mockLoadAutonomyLearningSummary,
+}));
+
 const { mockGetTrace } = vi.hoisted(() => ({
   mockGetTrace: vi.fn(),
 }));
@@ -328,6 +357,7 @@ describe('SettingsModal', () => {
     vi.mocked(requestNotificationPermission).mockResolvedValue('granted');
     mockLoadHeartbeatCapabilitySnapshot.mockResolvedValue(createMockCapabilitySnapshot());
     mockLoadRecentAutonomyFlows.mockResolvedValue([]);
+    mockLoadAutonomyLearningSummary.mockResolvedValue(createMockLearningSummary());
     mockGetTrace.mockResolvedValue(undefined);
     // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
@@ -1314,6 +1344,20 @@ describe('SettingsModal', () => {
       expect(screen.getByText('latency')).toBeInTheDocument();
       expect(screen.getByText('storage')).toBeInTheDocument();
       expect(screen.getByText('network')).toBeInTheDocument();
+    });
+  });
+
+  describe('学習とパーソナライズサマリー', () => {
+    it('Heartbeat セクションに現在の学習対象を表示する', async () => {
+      await renderOpenSettingsModal();
+
+      expect(screen.getByText('学習とパーソナライズ（PoC）')).toBeInTheDocument();
+      expect(screen.getByText('timing')).toBeInTheDocument();
+      expect(screen.getByText('task frequency')).toBeInTheDocument();
+      expect(screen.getByText('category interest')).toBeInTheDocument();
+      expect(screen.getByText('memory quality')).toBeInTheDocument();
+      expect(screen.getByText('wording / channel')).toBeInTheDocument();
+      expect(screen.getByText('最新の最適化ルール')).toBeInTheDocument();
     });
   });
 
