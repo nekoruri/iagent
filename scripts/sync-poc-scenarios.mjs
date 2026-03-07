@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
@@ -65,6 +65,15 @@ function parseArgs(argv) {
     }
   }
   return args;
+}
+
+async function fileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function assertWeek(week) {
@@ -217,6 +226,19 @@ async function main() {
 
   for (const scenarioId of scenarioIds) {
     const path = `${scenariosDir}/${opts.week}-${scenarioId}.md`;
+    if (!await fileExists(path)) {
+      entries.push({
+        scenarioId,
+        scenarioName: '',
+        persona: '',
+        completed: false,
+        overall: '',
+        good: '',
+        bad: '',
+        hypothesis: '',
+      });
+      continue;
+    }
     const content = await readFile(path, 'utf8');
     entries.push(parseScenario(content));
   }

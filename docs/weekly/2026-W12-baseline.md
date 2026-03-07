@@ -9,6 +9,7 @@
 
 - 実施日:
   - 2026-03-07 00:47 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
+  - 2026-03-07 22:36 JST（自動再計測: 固定プロファイル `/tmp/iagent-metrics-profile`）
 - 実施者: Codex（自動収集コマンド実行）
 - 対象環境: local
 - 収集手順: `docs/POC-METRICS-COLLECTION.md`
@@ -21,46 +22,46 @@
 
 ## 1) 提案 Accept 率（7日）
 
-- accepted: 3
-- dismissed: 1
+- accepted: 0
+- dismissed: 0
 - snoozed: 0
-- total: 4
-- acceptRate: 75.0% (0.7500)
+- total: 0
+- acceptRate: 0.0% (0.0000)
 
 ## 2) 7日アクティブ率
 
-- activeDays: 4
-- activeRate: 57.1% (0.5714)
-- days: 2026-03-03, 2026-03-04, 2026-03-05, 2026-03-06
+- activeDays: 0
+- activeRate: 0.0% (0.0000)
+- days: (なし)
 
 ## 3) 通知経由再訪率（7日）
 
-- notificationShown: 2
-- notificationClicked: 2
+- notificationShown: 0
+- notificationClicked: 0
 - unmatchedClicks: 0
-- revisitRate: 100.0% (1.0000)
-- shownByChannel: {"desktop":1,"push":1,"periodicSync":0,"unknown":0}
-- clickedByChannel: {"desktop":1,"push":1,"periodicSync":0,"unknown":0}
-- kpiAcceptStatus: Good
-- kpiActiveStatus: Good
-- kpiRevisitStatus: Good
-- kpiOverallStatus: Good
+- revisitRate: 0.0% (0.0000)
+- shownByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
+- clickedByChannel: {"desktop":0,"push":0,"periodicSync":0,"unknown":0}
+- kpiAcceptStatus: Action
+- kpiActiveStatus: Action
+- kpiRevisitStatus: Action
+- kpiOverallStatus: Action
 
 ## 4) オンボーディング最適化（7日）
 
-- onboardingStartedSessions: 1
-- onboardingCompletedSessions: 1
-- onboardingCompletionRate: 100.0% (1.0000)
-- onboardingMedianCompletionSec: 240.0s (240000ms)
-- onboardingRecommendedCompletions: 1
-- onboardingRecommendedRate: 100.0% (1.0000)
-- onboardingActiveWithin24h: 1
-- onboardingActiveWithin24hRate: 100.0% (1.0000)
-- onboardingCompletionStatus: Good
-- onboardingRecommendedStatus: Good
-- onboardingMedianStatus: Watch
-- onboardingActiveWithin24hStatus: Good
-- onboardingOverallStatus: Watch
+- onboardingStartedSessions: 0
+- onboardingCompletedSessions: 0
+- onboardingCompletionRate: 0.0% (0.0000)
+- onboardingMedianCompletionSec: n/a
+- onboardingRecommendedCompletions: 0
+- onboardingRecommendedRate: 0.0% (0.0000)
+- onboardingActiveWithin24h: 0
+- onboardingActiveWithin24hRate: 0.0% (0.0000)
+- onboardingCompletionStatus: NoData
+- onboardingRecommendedStatus: NoData
+- onboardingMedianStatus: NoData
+- onboardingActiveWithin24hStatus: NoData
+- onboardingOverallStatus: NoData
 
 ---
 
@@ -68,26 +69,26 @@
 
 ## 1) Heartbeat 実行成功率（24h）
 
-- 試行回数: 2
-- 成功回数: 2
+- 試行回数: 0
+- 成功回数: 0
 - 失敗回数: 0
-- 成功率: 100.0% (1.0000)
+- 成功率: 0.0% (0.0000)
 
 ## 2) Push wake 実行成功率（24h）
 
-- 試行回数: 1
-- 成功回数: 1
+- 試行回数: 0
+- 成功回数: 0
 - 失敗回数: 0
-- 成功率: 100.0% (1.0000)
+- 成功率: 0.0% (0.0000)
 
 ## 3) Heartbeat 遅延 p95（24h）
 
-- p95: 1.80s（1800ms, サンプル数 2）
+- p95: n/a（サンプル数 0）
 - 観測メモ:
-- slo24hHeartbeatStatus: Good
-- slo24hPushStatus: Good
-- slo24hLatencyStatus: Good
-- slo24hOverallStatus: Good
+- slo24hHeartbeatStatus: NoData
+- slo24hPushStatus: NoData
+- slo24hLatencyStatus: NoData
+- slo24hOverallStatus: NoData
 
 ---
 
