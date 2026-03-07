@@ -113,6 +113,17 @@ npm run poc:sync-scenarios -- --week 2026-W11
 - weekly review の `### シナリオ評価` サブセクションだけを更新する
 - `npm run poc:run-week -- --week <week>` では validation sync の後に自動実行される
 
+Exit criteria を weekly review に反映する:
+
+```bash
+npm run poc:sync-exit-criteria -- --week 2026-W11
+```
+
+補足:
+
+- `docs/POC-EXIT-CRITERIA.md` の基準に沿って `### Exit Criteria 状態` を更新する
+- current week だけでなく、対象週までの weekly / interview / scenario evidence を横断集計する
+
 ---
 
 ## 意思決定ルール

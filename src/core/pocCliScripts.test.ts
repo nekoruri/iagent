@@ -44,6 +44,11 @@ describe('PoC CLI scripts', () => {
     expectInvalidWeek('scripts/sync-poc-scenarios.mjs');
   });
 
+  it('sync-poc-exit-criteria: help and week format validation', () => {
+    expectHelp('scripts/sync-poc-exit-criteria.mjs');
+    expectInvalidWeek('scripts/sync-poc-exit-criteria.mjs');
+  });
+
   it('check-poc-week: help and week format validation', () => {
     expectHelp('scripts/check-poc-week.mjs');
     expectInvalidWeek('scripts/check-poc-week.mjs');
@@ -70,6 +75,7 @@ describe('PoC CLI scripts', () => {
       '--skip-metrics',
       '--skip-validation',
       '--skip-scenarios',
+      '--skip-exit-criteria',
       '--check',
     ]);
     expect(checkOnlyResult.status).toBe(0);
@@ -83,6 +89,7 @@ describe('PoC CLI scripts', () => {
       '--skip-metrics',
       '--skip-validation',
       '--skip-scenarios',
+      '--skip-exit-criteria',
     ]);
     expect(allSkippedWithoutCheck.status).toBe(1);
 
@@ -173,6 +180,25 @@ describe('PoC CLI scripts', () => {
     expect(weeklyRaw).toContain('完了シナリオ数: 1/4');
     expect(weeklyRaw).toContain('[S-A1] 情報ヘビーコンシューマーの朝');
     expect(weeklyRaw).toContain('通知後の導線をさらに短くすると再訪しやすい');
+
+    await rm(workDir, { recursive: true, force: true });
+  });
+
+  it('sync-poc-exit-criteria: exit criteria summary can be reflected into weekly review', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-exit-criteria-sync-'));
+    const week = '2026-W25';
+    const weeklyPath = join(workDir, `${week}.md`);
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const syncResult = runCli('scripts/sync-poc-exit-criteria.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(syncResult.status).toBe(0);
+
+    const weeklyRaw = await readFile(weeklyPath, 'utf8');
+    expect(weeklyRaw).toContain('### Exit Criteria 状態');
+    expect(weeklyRaw).toContain('- 判定: Extend');
+    expect(weeklyRaw).toContain('助かった体験 evidence: 情報収集型 0/3');
 
     await rm(workDir, { recursive: true, force: true });
   });

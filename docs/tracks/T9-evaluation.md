@@ -11,6 +11,7 @@
 - `init-week` で代表シナリオの雛形を生成できる
 - `sync-scenarios` で weekly review の `シナリオ評価` を更新できる
 - PoC exit criteria 文書を source of truth として追加した
+- `sync-exit-criteria` で weekly review の `Exit Criteria 状態` を更新できる
 - ただし、生活シナリオ単位の longitudinal な比較軸はまだ弱い
 
 ## 具体タスク
