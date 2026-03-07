@@ -39,6 +39,7 @@
 - T5 trust model: [T5-trust-model.md](T5-trust-model.md)
 - T8 budget inventory: [T8-budget-inventory.md](T8-budget-inventory.md)
 - T9 scenario evaluation template: [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
+- PoC exit criteria: [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)
 
 読み方:
 

@@ -6,6 +6,8 @@
 
 この文書は、**運用可能性を定量で見るための source of truth** です。
 
+PoC 全体の go / extend / reset 判定は [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) を参照。
+
 ---
 
 ## 目的
@@ -63,6 +65,7 @@ PoC で価値に直結する 3 つのみ管理する。
 ## 週次
 
 - `docs/templates/WEEKLY-REVIEW.md` に SLO 実測値を記録
+- 同 review の `### Exit Criteria 状態` では、SLO を踏まえた暫定判定も残す
 - 前週比で悪化した SLI に対して、必ず改善タスクを 1 件以上登録
 
 ---

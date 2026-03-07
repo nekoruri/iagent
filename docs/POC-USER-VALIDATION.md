@@ -6,6 +6,8 @@
 
 この文書は、**定性評価と週次学習サイクルの source of truth** です。
 
+PoC 全体の go / extend / reset 判定は [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) を参照。
+
 ---
 
 ## 目的
@@ -123,6 +125,5 @@ npm run poc:sync-scenarios -- --week 2026-W11
 
 ## PoC 期間で最低限達成したい状態
 
-- 3 ペルソナすべてで「明確に助かった体験」の実例が各 3 件以上ある。  
-- 「通知が邪魔」という定性コメントが週次で減少傾向になる。  
-- KPI（`docs/POC-KPI.md`）と定性評価が矛盾した場合、原因を説明できる。  
+- 詳細な統合判定は [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) を参照する。
+- この文書では、interview と週次学習サイクルの運用ルールを維持する。

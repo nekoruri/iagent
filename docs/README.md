@@ -11,7 +11,7 @@
 3. 構造と運用方法  
    [ARCHITECTURE.md](ARCHITECTURE.md) / [USER-GUIDE.md](USER-GUIDE.md) / [OPERATIONS.md](OPERATIONS.md)
 4. PoC 運用と週次記録  
-   [POC-KPI.md](POC-KPI.md) / [POC-SLO.md](POC-SLO.md) / [POC-USER-VALIDATION.md](POC-USER-VALIDATION.md) / `weekly/`
+   [POC-KPI.md](POC-KPI.md) / [POC-SLO.md](POC-SLO.md) / [POC-USER-VALIDATION.md](POC-USER-VALIDATION.md) / [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) / `weekly/`
 5. 長期トラックごとの具体タスク  
    [tracks/README.md](tracks/README.md)
 
@@ -29,6 +29,7 @@
 | [USER-GUIDE.md](USER-GUIDE.md) | 利用者目線の現在仕様 |
 | [OPERATIONS.md](OPERATIONS.md) | Push / Proxy / server 運用手順 |
 | [REVIEW-TRACKER.md](REVIEW-TRACKER.md) | review-comment 起点の未解決 / 対応済み管理 |
+| [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) | PoC を go / extend / reset で判断する基準 |
 
 補足:
 
@@ -46,6 +47,7 @@ PoC の観測・週次運用に使う文書です。
 | [POC-KPI.md](POC-KPI.md) | 価値の再現性を測る KPI 定義 |
 | [POC-SLO.md](POC-SLO.md) | 運用可能性を測る SLO 定義 |
 | [POC-USER-VALIDATION.md](POC-USER-VALIDATION.md) | interview / 定性検証ループ |
+| [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) | KPI / SLO / interview / scenario を束ねる最終判断基準 |
 | [POC-METRICS-COLLECTION.md](POC-METRICS-COLLECTION.md) | 週次計測コマンドと運用手順 |
 | [MEMO-poc-focus-1-10.md](MEMO-poc-focus-1-10.md) | PoC 運用改善の背景メモ |
 | `weekly/` | 週次レビュー、baseline、interview 記録、handoff |

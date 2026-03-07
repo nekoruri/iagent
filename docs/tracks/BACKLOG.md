@@ -75,6 +75,15 @@
   - シナリオ評価テンプレート
   - ペルソナ別代表シナリオ
 
+### P1-4. PoC exit criteria を固定する
+
+- トラック: `T9`
+- 目的: KPI / SLO / interview / scenario を go / extend / reset の判断に束ねる
+- 成果物:
+  - exit criteria 文書
+  - weekly review の暫定判定ルール
+  - hard fail signal 一覧
+
 ---
 
 ## P2: 学習と行動の境界を詰める
@@ -100,11 +109,13 @@
 5. `P1-1` trust model
 6. `P1-2` budget inventory
 7. `P1-3` scenario evaluation template
-8. `P2-1` learning scope
-9. `P2-2` action boundary
+8. `P1-4` PoC exit criteria
+9. `P2-1` learning scope
+10. `P2-2` action boundary
 
 この順番にしている理由:
 
 - 実行条件、出方、観測が定まらないと、学習も trust も設計できない
 - trust は observability と intervention taxonomy の上に乗る
+- exit criteria は KPI / SLO / interview / scenario の接続が揃ってから固定する
 - action boundary は context / trust / observability が揃ってからのほうが設計しやすい

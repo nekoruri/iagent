@@ -90,3 +90,11 @@
 期限:
 
 - 
+
+### Exit Criteria 状態
+
+- 判定: Go / Extend / Reset
+- 主な根拠:
+  1.
+  2.
+  3.
