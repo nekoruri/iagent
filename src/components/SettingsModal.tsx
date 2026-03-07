@@ -22,6 +22,7 @@ import {
   type CapabilityLevel,
   type HeartbeatCapabilitySnapshot,
 } from '../core/heartbeatCapabilities';
+import { buildAutonomyTrustStatus } from '../core/autonomyTrustStatus';
 import { getTrace } from '../telemetry/store';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
@@ -56,6 +57,7 @@ import type {
   WebSpeechConfig,
 } from '../types';
 import type { Span, TraceRecord } from '../telemetry/types';
+import { isQuietHours } from '../core/heartbeat';
 
 interface Props {
   open: boolean;
@@ -1056,6 +1058,16 @@ export function SettingsModal({ open, onClose }: Props) {
     return Math.round(clamped * 100);
   })();
 
+  const autonomyTrustStatus = buildAutonomyTrustStatus({
+    heartbeat,
+    push,
+    hasApiKey: apiKeyClearFlags.openaiApiKey ? false : (apiKeyDrafts.openaiApiKey.trim().length > 0 || config.openaiApiKey.trim().length > 0),
+    notificationPermission,
+    hasPushSubscription,
+    isQuietPeriod: isQuietHours(heartbeat, new Date()),
+    capabilitySnapshot,
+  });
+
   const toggleSection = (id: SectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -1190,6 +1202,43 @@ export function SettingsModal({ open, onClose }: Props) {
 
               <div className="security-preset-section">
                 <h4>セキュリティ（PoC）</h4>
+                <div className="autonomy-status-card">
+                  <div className="autonomy-status-header">
+                    <span>自律状態</span>
+                    <span className={`mcp-status ${autonomyTrustStatus.overallClassName}`}>{autonomyTrustStatus.overallText}</span>
+                  </div>
+                  <div className="autonomy-status-list">
+                    {autonomyTrustStatus.items.map((item) => (
+                      <div key={item.id} className="autonomy-status-item">
+                        <div className="autonomy-status-item-header">
+                          <span className="autonomy-status-item-label">{item.label}</span>
+                          <span className={`mcp-status ${item.state === 'active' ? 'mcp-status-connected' : item.state === 'limited' ? 'mcp-status-warning' : 'mcp-status-error'}`}>
+                            {item.state === 'active' ? '稼働中' : item.state === 'limited' ? '制限中' : '停止中'}
+                          </span>
+                        </div>
+                        <p className="mcp-hint autonomy-status-detail">{item.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {autonomyTrustStatus.stopReasons.length > 0 && (
+                    <div className="autonomy-status-reasons">
+                      <p className="autonomy-status-subtitle">現在の stop / limit reason</p>
+                      <ul>
+                        {autonomyTrustStatus.stopReasons.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="autonomy-status-controls">
+                    <p className="autonomy-status-subtitle">止め方</p>
+                    <ul>
+                      {autonomyTrustStatus.controlHints.map((hint) => (
+                        <li key={hint}>{hint}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
                 <p className="mcp-hint">
                   最小権限プリセットで通知・音声・MCP 接続などを一括で無効化できます。
                 </p>

@@ -120,6 +120,7 @@ v1 の current policy:
 - 権限状態表示
 - focus mode 状態
 - Heartbeat panel の結果一覧
+- Settings の `自律状態` サマリー
 
 不足:
 
