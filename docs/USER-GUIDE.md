@@ -219,6 +219,8 @@ RSS フィード取得と Web 監視で利用します。
 - 設定の `セキュリティ（PoC）` には `自律状態` サマリーを表示
 - `自律実行` / `通知の表示` / `バックグラウンド wake-up` を `稼働中 / 制限中 / 停止中` で確認できる
 - current stop / limit reason と `止め方` を同じカードで確認できる
+- `Action Boundary` では `read / suggest / prepare / execute (local) / execute (external)` の境界を確認できる
+- 現時点の標準経路は `execute (local)` までで、外部副作用を伴う自動実行は未許可
 
 ### 4.7 オブザーバビリティ（OTel）
 

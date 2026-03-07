@@ -1356,6 +1356,56 @@ body {
   line-height: 1.5;
 }
 
+.action-boundary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.action-boundary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.action-boundary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.action-boundary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.action-boundary-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.action-boundary-item-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.action-boundary-detail,
+.action-boundary-meta {
+  margin: 0;
+}
+
 .budget-status-section {
   display: flex;
   flex-direction: column;

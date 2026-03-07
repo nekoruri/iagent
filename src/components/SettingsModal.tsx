@@ -24,6 +24,7 @@ import {
 } from '../core/heartbeatCapabilities';
 import { buildAutonomyTrustStatus } from '../core/autonomyTrustStatus';
 import { buildBudgetStatusSummary, loadHeartbeatLatencyP95 } from '../core/autonomyBudgetStatus';
+import { buildAutonomyActionBoundarySummary, type ActionBoundaryState } from '../core/autonomyActionBoundary';
 import {
   loadAutonomyLearningSummary,
   type AutonomyLearningSummary,
@@ -333,6 +334,17 @@ function learningScopeStatusLabel(state: LearningScopeState): { text: string; cl
       return { text: '一部', className: 'mcp-status-warning' };
     default:
       return { text: '未着手', className: 'mcp-status-disconnected' };
+  }
+}
+
+function actionBoundaryStatusLabel(state: ActionBoundaryState): { text: string; className: string } {
+  switch (state) {
+    case 'allowed':
+      return { text: '許可', className: 'mcp-status-connected' };
+    case 'allowed-limited':
+      return { text: '限定許可', className: 'mcp-status-warning' };
+    default:
+      return { text: '未許可', className: 'mcp-status-error' };
   }
 }
 
@@ -1144,6 +1156,7 @@ export function SettingsModal({ open, onClose }: Props) {
     storageInfo,
     hasBackgroundPath: Boolean(push.enabled && hasPushSubscription),
   });
+  const actionBoundarySummary = buildAutonomyActionBoundarySummary();
 
   const toggleSection = (id: SectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1314,6 +1327,31 @@ export function SettingsModal({ open, onClose }: Props) {
                         <li key={hint}>{hint}</li>
                       ))}
                     </ul>
+                  </div>
+                </div>
+                <div className="action-boundary-card">
+                  <div className="action-boundary-header">
+                    <span>Action Boundary</span>
+                    <span className={`mcp-status ${actionBoundarySummary.overallClassName}`}>{actionBoundarySummary.overallText}</span>
+                  </div>
+                  <p className="mcp-hint">
+                    現在の PoC では `execute (local)` までを標準経路とし、外部副作用を伴う自動実行は未許可です。
+                  </p>
+                  <div className="action-boundary-list">
+                    {actionBoundarySummary.items.map((item) => {
+                      const status = actionBoundaryStatusLabel(item.state);
+                      return (
+                        <div key={item.id} className="action-boundary-item">
+                          <div className="action-boundary-item-header">
+                            <span className="action-boundary-item-label">{item.label}</span>
+                            <span className={`mcp-status ${status.className}`}>{status.text}</span>
+                          </div>
+                          <p className="mcp-hint action-boundary-detail">{item.detail}</p>
+                          <p className="mcp-hint action-boundary-meta">確認: {item.confirmation}</p>
+                          <p className="mcp-hint action-boundary-meta">戻し方: {item.rollback}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <p className="mcp-hint">
