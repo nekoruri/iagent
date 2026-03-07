@@ -26,9 +26,11 @@ Options:
   --check-report-json <path>
                          Write weekly readiness check summary JSON to file
   --dry-run-validation   Preview validation section without writing file
+  --dry-run-scenarios    Preview scenario subsection without writing file
   --skip-init            Skip week scaffold initialization
   --skip-metrics         Skip KPI/SLO collection and file update
   --skip-validation      Skip interview summary sync
+  --skip-scenarios       Skip scenario summary sync
   --help                 Show this help
 
 Examples:
@@ -54,9 +56,11 @@ function parseArgs(argv) {
     checkAsOf: '',
     checkReportJson: '',
     dryRunValidation: false,
+    dryRunScenarios: false,
     skipInit: false,
     skipMetrics: false,
     skipValidation: false,
+    skipScenarios: false,
     help: false,
   };
 
@@ -100,6 +104,10 @@ function parseArgs(argv) {
       args.dryRunValidation = true;
       continue;
     }
+    if (a === '--dry-run-scenarios') {
+      args.dryRunScenarios = true;
+      continue;
+    }
     if (a === '--skip-init') {
       args.skipInit = true;
       continue;
@@ -110,6 +118,10 @@ function parseArgs(argv) {
     }
     if (a === '--skip-validation') {
       args.skipValidation = true;
+      continue;
+    }
+    if (a === '--skip-scenarios') {
+      args.skipScenarios = true;
       continue;
     }
     if (a === '--seed-sample') {
@@ -202,14 +214,14 @@ async function main() {
     || Boolean(opts.checkReportJson)
   );
 
-  if (opts.skipInit && opts.skipMetrics && opts.skipValidation && !finalCheckRequested) {
+  if (opts.skipInit && opts.skipMetrics && opts.skipValidation && opts.skipScenarios && !finalCheckRequested) {
     throw new Error('All steps are skipped. Remove at least one --skip-* option.');
   }
 
   if (!opts.skipInit) {
     const initArgs = ['--week', opts.week, '--weekly-dir', opts.weeklyDir, '--owner', opts.owner];
     if (opts.forceInit) initArgs.push('--force');
-    await runNodeScript('scripts/init-poc-week.mjs', initArgs, 'Step 1/3: Initialize weekly files');
+    await runNodeScript('scripts/init-poc-week.mjs', initArgs, 'Step 1/4: Initialize weekly files');
   }
 
   if (!opts.skipMetrics) {
@@ -231,7 +243,7 @@ async function main() {
     if (opts.strict) {
       metricsArgs.push('--fail-on-action');
     }
-    await runNodeScript('scripts/collect-poc-metrics.mjs', metricsArgs, 'Step 2/3: Collect KPI/SLO');
+    await runNodeScript('scripts/collect-poc-metrics.mjs', metricsArgs, 'Step 2/4: Collect KPI/SLO');
   }
 
   if (!opts.skipValidation) {
@@ -239,7 +251,15 @@ async function main() {
     if (opts.dryRunValidation) {
       validationArgs.push('--dry-run');
     }
-    await runNodeScript('scripts/sync-poc-validation.mjs', validationArgs, 'Step 3/3: Sync user validation');
+    await runNodeScript('scripts/sync-poc-validation.mjs', validationArgs, 'Step 3/4: Sync user validation');
+  }
+
+  if (!opts.skipScenarios) {
+    const scenarioArgs = ['--week', opts.week, '--weekly-dir', opts.weeklyDir];
+    if (opts.dryRunScenarios) {
+      scenarioArgs.push('--dry-run');
+    }
+    await runNodeScript('scripts/sync-poc-scenarios.mjs', scenarioArgs, 'Step 4/4: Sync scenario evaluation');
   }
 
   if (finalCheckRequested) {

@@ -39,6 +39,11 @@ describe('PoC CLI scripts', () => {
     expectInvalidWeek('scripts/sync-poc-validation.mjs');
   });
 
+  it('sync-poc-scenarios: help and week format validation', () => {
+    expectHelp('scripts/sync-poc-scenarios.mjs');
+    expectInvalidWeek('scripts/sync-poc-scenarios.mjs');
+  });
+
   it('check-poc-week: help and week format validation', () => {
     expectHelp('scripts/check-poc-week.mjs');
     expectInvalidWeek('scripts/check-poc-week.mjs');
@@ -64,6 +69,7 @@ describe('PoC CLI scripts', () => {
       '--skip-init',
       '--skip-metrics',
       '--skip-validation',
+      '--skip-scenarios',
       '--check',
     ]);
     expect(checkOnlyResult.status).toBe(0);
@@ -76,6 +82,7 @@ describe('PoC CLI scripts', () => {
       '--skip-init',
       '--skip-metrics',
       '--skip-validation',
+      '--skip-scenarios',
     ]);
     expect(allSkippedWithoutCheck.status).toBe(1);
 
@@ -121,6 +128,51 @@ describe('PoC CLI scripts', () => {
     expect(json.week).toBe(week);
     expect(json.counts.errors).toBe(0);
     expect(json.ok).toBe(true);
+
+    await rm(workDir, { recursive: true, force: true });
+  });
+
+  it('init-poc-week: scenario files are generated', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-scenarios-'));
+    const week = '2026-W23';
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const scenarioRaw = await readFile(join(workDir, 'scenarios', `${week}-S-A1.md`), 'utf8');
+    expect(scenarioRaw).toContain(`シナリオID: S-A1`);
+    expect(scenarioRaw).toContain(`シナリオ名: 情報ヘビーコンシューマーの朝`);
+
+    await rm(workDir, { recursive: true, force: true });
+  });
+
+  it('sync-poc-scenarios: scenario summary can be reflected into weekly review', async () => {
+    const workDir = await mkdtemp(join(tmpdir(), 'iagent-week-scenario-sync-'));
+    const week = '2026-W24';
+    const weeklyPath = join(workDir, `${week}.md`);
+    const scenarioPath = join(workDir, 'scenarios', `${week}-S-A1.md`);
+
+    const initResult = runCli('scripts/init-poc-week.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(initResult.status).toBe(0);
+
+    const scenarioRaw = await readFile(scenarioPath, 'utf8');
+    const updatedScenario = scenarioRaw
+      .replace('ステータス: 未実施', 'ステータス: 実施済み')
+      .replace('- 価値の再現性:', '- 価値の再現性: 成立')
+      .replace('- 運用可能性:', '- 運用可能性: 成立')
+      .replace('- 観測可能性:', '- 観測可能性: 微妙')
+      .replace('- 端末上エージェントらしさ:', '- 端末上エージェントらしさ: 成立')
+      .replace('- 次の仮説:', '- 次の仮説: 通知後の導線をさらに短くすると再訪しやすい');
+    await writeFile(scenarioPath, updatedScenario);
+
+    const syncResult = runCli('scripts/sync-poc-scenarios.mjs', ['--week', week, '--weekly-dir', workDir]);
+    expect(syncResult.status).toBe(0);
+
+    const weeklyRaw = await readFile(weeklyPath, 'utf8');
+    expect(weeklyRaw).toContain('### シナリオ評価');
+    expect(weeklyRaw).toContain('完了シナリオ数: 1/4');
+    expect(weeklyRaw).toContain('[S-A1] 情報ヘビーコンシューマーの朝');
+    expect(weeklyRaw).toContain('通知後の導線をさらに短くすると再訪しやすい');
 
     await rm(workDir, { recursive: true, force: true });
   });

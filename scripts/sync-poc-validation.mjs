@@ -99,6 +99,17 @@ function extractSection(content, heading) {
   return content.slice(start, end);
 }
 
+function extractSubsection(content, heading) {
+  const marker = heading;
+  const start = content.indexOf(marker);
+  if (start < 0) return '';
+  const nextSub = content.indexOf('\n### ', start + marker.length);
+  const nextSec = content.indexOf('\n## ', start + marker.length);
+  const nextCandidates = [nextSub, nextSec].filter((value) => value >= 0);
+  const end = nextCandidates.length > 0 ? Math.min(...nextCandidates) + 1 : content.length;
+  return content.slice(start, end);
+}
+
 function extractField(content, prefix) {
   const lines = content.split(/\r?\n/);
   for (const line of lines) {
@@ -201,7 +212,7 @@ function buildRequestLine(entries) {
   return '改善要求は未入力。';
 }
 
-function buildValidationSection(entries) {
+function buildValidationSection(entries, preservedScenarioSection = '') {
   const byPersona = new Map(entries.map((entry) => [entry.persona, entry]));
   const completed = entries.filter((e) => e.completed);
   const positives = completed
@@ -214,6 +225,22 @@ function buildValidationSection(entries) {
   const learn1 = `${completed.length}/${entries.length} 件のインタビューを実施。`;
   const learn2 = buildLearnedLine(entries);
   const learn3 = buildRequestLine(entries);
+
+  const scenarioSection = preservedScenarioSection.trim()
+    ? `\n${preservedScenarioSection.trimEnd()}\n`
+    : `
+### シナリオ評価
+
+- 完了シナリオ数:
+- 実施シナリオ:
+- 成立:
+- 微妙:
+- 非成立:
+- 主要シナリオ学び:
+  1. 
+  2. 
+  3. 
+`;
 
   return `## 2. ユーザー検証（項目 2）
 
@@ -236,6 +263,7 @@ ${toLines(negatives, '未収集')}
 1. ${learn1}
 2. ${learn2}
 3. ${learn3}
+${scenarioSection}
 
 ---
 `;
@@ -276,7 +304,10 @@ async function main() {
     interviews.push(parseInterview(content, persona.label));
   }
 
-  const sectionText = buildValidationSection(interviews);
+  const reviewRaw = await readFile(weeklyReviewPath, 'utf8');
+  const currentValidationSection = extractSection(reviewRaw, '2. ユーザー検証（項目 2）');
+  const preservedScenarioSection = extractSubsection(currentValidationSection, '### シナリオ評価');
+  const sectionText = buildValidationSection(interviews, preservedScenarioSection);
   const summary = {
     week: opts.week,
     completedInterviews: interviews.filter((entry) => entry.completed).length,
@@ -292,7 +323,6 @@ async function main() {
     return;
   }
 
-  const reviewRaw = await readFile(weeklyReviewPath, 'utf8');
   const next = replaceValidationSection(reviewRaw, sectionText);
   await writeFile(weeklyReviewPath, next);
 

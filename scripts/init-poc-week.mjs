@@ -5,6 +5,12 @@ import { dirname } from 'node:path';
 
 const DEFAULT_WEEKLY_DIR = 'docs/weekly';
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
+const SCENARIOS = [
+  { id: 'S-A1', title: '情報ヘビーコンシューマーの朝', persona: '情報収集型', isoWeekday: 2 },
+  { id: 'S-B1', title: 'PM の会議前', persona: 'PM型', isoWeekday: 4 },
+  { id: 'S-C1', title: '学習者の夜', persona: '学習者型', isoWeekday: 5 },
+  { id: 'S-X1', title: '通知からの再訪', persona: '横断', isoWeekday: 6 },
+];
 
 function printHelp() {
   console.log(`Usage: npm run poc:init-week -- --week <YYYY-W##> [options]
@@ -225,6 +231,16 @@ ${body}
 `;
 }
 
+function applyScenarioTemplate(template, week, scenario, createdDate, scheduledDate) {
+  return template
+    .replace(/^# シナリオ評価テンプレート$/m, `# シナリオ評価（${scenario.id}）- ${week}`)
+    .replace(/^作成日:\s*YYYY-MM-DD/m, `作成日: ${createdDate}`)
+    .replace(/^シナリオID:\s*S-XX/m, `シナリオID: ${scenario.id}`)
+    .replace(/^シナリオ名:\s*$/m, `シナリオ名: ${scenario.title}`)
+    .replace(/^想定ペルソナ:\s*$/m, `想定ペルソナ: ${scenario.persona}`)
+    .replace(/^実施予定日:\s*YYYY-MM-DD/m, `実施予定日: ${scheduledDate}`);
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
@@ -248,6 +264,7 @@ async function main() {
   const baselinePath = `${opts.weeklyDir}/${opts.week}-baseline.md`;
   const interviewPlanPath = `${opts.weeklyDir}/${opts.week}-interview-plan.md`;
   const interviewsDir = `${opts.weeklyDir}/interviews`;
+  const scenariosDir = `${opts.weeklyDir}/scenarios`;
   const infoPath = `${interviewsDir}/${opts.week}-info-collector.md`;
   const pmPath = `${interviewsDir}/${opts.week}-pm.md`;
   const learnerPath = `${interviewsDir}/${opts.week}-learner.md`;
@@ -255,6 +272,7 @@ async function main() {
   const weeklyTemplate = await readFile('docs/templates/WEEKLY-REVIEW.md', 'utf8');
   const baselineTemplate = await readFile('docs/templates/WEEKLY-BASELINE.md', 'utf8');
   const interviewTemplate = await readFile('docs/templates/USER-INTERVIEW-NOTE.md', 'utf8');
+  const scenarioTemplate = await readFile('docs/templates/SCENARIO-EVALUATION.md', 'utf8');
   const interviewBody = extractInterviewBody(interviewTemplate);
 
   await writeGeneratedFile(
@@ -287,6 +305,21 @@ async function main() {
     buildInterviewNote(opts.week, '学習者型', dates.learner, interviewBody),
     opts.force,
   );
+
+  for (const scenario of SCENARIOS) {
+    const scenarioPath = `${scenariosDir}/${opts.week}-${scenario.id}.md`;
+    await writeGeneratedFile(
+      scenarioPath,
+      applyScenarioTemplate(
+        scenarioTemplate,
+        opts.week,
+        scenario,
+        createdDate,
+        isoWeekDate(opts.week, scenario.isoWeekday),
+      ),
+      opts.force,
+    );
+  }
 }
 
 main().catch((error) => {

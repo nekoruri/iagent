@@ -66,6 +66,10 @@ npm run poc:init-week -- --week 2026-W11
 - `docs/weekly/interviews/<week>-info-collector.md`
 - `docs/weekly/interviews/<week>-pm.md`
 - `docs/weekly/interviews/<week>-learner.md`
+- `docs/weekly/scenarios/<week>-S-A1.md`
+- `docs/weekly/scenarios/<week>-S-B1.md`
+- `docs/weekly/scenarios/<week>-S-C1.md`
+- `docs/weekly/scenarios/<week>-S-X1.md`
 
 補足:
 
@@ -94,6 +98,18 @@ npm run poc:sync-validation -- --week 2026-W11
 - チェック結果を保存する場合は `--report-json` / `--check-report-json` を利用する
 - 予定日前のインタビューを厳格エラーにしたくない場合は `--as-of` / `--check-as-of` で基準日を固定する
 - strict チェックでは、`ステータス: 実施済み` の記録に主要項目（よかった/不要提案、通知評価、Must改善）が未入力だとエラーになる
+
+シナリオ評価を weekly review に反映する:
+
+```bash
+npm run poc:sync-scenarios -- --week 2026-W11
+```
+
+補足:
+
+- `docs/weekly/scenarios/<week>-S-*.md` を読む
+- weekly review の `### シナリオ評価` サブセクションだけを更新する
+- `npm run poc:run-week -- --week <week>` では validation sync の後に自動実行される
 
 ---
 
