@@ -41,6 +41,7 @@
 - T7 action taxonomy: [T7-action-taxonomy.md](T7-action-taxonomy.md)
 - T8 budget inventory: [T8-budget-inventory.md](T8-budget-inventory.md)
 - T9 scenario evaluation template: [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
+- T9 persona interview guide: [T9-persona-interview-guide.md](T9-persona-interview-guide.md)
 - PoC exit criteria: [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)
 
 読み方:

@@ -49,6 +49,7 @@ PoC 全体の go / extend / reset 判定は [POC-EXIT-CRITERIA.md](POC-EXIT-CRIT
 - インタビュー記録: `docs/templates/USER-INTERVIEW-NOTE.md`
 - 週次統合レビュー: `docs/templates/WEEKLY-REVIEW.md`
 - 週次 baseline: `docs/templates/WEEKLY-BASELINE.md`
+- ペルソナ別台本: [tracks/T9-persona-interview-guide.md](tracks/T9-persona-interview-guide.md)
 
 ---
 
