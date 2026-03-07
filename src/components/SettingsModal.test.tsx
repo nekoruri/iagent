@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
 import type { TraceRecord } from '../telemetry/types';
@@ -304,6 +304,16 @@ function removeStorage() {
   });
 }
 
+async function renderOpenSettingsModal(onClose: () => void = vi.fn()) {
+  let rendered!: ReturnType<typeof render>;
+  await act(async () => {
+    rendered = render(<SettingsModal open={true} onClose={onClose} />);
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await Promise.resolve();
+  });
+  return rendered;
+}
+
 describe('SettingsModal', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -332,8 +342,8 @@ describe('SettingsModal', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('open=true のとき設定モーダルが表示される', () => {
-    render(<SettingsModal open={true} onClose={vi.fn()} />);
+  it('open=true のとき設定モーダルが表示される', async () => {
+    await renderOpenSettingsModal();
     expect(screen.getByText('設定')).toBeInTheDocument();
   });
 
@@ -1006,9 +1016,9 @@ describe('SettingsModal', () => {
       expect(screen.getByText(/PWA としてインストール/)).toBeInTheDocument();
     });
 
-    it('API 未対応の場合、ストレージセクションが表示されない', () => {
+    it('API 未対応の場合、ストレージセクションが表示されない', async () => {
       removeStorage();
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       expect(screen.queryByText('ストレージ')).not.toBeInTheDocument();
       expect(screen.queryByText('永続化済み')).not.toBeInTheDocument();
@@ -1055,24 +1065,24 @@ describe('SettingsModal', () => {
   });
 
   describe('Push セクション iOS 案内', () => {
-    it('Periodic Background Sync の制約説明が表示される', () => {
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+    it('Periodic Background Sync の制約説明が表示される', async () => {
+      await renderOpenSettingsModal();
       expect(screen.getByText(/最短でも約12時間/)).toBeInTheDocument();
       expect(screen.getByText(/iOS Safari は非対応/)).toBeInTheDocument();
     });
 
-    it('iOS 未インストール時に Push セクションに案内が表示される', () => {
+    it('iOS 未インストール時に Push セクションに案内が表示される', async () => {
       mockIsIOSSafari.mockReturnValue(true);
       mockIsStandaloneMode.mockReturnValue(false);
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       expect(screen.getByText(/iOS で Push 通知を受け取るには/)).toBeInTheDocument();
     });
 
-    it('iOS スタンドアロン時に Push セクションの案内が表示されない', () => {
+    it('iOS スタンドアロン時に Push セクションの案内が表示されない', async () => {
       mockIsIOSSafari.mockReturnValue(true);
       mockIsStandaloneMode.mockReturnValue(true);
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       expect(screen.queryByText(/iOS で Push 通知を受け取るには/)).not.toBeInTheDocument();
     });
@@ -1080,7 +1090,7 @@ describe('SettingsModal', () => {
 
   describe('Heartbeat capability summary', () => {
     it('現在の実行 capability を表示する', async () => {
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       expect(await screen.findByText('現在の自律実行 capability')).toBeInTheDocument();
       expect(screen.getByText('Desktop browser')).toBeInTheDocument();
@@ -1107,7 +1117,7 @@ describe('SettingsModal', () => {
       vi.mocked(getPushSubscription).mockResolvedValue({} as PushSubscription);
       vi.mocked(getNotificationPermission).mockReturnValue('granted');
 
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       await waitFor(() => {
         expect(mockLoadHeartbeatCapabilitySnapshot).toHaveBeenCalledWith(expect.objectContaining({
@@ -1189,7 +1199,7 @@ describe('SettingsModal', () => {
       const { getNotificationPermission } = await import('../core/notifier');
       vi.mocked(getNotificationPermission).mockReturnValue('denied');
 
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       expect(screen.getByText('通知権限: ブロック中')).toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: 'デスクトップ通知' })).toBeDisabled();
@@ -1253,7 +1263,7 @@ describe('SettingsModal', () => {
       });
       vi.mocked(getNotificationPermission).mockReturnValue('denied');
 
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       const desktopToggle = screen.getByRole('checkbox', { name: 'デスクトップ通知' });
       expect(desktopToggle).not.toBeChecked();
@@ -1263,8 +1273,8 @@ describe('SettingsModal', () => {
   });
 
   describe('コスト制御設定', () => {
-    it('コスト制御の初期設定が表示される', () => {
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+    it('コスト制御の初期設定が表示される', async () => {
+      await renderOpenSettingsModal();
 
       expect(screen.getByRole('checkbox', { name: 'コスト制御を有効化' })).toBeChecked();
       expect(screen.getByText('日次トークン予算: 無制限')).toBeInTheDocument();
@@ -1273,7 +1283,7 @@ describe('SettingsModal', () => {
     });
 
     it('日次トークン予算スライダーを変更すると表示が更新される', async () => {
-      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      await renderOpenSettingsModal();
 
       const slider = screen.getByRole('slider', { name: /日次トークン予算/ });
       fireEvent.change(slider, { target: { value: '1000' } });
