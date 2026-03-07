@@ -4,6 +4,7 @@ import {
   getDeviceCalendarState,
   getDeviceFocusState,
   getDeviceMode,
+  getDeviceScene,
   getDeviceOnlineState,
   getDeviceTimeOfDay,
   getInstallState,
@@ -43,6 +44,27 @@ describe('contextSnapshot', () => {
     expect(getDeviceMode({ installState: 'browser', viewportWidth: 1280 })).toBe('desktop-browser');
   });
 
+  it('scene を coarse-grained に分類する', () => {
+    expect(getDeviceScene({
+      timeOfDay: 'morning',
+      calendarState: 'empty',
+      onlineState: 'online',
+      focusState: 'normal',
+    })).toBe('morning-briefing');
+    expect(getDeviceScene({
+      timeOfDay: 'daytime',
+      calendarState: 'upcoming-soon',
+      onlineState: 'online',
+      focusState: 'normal',
+    })).toBe('pre-meeting');
+    expect(getDeviceScene({
+      timeOfDay: 'daytime',
+      calendarState: 'busy-today',
+      onlineState: 'offline',
+      focusState: 'normal',
+    })).toBe('offline-recovery');
+  });
+
   it('onlineState を明示値優先で分類する', () => {
     expect(getDeviceOnlineState(true)).toBe('online');
     expect(getDeviceOnlineState(false)).toBe('offline');
@@ -65,6 +87,7 @@ describe('contextSnapshot', () => {
     expect(snapshot.focusState).toBe('normal');
     expect(snapshot.deviceMode).toBe('mobile-browser');
     expect(snapshot.installState).toBe('browser');
+    expect(snapshot.scene).toBe('pre-meeting');
   });
 
   it('window / navigator がない環境では unknown にフォールバックする', () => {
@@ -76,6 +99,7 @@ describe('contextSnapshot', () => {
     expect(snapshot.onlineState).toBe('unknown');
     expect(snapshot.deviceMode).toBe('unknown');
     expect(snapshot.installState).toBe('unknown');
+    expect(snapshot.scene).toBe('general');
 
     windowSpy.mockRestore();
     navigatorSpy.mockRestore();

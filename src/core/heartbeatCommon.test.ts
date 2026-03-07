@@ -255,6 +255,52 @@ describe('executeHeartbeatAndStore', () => {
     expect(configChanged).toBe(false);
   });
 
+  it('offline の場合は network budget としてスキップする', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'offline-task',
+      name: 'オフライン検証',
+      description: 'テスト',
+      enabled: true,
+      type: 'custom',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({ tasks: [task] }),
+    });
+
+    const navigatorSpy = vi.spyOn(globalThis, 'navigator', 'get').mockImplementation(() => ({
+      onLine: false,
+    }) as Navigator);
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck');
+
+    const { results } = await executeHeartbeatAndStore('sk-test');
+
+    expect(results).toEqual([]);
+    expect(spy).not.toHaveBeenCalled();
+    const events = await loadOpsEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'autonomy-stage',
+        stage: 'delivery',
+        reason: 'offline',
+      }),
+      expect.objectContaining({
+        type: 'heartbeat-run',
+        reason: 'offline',
+        budgetType: 'network',
+        budgetAction: 'skip',
+      }),
+    ]));
+
+    navigatorSpy.mockRestore();
+    spy.mockRestore();
+  });
+
   it('LLM 呼び出し前に taskLastRun を先制更新する', async () => {
     const { saveConfigToIDB } = await import('../store/configStore');
     const task: HeartbeatTask = {
@@ -456,6 +502,47 @@ describe('executeHeartbeatAndStore', () => {
       expect.any(Object),
       { degradedMode: true },
     );
+    spy.mockRestore();
+  });
+
+  it('timeout failure を latency budget として記録する', async () => {
+    const { saveConfigToIDB } = await import('../store/configStore');
+    const task: HeartbeatTask = {
+      id: 'timeout-task',
+      name: 'タイムアウト検証',
+      description: 'テスト',
+      enabled: true,
+      type: 'custom',
+    };
+    await saveConfigToIDB({
+      openaiApiKey: 'sk-test',
+      braveApiKey: '',
+      openWeatherMapApiKey: '',
+      mcpServers: [],
+      heartbeat: makeConfig({ tasks: [task] }),
+    });
+
+    const heartbeatOpenAI = await import('./heartbeatOpenAI');
+    const spy = vi.spyOn(heartbeatOpenAI, 'executeWorkerHeartbeatCheck')
+      .mockRejectedValue(new Error('OpenAI API タイムアウト (90秒)'));
+
+    await expect(executeHeartbeatAndStore('sk-test')).rejects.toThrow('OpenAI API タイムアウト');
+    const events = await loadOpsEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'autonomy-stage',
+        stage: 'delivery',
+        reason: 'latency_timeout',
+      }),
+      expect.objectContaining({
+        type: 'heartbeat-run',
+        status: 'failure',
+        reason: 'latency_timeout',
+        budgetType: 'latency',
+        budgetAction: 'degrade',
+      }),
+    ]));
+
     spy.mockRestore();
   });
 });

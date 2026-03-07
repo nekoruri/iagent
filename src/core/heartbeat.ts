@@ -6,7 +6,13 @@ import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
 import { createAutonomyEventMetadata, createAutonomyFlowId, createContextSnapshotId } from './autonomyEvent';
 import { createDeviceContextSnapshot } from './contextSnapshot';
+import {
+  classifyHeartbeatFailureReason,
+  getReasonBudgetMetadata,
+  getSuppressionInterventionLevel,
+} from './autonomyReason';
 import { buildHeartbeatNotificationReason, shouldIncludeNotificationReason } from './heartbeatNotificationText';
+import { FETCH_TIMEOUT_MS } from './heartbeatOpenAI';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
 import { getDB } from '../store/db';
@@ -263,10 +269,13 @@ export class HeartbeatEngine {
         taskCount: tasks.length,
         deferredTaskCount: deferredTasks.length,
         reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
-        budgetType: 'token',
-        budgetAction: tokenBudget.isOverBudget ? 'skip' : 'defer',
-        budgetValue: tokenBudget.usedTokensToday,
-        budgetThreshold: tokenBudget.dailyTokenBudget,
+        ...getReasonBudgetMetadata(
+          tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
+          {
+            budgetValue: tokenBudget.usedTokensToday,
+            budgetThreshold: tokenBudget.dailyTokenBudget,
+          },
+        ),
         tokenBudget: tokenBudget.enabled ? tokenBudget.dailyTokenBudget : undefined,
         tokensUsedToday: tokenBudget.enabled ? tokenBudget.usedTokensToday : undefined,
         pressureMode: tokenBudget.enabled ? tokenBudget.isPressure : undefined,
@@ -289,12 +298,14 @@ export class HeartbeatEngine {
     const startedAt = Date.now();
     const flowId = createAutonomyFlowId(startedAt);
     const contextSnapshotId = createContextSnapshotId(flowId);
-    const logStage = async (stage: 'trigger' | 'context') => {
+    const logStage = async (stage: 'trigger' | 'context' | 'delivery', extras: Record<string, unknown> = {}) => {
       await appendOpsEvent({
         ...createAutonomyEventMetadata({
           flowId,
           stage,
-          interventionLevel: 'L0',
+          interventionLevel: stage === 'delivery'
+            ? getSuppressionInterventionLevel((extras.reason as Parameters<typeof getSuppressionInterventionLevel>[0]) ?? 'no_changes')
+            : 'L0',
           contextSnapshotId,
           nowTs: Date.now(),
         }),
@@ -302,6 +313,7 @@ export class HeartbeatEngine {
         timestamp: Date.now(),
         source: 'tab',
         contextSnapshot: stage === 'context' ? contextSnapshot : undefined,
+        ...extras,
       }).catch(() => {});
     };
     const runtimeConfig = getConfig().heartbeat;
@@ -353,7 +365,18 @@ export class HeartbeatEngine {
       const apiKey = getConfig().openaiApiKey;
       if (!apiKey) {
         trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_api_key' });
+        await logStage('delivery', { reason: 'no_api_key' });
         await logRun('skipped', { reason: 'no_api_key', traceId: trace.traceId });
+        return;
+      }
+      if (contextSnapshot.onlineState === 'offline') {
+        trace.rootSpan.addEvent('heartbeat.skip', { reason: 'offline' });
+        await logStage('delivery', { reason: 'offline' });
+        await logRun('skipped', {
+          reason: 'offline',
+          traceId: trace.traceId,
+          ...getReasonBudgetMetadata('offline'),
+        });
         return;
       }
 
@@ -393,6 +416,8 @@ export class HeartbeatEngine {
         : allHeartbeatResults;
       if (trimmed.length > 0) {
         this.notify({ results: trimmed });
+      } else {
+        await logStage('delivery', { reason: 'no_changes' });
       }
       await logRun('success', {
         resultCount: allHeartbeatResults.length,
@@ -407,8 +432,17 @@ export class HeartbeatEngine {
     } catch (error) {
       console.error('[Heartbeat] チェック実行エラー:', error);
       trace.rootSpan.endWithError(error);
+      const failureBudget = classifyHeartbeatFailureReason(error, contextSnapshot, FETCH_TIMEOUT_MS);
+      if (failureBudget.reason) {
+        await logStage('delivery', { reason: failureBudget.reason });
+      }
       await logRun('failure', {
         traceId: trace.traceId,
+        reason: failureBudget.reason,
+        budgetType: failureBudget.budgetType,
+        budgetAction: failureBudget.budgetAction,
+        budgetValue: failureBudget.budgetValue,
+        budgetThreshold: failureBudget.budgetThreshold,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       // エラー時も taskLastRun を更新して即リトライを防止

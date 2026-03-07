@@ -168,6 +168,7 @@ describe('useFeedPanel', () => {
         focusState: 'normal',
         deviceMode: 'desktop-browser',
         installState: 'browser',
+        scene: 'pre-meeting',
       },
     });
 
@@ -181,6 +182,6 @@ describe('useFeedPanel', () => {
       title: 'フィードの新着を確認した結果',
     }));
     expect(result.current.explanation?.whyNow).toContain('Push 通知');
-    expect(result.current.explanation?.whyNow).toContain('朝');
+    expect(result.current.explanation?.whyNow).toContain('会議前');
   });
 });

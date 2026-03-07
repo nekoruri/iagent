@@ -44,6 +44,7 @@ function createMockAutonomyFlow() {
       focusState: 'normal',
       deviceMode: 'desktop-browser',
       installState: 'browser',
+      scene: 'pre-meeting',
     },
     latestOutcome: 'clicked',
     latestReason: 'daily_quota_reached',
@@ -1171,8 +1172,8 @@ describe('SettingsModal', () => {
 
       expect(await screen.findByText('最近の自律実行フロー')).toBeInTheDocument();
       expect(await screen.findByText('flow-1')).toBeInTheDocument();
-      expect(screen.getByText('context: morning / upcoming-soon / normal / desktop-browser')).toBeInTheDocument();
-      expect(screen.getByText('reason: daily_quota_reached')).toBeInTheDocument();
+      expect(screen.getByText('context: 会議前 / morning / upcoming-soon / normal / desktop-browser')).toBeInTheDocument();
+      expect(screen.getByText('reason: 日次通知上限に達したため見送りました。')).toBeInTheDocument();
       expect(screen.getByText('trace: trace-1')).toBeInTheDocument();
     });
 

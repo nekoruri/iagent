@@ -25,6 +25,7 @@ import {
 import { buildAutonomyTrustStatus } from '../core/autonomyTrustStatus';
 import { buildBudgetStatusSummary, loadHeartbeatLatencyP95 } from '../core/autonomyBudgetStatus';
 import { buildAutonomyActionBoundarySummary, type ActionBoundaryState } from '../core/autonomyActionBoundary';
+import { autonomyReasonLabel, sceneLabel } from '../core/autonomyReason';
 import {
   loadAutonomyLearningSummary,
   type AutonomyLearningSummary,
@@ -216,6 +217,7 @@ function autonomyOutcomeLabel(
 function formatContextSnapshotSummary(flow: AutonomyFlowSummary): string {
   if (!flow.contextSnapshot) return 'context snapshot なし';
   return [
+    sceneLabel(flow.contextSnapshot.scene),
     flow.contextSnapshot.timeOfDay,
     flow.contextSnapshot.calendarState,
     flow.contextSnapshot.focusState,
@@ -2392,7 +2394,7 @@ export function SettingsModal({ open, onClose }: Props) {
                           )}
                           {flow.latestReason && (
                             <p className="autonomy-flow-detail autonomy-flow-detail-alert">
-                              reason: {flow.latestReason}
+                              reason: {autonomyReasonLabel(flow.latestReason) ?? flow.latestReason}
                             </p>
                           )}
                           {flow.traceId && (

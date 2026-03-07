@@ -1,4 +1,5 @@
 import type { DeviceContextSnapshotV1, HeartbeatResult } from '../types';
+import { sceneLabel } from './autonomyReason';
 
 const IMPORTANT_NOTIFICATION_REASON_TASKS = new Set([
   'calendar-check',
@@ -52,6 +53,7 @@ export function buildHeartbeatNotificationReason(
   if (!contextSnapshot) return undefined;
 
   const parts = [
+    sceneLabel(contextSnapshot.scene),
     timeOfDayLabel(contextSnapshot.timeOfDay),
     calendarStateLabel(contextSnapshot.calendarState),
     focusStateLabel(contextSnapshot.focusState),

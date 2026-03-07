@@ -5,6 +5,7 @@ import type {
   DeviceFocusState,
   DeviceMode,
   DeviceOnlineState,
+  DeviceScene,
   DeviceTimeOfDay,
   InstallState,
 } from '../types';
@@ -17,6 +18,14 @@ interface DeviceContextSnapshotInput {
   isQuietPeriod?: boolean;
   installState?: InstallState;
   viewportWidth?: number;
+}
+
+interface DeviceSceneInput {
+  timeOfDay: DeviceTimeOfDay;
+  calendarState: DeviceCalendarState;
+  onlineState: DeviceOnlineState;
+  focusState: DeviceFocusState;
+  deviceMode?: DeviceMode;
 }
 
 function getLocalDateKey(date: Date): string {
@@ -119,21 +128,47 @@ export function getDeviceMode(input: {
   return isMobile ? 'mobile-browser' : 'desktop-browser';
 }
 
+export function getDeviceScene(input: DeviceSceneInput): DeviceScene {
+  if (input.deviceMode === 'unknown') return 'general';
+  if (input.onlineState === 'offline') return 'offline-recovery';
+  if (input.focusState === 'focused') return 'focused-work';
+  if (input.calendarState === 'upcoming-soon' || input.calendarState === 'in-meeting-window') {
+    return 'pre-meeting';
+  }
+  if (input.timeOfDay === 'morning') return 'morning-briefing';
+  if (input.timeOfDay === 'evening') return 'evening-review';
+  if (input.timeOfDay === 'late-night') return 'late-night';
+  return 'general';
+}
+
 export function createDeviceContextSnapshot(input: DeviceContextSnapshotInput = {}): DeviceContextSnapshotV1 {
   const now = input.now ?? new Date();
+  const timeOfDay = getDeviceTimeOfDay(now);
+  const calendarState = getDeviceCalendarState(input.calendarEvents ?? [], now);
+  const onlineState = getDeviceOnlineState(input.isOnline);
+  const focusState = getDeviceFocusState({
+    focusMode: input.focusMode,
+    isQuietPeriod: input.isQuietPeriod,
+  });
+  const deviceMode = getDeviceMode({
+    installState: input.installState,
+    viewportWidth: input.viewportWidth,
+  });
+  const installState = getInstallState(input.installState);
   return {
     capturedAt: now.getTime(),
-    timeOfDay: getDeviceTimeOfDay(now),
-    calendarState: getDeviceCalendarState(input.calendarEvents ?? [], now),
-    onlineState: getDeviceOnlineState(input.isOnline),
-    focusState: getDeviceFocusState({
-      focusMode: input.focusMode,
-      isQuietPeriod: input.isQuietPeriod,
+    timeOfDay,
+    calendarState,
+    onlineState,
+    focusState,
+    deviceMode,
+    installState,
+    scene: getDeviceScene({
+      timeOfDay,
+      calendarState,
+      onlineState,
+      focusState,
+      deviceMode,
     }),
-    deviceMode: getDeviceMode({
-      installState: input.installState,
-      viewportWidth: input.viewportWidth,
-    }),
-    installState: getInstallState(input.installState),
   };
 }

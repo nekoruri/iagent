@@ -96,12 +96,13 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 現在地:
 
 - 時刻、カレンダー、オンライン状態、install 状態などのシグナルは部分的にある
-- ただし、共通の `context snapshot` と場面分類は未確立
+- `context snapshot` に `scene` を含めた coarse-grained 場面分類を追加した
+- ただし、場面分類の語彙と利用先はまだ拡張余地がある
 
 次にやること:
 
-- context snapshot schema v1 を固定する
-- coarse-grained 場面分類を決める
+- context snapshot schema v1 を scene 含めて固定する
+- coarse-grained 場面分類を利用側へ広げる
 - 既存シグナル -> 文脈推定の mapping を明示する
 
 ### T3 介入設計
@@ -116,6 +117,7 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - notification / badge / panel / digest はある
 - intervention taxonomy 文書は作成済み
 - Heartbeat 通知からの landing はパネル自動表示まで入った
+- suppression/no-change の `delivery` を flow 上で追える
 - ただし介入レベルの横断運用と個別結果 deep link はまだ弱い
 
 次にやること:
@@ -142,6 +144,7 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - Feed パネルでも latest feed-related flow に基づく `なぜ今` を折りたたみ表示できる
 - chat 内の Heartbeat proactive message にも explanation card を折りたたみ表示できる
 - 通知本文にも context 由来の短い理由を表示できるが、重要タスクのみに限定している
+- network / latency / permission / no-change の suppression reason を flow 上で追える
 - ただし trigger -> reaction を完全に埋め切る標準スキーマと user/dev の責務分離は未完了
 
 次にやること:
@@ -219,6 +222,7 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - token budget、storage persistence、offline fallback はある
 - Settings の Heartbeat セクションで `デバイス budget サマリー` を確認できる
 - token budget 起因の stop/defer は `heartbeat-run` に構造化して残せる
+- offline skip と timeout/network failure も budget reason として残せる
 - ただし device-side budget はまだ個別機能に散在している
 
 次にやること:

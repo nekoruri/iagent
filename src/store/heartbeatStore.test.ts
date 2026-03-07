@@ -569,6 +569,7 @@ describe('ops events', () => {
         focusState: 'normal',
         deviceMode: 'desktop-browser',
         installState: 'browser',
+        scene: 'general',
       },
     });
 

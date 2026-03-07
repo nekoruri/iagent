@@ -32,6 +32,7 @@ interface DeviceContextSnapshotV1 {
   focusState: 'focused' | 'normal' | 'quiet-hours'
   deviceMode: 'desktop-browser' | 'desktop-pwa' | 'mobile-browser' | 'mobile-pwa'
   installState: 'installed' | 'browser'
+  scene: 'morning-briefing' | 'pre-meeting' | 'focused-work' | 'evening-review' | 'offline-recovery' | 'late-night' | 'general'
 }
 ```
 
@@ -42,6 +43,7 @@ interface DeviceContextSnapshotV1 {
 - `calendarState` は coarse-grained に予定密度を表す
 - `focusState` は `focusMode` や静寂時間を含めた「介入可否に近い状態」
 - `deviceMode` は layout / capability に関わる区分
+- `scene` は user-facing explanation や suppression の粗い場面分類に使う
 
 ---
 
@@ -128,6 +130,26 @@ v1 では次のシグナルから推定する。
 - T1 capability matrix と接続
 - Push / Periodic Sync の説明条件に利用
 
+### 3.7 `scene`
+
+`scene` は上の field から導く coarse-grained な場面分類。
+
+| 値 | 主な条件 |
+|---|---|
+| `morning-briefing` | `timeOfDay=morning` |
+| `pre-meeting` | `calendarState=upcoming-soon` or `in-meeting-window` |
+| `focused-work` | `focusState=focused` |
+| `evening-review` | `timeOfDay=evening` |
+| `offline-recovery` | `onlineState=offline` |
+| `late-night` | `timeOfDay=late-night` |
+| `general` | 上記以外、または context が欠ける場面 |
+
+用途:
+
+- `whyNow` explanation の coarse-grained な説明
+- suppression / no-change の user-facing 文言
+- T3 intervention taxonomy の適用条件整理
+
 ---
 
 ## 4. signal mapping
@@ -140,6 +162,7 @@ v1 では次のシグナルから推定する。
 | `focusState` | `focusMode`, `quietHours`, `quietDays` | 低 | explicit + derived |
 | `deviceMode` | viewport, standalone 判定 | 低 | heuristic |
 | `installState` | `display-mode`, `navigator.standalone` | 低 | explicit |
+| `scene` | 上記 field の derived scene | 低 | heuristic |
 
 v1 で未使用:
 
@@ -163,6 +186,11 @@ v1 で未使用:
 | `休息中` | late-night or explicit quiet/focused state |
 
 この判定は v1 では heuristic とし、確信度の高い推定はしない。
+
+current implementation:
+
+- `scene` は実装済みで、`morning-briefing / pre-meeting / focused-work / evening-review / offline-recovery / late-night / general` を返す
+- Settings の autonomy flow 一覧や Heartbeat explanation では `scene` を先頭に表示する
 
 ---
 
