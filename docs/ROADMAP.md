@@ -236,12 +236,13 @@ docs 全体の読み方: [README.md](README.md)
 現在地:
 
 - KPI / SLO / interview の運用はある
-- ただし feature 単位ではなく生活シナリオ単位の評価設計は未完成
+- scenario evaluation template と scenario sync はある
+- ただし feature 単位ではなく生活シナリオ単位の longitudinal 評価設計は未完成
 
 次にやること:
 
-- シナリオ評価テンプレートを作る
-- ペルソナ別代表シナリオを固定する
+- weekly に残した scenario 評価を longitudinal に比較できるようにする
+- 定量 / interview / logs を scenario 単位でさらに結び付ける
 - PoC exit criteria を研究ミッション基準で明文化する
 
 ---

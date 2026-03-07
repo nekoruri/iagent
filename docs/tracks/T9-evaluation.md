@@ -7,7 +7,10 @@
 ## 現在地
 
 - KPI / SLO / interview ループはある
-- ただし、生活シナリオ単位の研究評価や longitudinal な比較軸はまだ弱い
+- scenario evaluation template はある
+- `init-week` で代表シナリオの雛形を生成できる
+- `sync-scenarios` で weekly review の `シナリオ評価` を更新できる
+- ただし、生活シナリオ単位の longitudinal な比較軸はまだ弱い
 
 ## 具体タスク
 

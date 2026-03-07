@@ -139,3 +139,9 @@ KPI / SLO / interview はあるが、それだけでは
 - 少なくとも 3 ペルソナ + 1 横断シナリオが定義される
 - weekly からシナリオ単位の学びへリンクできる
 - KPI / interview / logs をシナリオ評価へ接続できる
+
+current implementation:
+
+- `docs/templates/SCENARIO-EVALUATION.md` を用意
+- `npm run poc:init-week -- --week <week>` で `docs/weekly/scenarios/<week>-S-*.md` を生成
+- `npm run poc:sync-scenarios -- --week <week>` で weekly review の `### シナリオ評価` を更新
