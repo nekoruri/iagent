@@ -23,6 +23,7 @@ import {
   type HeartbeatCapabilitySnapshot,
 } from '../core/heartbeatCapabilities';
 import { buildAutonomyTrustStatus } from '../core/autonomyTrustStatus';
+import { buildBudgetStatusSummary, loadHeartbeatLatencyP95 } from '../core/autonomyBudgetStatus';
 import { getTrace } from '../telemetry/store';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
@@ -35,6 +36,7 @@ import {
   getDataPortabilityErrorMessage,
   type DataPortabilityCounts,
 } from '../core/dataPortability';
+import { getTodayHeartbeatTokenUsage } from '../store/heartbeatStore';
 import {
   applyPersonaPresetToConfig,
   buildPersonaPreset,
@@ -342,6 +344,11 @@ export function SettingsModal({ open, onClose }: Props) {
     usage: number;
     quota: number;
   } | null>(null);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
+  const [tokensUsedToday, setTokensUsedToday] = useState(0);
+  const [latencyP95Ms, setLatencyP95Ms] = useState<number | undefined>(undefined);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [capabilitySnapshot, setCapabilitySnapshot] = useState<HeartbeatCapabilitySnapshot | null>(null);
   const [mcpPresetMessage, setMcpPresetMessage] = useState('');
@@ -550,6 +557,27 @@ export function SettingsModal({ open, onClose }: Props) {
         setStorageInfo(null);
       }
     })();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const refreshId = window.setTimeout(() => {
+      void loadHeartbeatLatencyP95().then(setLatencyP95Ms).catch(() => setLatencyP95Ms(undefined));
+      void getTodayHeartbeatTokenUsage().then(setTokensUsedToday).catch(() => setTokensUsedToday(0));
+    }, 0);
+    return () => window.clearTimeout(refreshId);
   }, [open]);
 
   const updatePersona = (patch: Partial<PersonaConfig>) => {
@@ -1066,6 +1094,14 @@ export function SettingsModal({ open, onClose }: Props) {
     hasPushSubscription,
     isQuietPeriod: isQuietHours(heartbeat, new Date()),
     capabilitySnapshot,
+  });
+  const budgetStatusSummary = buildBudgetStatusSummary({
+    heartbeat,
+    tokensUsedToday,
+    latencyP95Ms,
+    isOnline,
+    storageInfo,
+    hasBackgroundPath: Boolean(push.enabled && hasPushSubscription),
   });
 
   const toggleSection = (id: SectionId) => {
@@ -1643,6 +1679,28 @@ export function SettingsModal({ open, onClose }: Props) {
                 <p className="mcp-hint">
                   予算が逼迫すると、出力トークンを縮退し、必要に応じて低優先タスクを次回に回します。
                 </p>
+              </div>
+
+              <div className="budget-status-section">
+                <div className="budget-status-header">
+                  <h4>デバイス budget サマリー</h4>
+                </div>
+                <p className="mcp-hint">
+                  token / latency / storage / network / battery の current state と fallback を確認できます。
+                </p>
+                <div className="budget-status-list">
+                  {budgetStatusSummary.items.map((item) => (
+                    <div key={item.id} className="budget-status-item">
+                      <div className="budget-status-item-header">
+                        <span className="budget-status-item-label">{item.label}</span>
+                        <span className={`mcp-status ${item.state === 'ok' ? 'mcp-status-connected' : item.state === 'watch' ? 'mcp-status-warning' : 'mcp-status-error'}`}>
+                          {item.state === 'ok' ? 'ok' : item.state === 'watch' ? 'watch' : 'limited'}
+                        </span>
+                      </div>
+                      <p className="mcp-hint budget-status-detail">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="hb-action-log-section">

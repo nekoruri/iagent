@@ -282,6 +282,8 @@ vi.mock('../core/dataPortability', () => ({
 // heartbeatStore モック
 vi.mock('../store/heartbeatStore', () => ({
   loadActionLog: vi.fn(async () => []),
+  loadOpsEvents: vi.fn(async () => []),
+  getTodayHeartbeatTokenUsage: vi.fn(async () => 0),
 }));
 
 function mockStorage(opts: { persisted: boolean; usage: number; quota: number }) {
@@ -1299,6 +1301,19 @@ describe('SettingsModal', () => {
 
       expect(screen.getByText('一部制限')).toBeInTheDocument();
       expect(screen.getByText('フォーカスモード')).toBeInTheDocument();
+    });
+  });
+
+  describe('デバイス budget サマリー', () => {
+    it('Heartbeat セクションに budget 状態を表示する', async () => {
+      await renderOpenSettingsModal();
+
+      expect(screen.getByText('デバイス budget サマリー')).toBeInTheDocument();
+      expect(screen.getByText('battery')).toBeInTheDocument();
+      expect(screen.getByText('token')).toBeInTheDocument();
+      expect(screen.getByText('latency')).toBeInTheDocument();
+      expect(screen.getByText('storage')).toBeInTheDocument();
+      expect(screen.getByText('network')).toBeInTheDocument();
     });
   });
 
