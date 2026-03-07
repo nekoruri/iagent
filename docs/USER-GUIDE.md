@@ -183,6 +183,7 @@ Heartbeat は定期チェック機能です。設定項目:
 - `デバイス budget サマリー` で `battery / token / latency / storage / network` の状態と fallback を確認できる
 - `学習とパーソナライズ（PoC）` で `timing / task frequency / category interest / memory quality / wording / channel` のどこが学習対象かを確認できる
 - `最新の最適化ルール` では、保存済み rule があればそれを、なければ現在の feedback から計算した summary を表示する
+- suppression reason は `offline / no changes / notification permission / token / timeout` などを flow 上で追跡する
 - `dismissed` はパネル非表示、`snoozed` は期限まで非表示
 
 ### 4.5 バックグラウンド Push
@@ -226,8 +227,8 @@ RSS フィード取得と Web 監視で利用します。
 
 - `有効` トグル
 - `最近の自律実行フロー`
-  - `flowId` 単位で直近の自律実行を集約表示
-  - `decision -> delivery -> reaction` の stage、context snapshot、reason、trace 参照を確認可能
+- `flowId` 単位で直近の自律実行を集約表示
+  - `decision -> delivery -> reaction` の stage、scene を含む context snapshot、reason、trace 参照を確認可能
   - `trace を表示` から developer-facing trace detail（root span / spans / events / attributes）を確認可能
 - OTLP エンドポイント
 - 送信ヘッダー（JSON）

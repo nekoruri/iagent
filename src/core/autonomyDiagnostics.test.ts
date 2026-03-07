@@ -23,6 +23,7 @@ describe('autonomyDiagnostics', () => {
           focusState: 'normal',
           deviceMode: 'desktop-browser',
           installState: 'browser',
+          scene: 'pre-meeting',
         },
       },
       {
@@ -125,6 +126,7 @@ describe('autonomyDiagnostics', () => {
           focusState: 'normal',
           deviceMode: 'desktop-browser',
           installState: 'browser',
+          scene: 'pre-meeting',
         },
         latestOutcome: 'clicked',
       },
@@ -138,5 +140,6 @@ describe('autonomyDiagnostics', () => {
       explanationTitle: 'この通知を今出した理由',
     }));
     expect(message.explanationWhyNow).toContain('Push 通知');
+    expect(message.explanationWhyNow).toContain('会議前');
   });
 });

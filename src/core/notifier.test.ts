@@ -175,11 +175,17 @@ describe('sendHeartbeatNotifications', () => {
   it('permission が denied のとき通知を作成しない', () => {
     Object.defineProperty(Notification, 'permission', { value: 'denied', configurable: true });
     const results: HeartbeatResult[] = [
-      { taskId: 'test-1', timestamp: 1000, hasChanges: true, summary: 'テスト' },
+      { taskId: 'test-1', timestamp: 1000, hasChanges: true, summary: 'テスト', flowId: 'flow-1', contextSnapshotId: 'flow-1-context' },
     ];
     sendHeartbeatNotifications(results);
 
     expect(mockInstances).toHaveLength(0);
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'autonomy-stage',
+      stage: 'delivery',
+      flowId: 'flow-1',
+      reason: 'notification_permission_denied',
+    }));
   });
 
   it('onclick で window.focus を呼ぶ', () => {

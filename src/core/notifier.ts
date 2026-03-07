@@ -1,5 +1,6 @@
 import type { HeartbeatResult } from '../types';
 import { createAutonomyEventMetadata, createAutonomyFlowId } from './autonomyEvent';
+import { getSuppressionInterventionLevel } from './autonomyReason';
 import { buildHeartbeatNotificationBody } from './heartbeatNotificationText';
 import { appendOpsEvent } from '../store/heartbeatStore';
 
@@ -22,7 +23,32 @@ export async function requestNotificationPermission(): Promise<'granted' | 'deni
 
 /** Heartbeat 結果からデスクトップ通知を送信する */
 export function sendHeartbeatNotifications(results: HeartbeatResult[]): void {
-  if (getNotificationPermission() !== 'granted') return;
+  const permission = getNotificationPermission();
+  if (permission !== 'granted') {
+    const reason = permission === 'denied'
+      ? 'notification_permission_denied'
+      : permission === 'unsupported'
+        ? 'notification_unsupported'
+        : 'notification_permission_default';
+    for (const result of results) {
+      const source = result.source ?? 'tab';
+      const flowId = result.flowId ?? createAutonomyFlowId(result.timestamp);
+      void appendOpsEvent({
+        ...createAutonomyEventMetadata({
+          flowId,
+          stage: 'delivery',
+          interventionLevel: getSuppressionInterventionLevel(reason),
+          contextSnapshotId: result.contextSnapshotId,
+          nowTs: Date.now(),
+        }),
+        type: 'autonomy-stage',
+        timestamp: Date.now(),
+        source,
+        reason,
+      }).catch(() => {});
+    }
+    return;
+  }
 
   for (const result of results) {
     const source = result.source ?? 'tab';

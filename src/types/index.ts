@@ -103,6 +103,14 @@ export type DeviceOnlineState = 'online' | 'offline' | 'unknown';
 export type DeviceFocusState = 'focused' | 'normal' | 'quiet-hours';
 export type DeviceMode = 'desktop-browser' | 'desktop-pwa' | 'mobile-browser' | 'mobile-pwa' | 'unknown';
 export type InstallState = 'installed' | 'browser' | 'unknown';
+export type DeviceScene =
+  | 'morning-briefing'
+  | 'pre-meeting'
+  | 'focused-work'
+  | 'evening-review'
+  | 'offline-recovery'
+  | 'late-night'
+  | 'general';
 
 export interface DeviceContextSnapshotV1 {
   capturedAt: number;
@@ -112,6 +120,7 @@ export interface DeviceContextSnapshotV1 {
   focusState: DeviceFocusState;
   deviceMode: DeviceMode;
   installState: InstallState;
+  scene: DeviceScene;
 }
 
 export type AutonomyEventStage = 'trigger' | 'context' | 'decision' | 'delivery' | 'reaction';

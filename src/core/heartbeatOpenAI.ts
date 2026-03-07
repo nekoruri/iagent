@@ -17,7 +17,7 @@ const OPENAI_API_URL = typeof __HEARTBEAT_OPENAI_API_URL__ === 'string' && __HEA
   ? __HEARTBEAT_OPENAI_API_URL__
   : 'https://api.openai.com/v1/chat/completions';
 const MAX_TOOL_ROUNDS = 5;
-const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
+export const FETCH_TIMEOUT_MS = 90_000; // 90秒タイムアウト
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';

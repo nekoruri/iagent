@@ -15,7 +15,8 @@ describe('heartbeatNotificationText', () => {
       focusState: 'normal',
       deviceMode: 'desktop-browser',
       installState: 'browser',
-    })).toBe('朝 / 予定が近い');
+      scene: 'pre-meeting',
+    })).toBe('会議前 / 朝');
   });
 
   it('通知本文に summary と理由を連結する', () => {

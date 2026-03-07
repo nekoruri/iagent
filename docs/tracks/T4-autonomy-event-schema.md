@@ -33,6 +33,11 @@
 - `heartbeat-feedback`
 - `setup-wizard`
 
+current implementation の補足:
+
+- `autonomy-stage` は `trigger/context` に加えて、suppression/no-change の `delivery` も記録する
+- `notification-shown` / `notification-clicked` には `stage=delivery/reaction` を付けている
+
 性質:
 
 - 軽量
@@ -107,6 +112,21 @@ KPI / SLO / interview の集約結果。
 | `contextSnapshotId` | 端末文脈 snapshot 参照 |
 | `traceId` | 詳細 trace への参照 |
 
+current reason vocabulary の例:
+
+- `quiet_hours`
+- `focus_mode`
+- `daily_quota_reached`
+- `offline`
+- `no_api_key`
+- `no_due_tasks`
+- `token_budget_exceeded`
+- `token_budget_deferred`
+- `no_changes`
+- `notification_permission_denied`
+- `network_error`
+- `latency_timeout`
+
 ---
 
 ## 5. 役割分担
@@ -119,6 +139,7 @@ KPI / SLO / interview の集約結果。
 - `reaction`
 - `heartbeat-run` の結果サマリ
 - suppression / skip / failure の reason
+- token に加えて network / latency の budget reason
 
 ### traces に残すもの
 

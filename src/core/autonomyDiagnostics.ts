@@ -8,6 +8,7 @@ import type {
   InterventionLevel,
   AutonomyEventStage,
 } from '../types';
+import { autonomyReasonLabel, sceneLabel } from './autonomyReason';
 
 const STAGE_ORDER: AutonomyEventStage[] = ['trigger', 'context', 'decision', 'delivery', 'reaction'];
 
@@ -192,6 +193,7 @@ function outcomeLabel(outcome: AutonomyFlowSummary['latestOutcome']): string | u
 export function buildUserFacingAutonomyExplanation(flow: AutonomyFlowSummary): UserFacingAutonomyExplanation {
   const contextParts = flow.contextSnapshot
     ? [
+        sceneLabel(flow.contextSnapshot.scene),
         timeOfDayLabel(flow.contextSnapshot.timeOfDay),
         calendarStateLabel(flow.contextSnapshot.calendarState),
         focusStateLabel(flow.contextSnapshot.focusState),
@@ -201,7 +203,7 @@ export function buildUserFacingAutonomyExplanation(flow: AutonomyFlowSummary): U
   return {
     whyNow: `${sourceLabel(flow.source)}に確認し、${contextParts.join(' / ') || '現在の文脈'}として扱いました。`,
     outcome: flow.latestReason
-      ? `補足: ${flow.latestReason}`
+      ? autonomyReasonLabel(flow.latestReason)
       : outcomeLabel(flow.latestOutcome),
   };
 }

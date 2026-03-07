@@ -9,6 +9,7 @@
 - Heartbeat 通知、バッジ、パネル、chat suggestion が混在している
 - 介入レベル taxonomy 文書は作成済み
 - Heartbeat 通知から開いた後の landing は、パネル自動表示まで実装済み
+- `quiet_hours / focus_mode / daily_quota_reached / offline / no_changes / notification permission` を suppression reason として flow 上に残せる
 - ただし介入レベルの横断設計と suppression の運用はまだ固定しきれていない
 
 ## 具体タスク

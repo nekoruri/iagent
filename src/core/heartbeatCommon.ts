@@ -16,7 +16,13 @@ import { getRelevantMemories, getMemoriesForBriefing } from '../store/memoryStor
 import { getDefaultPersonaConfig } from './config';
 import { createAutonomyEventMetadata, createAutonomyFlowId, createContextSnapshotId } from './autonomyEvent';
 import { createDeviceContextSnapshot } from './contextSnapshot';
+import {
+  classifyHeartbeatFailureReason,
+  getReasonBudgetMetadata,
+  getSuppressionInterventionLevel,
+} from './autonomyReason';
 import { buildHeartbeatNotificationReason, shouldIncludeNotificationReason } from './heartbeatNotificationText';
+import { FETCH_TIMEOUT_MS } from './heartbeatOpenAI';
 import type {
   CalendarEvent,
   DeviceContextSnapshotV1,
@@ -114,14 +120,17 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   const flowId = createAutonomyFlowId(startedAt);
   const contextSnapshotId = createContextSnapshotId(flowId);
   const logStage = async (
-    stage: 'trigger' | 'context',
+    stage: 'trigger' | 'context' | 'delivery',
     contextSnapshot?: DeviceContextSnapshotV1,
+    extras: Record<string, unknown> = {},
   ) => {
     await appendOpsEvent({
       ...createAutonomyEventMetadata({
         flowId,
         stage,
-        interventionLevel: 'L0',
+        interventionLevel: stage === 'delivery'
+          ? getSuppressionInterventionLevel((extras.reason as Parameters<typeof getSuppressionInterventionLevel>[0]) ?? 'no_changes')
+          : 'L0',
         contextSnapshotId,
         nowTs: Date.now(),
       }),
@@ -129,6 +138,7 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
       timestamp: Date.now(),
       source: sourceLabel,
       contextSnapshot,
+      ...extras,
     }).catch(() => {});
   };
   const logRun = async (
@@ -177,11 +187,13 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   await logStage('context', contextSnapshot);
 
   if (isQuietHours(hbConfig)) {
+    await logStage('delivery', contextSnapshot, { reason: 'quiet_hours' });
     await logRun('skipped', { reason: 'quiet_hours' }, contextSnapshot);
     return EMPTY;
   }
   if (hbConfig.focusMode) {
     console.debug('[Heartbeat SW] フォーカスモード中 — スキップ');
+    await logStage('delivery', contextSnapshot, { reason: 'focus_mode' });
     await logRun('skipped', { reason: 'focus_mode' }, contextSnapshot);
     return EMPTY;
   }
@@ -192,6 +204,7 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     const todayCount = getTodayNotificationCount(state.recentResults);
     if (todayCount >= hbConfig.maxNotificationsPerDay) {
       console.debug(`[Heartbeat:${source ?? 'unknown'}] 日次通知上限到達 — スキップ`);
+      await logStage('delivery', contextSnapshot, { reason: 'daily_quota_reached' });
       await logRun('skipped', { reason: 'daily_quota_reached' }, contextSnapshot);
       return EMPTY;
     }
@@ -199,6 +212,7 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
 
   const resolvedApiKey = freshConfig?.openaiApiKey || apiKey;
   if (!resolvedApiKey) {
+    await logStage('delivery', contextSnapshot, { reason: 'no_api_key' });
     await logRun('skipped', { reason: 'no_api_key' }, contextSnapshot);
     return EMPTY;
   }
@@ -206,7 +220,20 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
   // 実行すべきタスクを判定
   const tasks = await getTasksDueFromIDB(hbConfig);
   if (tasks.length === 0) {
+    await logStage('delivery', contextSnapshot, { reason: 'no_due_tasks' });
     await logRun('skipped', { reason: 'no_due_tasks' }, contextSnapshot);
+    return EMPTY;
+  }
+  if (contextSnapshot.onlineState === 'offline') {
+    await logStage('delivery', contextSnapshot, { reason: 'offline' });
+    await logRun(
+      'skipped',
+      {
+        reason: 'offline',
+        ...getReasonBudgetMetadata('offline'),
+      },
+      contextSnapshot,
+    );
     return EMPTY;
   }
 
@@ -223,14 +250,16 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     await batchUpdateTaskLastRun(deferredTasks.map((task) => task.id), Date.now());
   }
   if (runnableTasks.length === 0) {
+    const reason = tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred';
+    await logStage('delivery', contextSnapshot, { reason });
     await logRun(
       'skipped',
       {
-        reason: tokenBudget.isOverBudget ? 'token_budget_exceeded' : 'token_budget_deferred',
-        budgetType: 'token',
-        budgetAction: tokenBudget.isOverBudget ? 'skip' : 'defer',
-        budgetValue: tokenBudget.usedTokensToday,
-        budgetThreshold: tokenBudget.dailyTokenBudget,
+        reason,
+        ...getReasonBudgetMetadata(reason, {
+          budgetValue: tokenBudget.usedTokensToday,
+          budgetThreshold: tokenBudget.dailyTokenBudget,
+        }),
         taskCount: tasks.length,
         deferredTaskCount: deferredTasks.length,
         tokenBudget: tokenBudget.dailyTokenBudget,
@@ -284,6 +313,9 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     }
 
     console.log(`[Heartbeat:${sourceLabel}] 完了: 変化あり=${heartbeatResults.length}, 変化なし=${results.length - heartbeatResults.length}${configChanged ? ', 設定変更あり' : ''}`);
+    if (heartbeatResults.length === 0) {
+      await logStage('delivery', contextSnapshot, { reason: 'no_changes' });
+    }
 
     await logRun(
       'success',
@@ -305,9 +337,15 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
     );
     return { results: heartbeatResults, configChanged };
   } catch (error) {
+    const failureBudget = classifyHeartbeatFailureReason(error, contextSnapshot, FETCH_TIMEOUT_MS);
     await logRun(
       'failure',
       {
+        reason: failureBudget.reason,
+        budgetType: failureBudget.budgetType,
+        budgetAction: failureBudget.budgetAction,
+        budgetValue: failureBudget.budgetValue,
+        budgetThreshold: failureBudget.budgetThreshold,
         taskCount: runnableTasks.length,
         deferredTaskCount: deferredTasks.length,
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -317,6 +355,9 @@ export async function executeHeartbeatAndStore(apiKey: string, source?: Heartbea
       },
       contextSnapshot,
     );
+    if (failureBudget.reason) {
+      await logStage('delivery', contextSnapshot, { reason: failureBudget.reason });
+    }
     throw error;
   }
 }
