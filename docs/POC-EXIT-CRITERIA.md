@@ -150,6 +150,18 @@ PoC を `Go` と判定するには、以下 4 軸をすべて満たす。
 3. `Extend` の週は、何が足りないのかを次週アクションに落とす  
 4. `Reset` の週は、新機能追加より先に仮説や設計の見直しを優先する  
 
+自動反映:
+
+```bash
+npm run poc:sync-exit-criteria -- --week 2026-W12
+```
+
+補足:
+
+- `poc:run-week` では scenario sync の後に自動実行される
+- 自動集計は KPI / SLO / interview / scenario の構造化 evidence を束ねる
+- free text の trust regression は手動レビュー対象として残す
+
 ---
 
 ## 現在の暫定判定（2026-03-07）

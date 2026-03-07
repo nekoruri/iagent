@@ -238,13 +238,14 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - KPI / SLO / interview の運用はある
 - scenario evaluation template と scenario sync はある
 - PoC exit criteria を source of truth として追加した
+- exit criteria sync で weekly review の `### Exit Criteria 状態` を自動更新できる
 - ただし feature 単位ではなく生活シナリオ単位の longitudinal 評価設計は未完成
 
 次にやること:
 
 - weekly に残した scenario 評価と暫定 exit 判定を longitudinal に比較できるようにする
 - 定量 / interview / logs を scenario 単位でさらに結び付ける
-- PoC exit criteria を実 evidence で更新できる運用へ移す
+- PoC exit criteria の累積 evidence を見やすいマイルストーンサマリーにする
 
 ---
 
