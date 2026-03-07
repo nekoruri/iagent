@@ -7,6 +7,7 @@
 ## 現在地
 
 - least privilege preset、focus mode、permission recovery、action log はある
+- Settings の `セキュリティ（PoC）` で current autonomy status を確認できる
 - ただし trust model と停止理由の伝え方はまだ散らばっている
 
 ## 具体タスク

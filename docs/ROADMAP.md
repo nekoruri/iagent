@@ -164,12 +164,13 @@ docs 全体の読み方: [README.md](README.md)
 現在地:
 
 - least privilege preset、focus mode、permission recovery、action log はある
+- Settings の `自律状態` サマリーで stop / limit reason を 1 画面で確認できる
 - ただし trust model はまだ散在している
 
 次にやること:
 
 - trust model v1 を source of truth 化する
-- stop / disable / permission 状態の表現を揃える
+- stop / disable / permission 状態の表現をさらに揃える
 - explanation UI と action log の境界整理
 
 ### T6 学習とパーソナライズ

@@ -1272,6 +1272,36 @@ describe('SettingsModal', () => {
     });
   });
 
+  describe('自律状態サマリー', () => {
+    it('セキュリティセクションに現在の自律状態を表示する', async () => {
+      await renderOpenSettingsModal();
+
+      expect(screen.getByText('自律状態')).toBeInTheDocument();
+      expect(screen.getByText('自律実行')).toBeInTheDocument();
+      expect(screen.getByText('通知の表示')).toBeInTheDocument();
+      expect(screen.getByText('バックグラウンド wake-up')).toBeInTheDocument();
+      expect(screen.getByText('止め方')).toBeInTheDocument();
+    });
+
+    it('フォーカスモード中は制限中として表示する', async () => {
+      const { getConfig } = await import('../core/config');
+      vi.mocked(getConfig).mockReturnValue({
+        ...createMockConfig(),
+        openaiApiKey: 'sk-test',
+        heartbeat: {
+          ...createMockConfig().heartbeat,
+          enabled: true,
+          focusMode: true,
+        },
+      });
+
+      await renderOpenSettingsModal();
+
+      expect(screen.getByText('一部制限')).toBeInTheDocument();
+      expect(screen.getByText('フォーカスモード')).toBeInTheDocument();
+    });
+  });
+
   describe('コスト制御設定', () => {
     it('コスト制御の初期設定が表示される', async () => {
       await renderOpenSettingsModal();
