@@ -686,4 +686,29 @@ describe('ops events', () => {
     const total = await getTodayHeartbeatTokenUsage(now);
     expect(total).toBe(120);
   });
+
+  it('heartbeat-run に budget-specific stop reason を保存できる', async () => {
+    const now = Date.now();
+    await appendOpsEvent({
+      type: 'heartbeat-run',
+      timestamp: now,
+      source: 'worker',
+      status: 'skipped',
+      reason: 'token_budget_exceeded',
+      budgetType: 'token',
+      budgetAction: 'skip',
+      budgetValue: 1200,
+      budgetThreshold: 1000,
+    });
+
+    const events = await loadOpsEvents();
+    expect(events[0]).toEqual(expect.objectContaining({
+      type: 'heartbeat-run',
+      reason: 'token_budget_exceeded',
+      budgetType: 'token',
+      budgetAction: 'skip',
+      budgetValue: 1200,
+      budgetThreshold: 1000,
+    }));
+  });
 });

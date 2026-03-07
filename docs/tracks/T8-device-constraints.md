@@ -8,6 +8,7 @@
 
 - token budget、storage persistence、offline fallback はある
 - Settings の Heartbeat セクションで `デバイス budget サマリー` を確認できる
+- token budget 起因の stop/defer は `heartbeat-run` に構造化して残せる
 - ただし battery / latency / storage / network の統合 budget 設計はまだ弱い
 
 ## 具体タスク
