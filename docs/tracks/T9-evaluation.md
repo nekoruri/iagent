@@ -10,6 +10,7 @@
 - scenario evaluation template はある
 - `init-week` で代表シナリオの雛形を生成できる
 - `sync-scenarios` で weekly review の `シナリオ評価` を更新できる
+- PoC exit criteria 文書を source of truth として追加した
 - ただし、生活シナリオ単位の longitudinal な比較軸はまだ弱い
 
 ## 具体タスク
@@ -20,6 +21,7 @@
 - ペルソナごとの代表シナリオを固定する
 - 定量 / 定性 / 観測ログの 3 層をどう結び付けるか決める
 - 「端末上エージェントらしさ」を評価する設問を定義する
+- weekly で暫定 `Go / Extend / Reset` を残す
 
 ## Issue 粒度の分解
 
@@ -32,12 +34,22 @@
 - 成果物:
   - [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
 
+### T9-2 PoC Exit Criteria
+
+- 出力:
+  - PoC を `Go / Extend / Reset` で判断する source of truth
+- 完了条件:
+  - KPI / SLO / interview / scenario を同じ基準で見られる
+  - weekly review で暫定判定を残せる
+- 成果物:
+  - [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)
+
 ### Next
 
 - longitudinal dogfooding の記録フォーマットを作る
-- weekly に「今週どのシナリオを検証したか」を残す
+- weekly に「今週どのシナリオを検証したか」と暫定 exit 判定を残す
 - intervention / trust / autonomy を別々に評価できるようにする
-- go / no-go 判断基準を PoC exit criteria に落とす
+- scenario を横断した milestone review の型を作る
 
 ### Later
 
@@ -56,3 +68,4 @@
 - [../POC-KPI.md](../POC-KPI.md)
 - [../POC-USER-VALIDATION.md](../POC-USER-VALIDATION.md)
 - [../POC-SLO.md](../POC-SLO.md)
+- [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)

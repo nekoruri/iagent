@@ -48,20 +48,16 @@ docs 全体の読み方: [README.md](README.md)
 
 ## 現在の優先順位
 
-直近は、長期研究トラックのうち次を優先する。
+P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優先する。
 
-1. `P0-1` 常用デバイス capability matrix  
-   参照: [tracks/T1-capability-matrix.md](tracks/T1-capability-matrix.md)
-2. `P0-2` 介入 taxonomy  
-   参照: [tracks/T3-intervention-taxonomy.md](tracks/T3-intervention-taxonomy.md)
-3. `P0-3` autonomy event schema  
-   参照: [tracks/T4-autonomy-event-schema.md](tracks/T4-autonomy-event-schema.md)
-4. `P0-4` context snapshot schema  
-   参照: [tracks/T2-context-snapshot.md](tracks/T2-context-snapshot.md)
-5. `P1-1` trust model  
-   参照: [tracks/T5-trust-model.md](tracks/T5-trust-model.md)
-6. `P1-2` device-side budget inventory  
-   参照: [tracks/T8-budget-inventory.md](tracks/T8-budget-inventory.md)
+1. `P1-4` PoC exit criteria
+   参照: [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md)
+2. `P2-1` learning scope
+   参照: [tracks/T6-learning-personalization.md](tracks/T6-learning-personalization.md)
+3. `P2-2` action boundary
+   参照: [tracks/T7-action-boundaries.md](tracks/T7-action-boundaries.md)
+4. W12 の継続計測と scenario evidence 蓄積
+   参照: [weekly/2026-W12.md](weekly/2026-W12.md)
 
 横断バックログ全体: [tracks/BACKLOG.md](tracks/BACKLOG.md)
 
@@ -237,13 +233,14 @@ docs 全体の読み方: [README.md](README.md)
 
 - KPI / SLO / interview の運用はある
 - scenario evaluation template と scenario sync はある
+- PoC exit criteria を source of truth として追加した
 - ただし feature 単位ではなく生活シナリオ単位の longitudinal 評価設計は未完成
 
 次にやること:
 
-- weekly に残した scenario 評価を longitudinal に比較できるようにする
+- weekly に残した scenario 評価と暫定 exit 判定を longitudinal に比較できるようにする
 - 定量 / interview / logs を scenario 単位でさらに結び付ける
-- PoC exit criteria を研究ミッション基準で明文化する
+- PoC exit criteria を実 evidence で更新できる運用へ移す
 
 ---
 

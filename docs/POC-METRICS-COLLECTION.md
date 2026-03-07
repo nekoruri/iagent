@@ -140,6 +140,10 @@ npm run metrics:poc -- --week 2026-W10 --user-data-dir /tmp/iagent-metrics-profi
 - 週次レビュー: `docs/templates/WEEKLY-REVIEW.md`
 - baseline: `docs/templates/WEEKLY-BASELINE.md`
 
+補足:
+
+- 週次レビューの `### Exit Criteria 状態` は `docs/POC-EXIT-CRITERIA.md` を基準に記載する
+
 注意:
 
 - デフォルト実行は一時プロファイルを使うため、既存ブラウザの利用データは含まれない。
