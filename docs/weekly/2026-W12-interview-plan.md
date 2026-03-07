@@ -25,6 +25,7 @@
 ## 収集フォーマット
 
 - 記録テンプレート: `docs/templates/USER-INTERVIEW-NOTE.md`
+- ペルソナ別台本: `docs/tracks/T9-persona-interview-guide.md`
 - 1 人あたり所要時間: 30 分
 - 記録必須項目:
   - 助かった提案 1 件以上

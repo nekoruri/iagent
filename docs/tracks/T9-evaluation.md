@@ -51,6 +51,7 @@
 - weekly に「今週どのシナリオを検証したか」と暫定 exit 判定を残す
 - intervention / trust / autonomy を別々に評価できるようにする
 - scenario を横断した milestone review の型を作る
+- ペルソナ別 interview の台本を運用に組み込む
 
 ### Later
 
@@ -70,3 +71,4 @@
 - [../POC-USER-VALIDATION.md](../POC-USER-VALIDATION.md)
 - [../POC-SLO.md](../POC-SLO.md)
 - [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)
+- [T9-persona-interview-guide.md](T9-persona-interview-guide.md)
