@@ -37,6 +37,7 @@
 - T3 intervention taxonomy: [T3-intervention-taxonomy.md](T3-intervention-taxonomy.md)
 - T4 autonomy event schema: [T4-autonomy-event-schema.md](T4-autonomy-event-schema.md)
 - T5 trust model: [T5-trust-model.md](T5-trust-model.md)
+- T6 learning scope: [T6-learning-scope.md](T6-learning-scope.md)
 - T8 budget inventory: [T8-budget-inventory.md](T8-budget-inventory.md)
 - T9 scenario evaluation template: [T9-scenario-evaluation-template.md](T9-scenario-evaluation-template.md)
 - PoC exit criteria: [../POC-EXIT-CRITERIA.md](../POC-EXIT-CRITERIA.md)

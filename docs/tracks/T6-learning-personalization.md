@@ -8,6 +8,7 @@
 
 - feedback loop、pattern recognition、suggestion optimization はある
 - memory 品質管理や stale 制御もある
+- learning scope v1 を docs と Settings summary で確認できるようにした
 - ただし、学習結果の見せ方と監査可能性はまだ弱い
 
 ## 具体タスク
@@ -18,6 +19,18 @@
 - timing / channel / wording の学習対象を明示する
 - memory 品質管理と suggestion optimization の責務分離を整理する
 - 学習結果をユーザーが確認できる summary の形式を決める
+
+## Issue 粒度の分解
+
+### T6-1 Learning Scope v1
+
+- 出力:
+  - 学習対象 inventory
+  - Settings 上の summary UI
+- 完了条件:
+  - `何を学習中か / 何が未着手か` を docs と UI の両方で説明できる
+- 成果物:
+  - [T6-learning-scope.md](T6-learning-scope.md)
 
 ### Next
 
@@ -41,3 +54,4 @@
 
 - [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md)
 - [../PROPOSAL-autonomous-agent-evolution.md](../PROPOSAL-autonomous-agent-evolution.md)
+- [T6-learning-scope.md](T6-learning-scope.md)
