@@ -13,6 +13,10 @@
 - 情報収集型インタビューから得られた Must は「通知を開いたあとに次に何をすればよいか分かる導線」
 - `2026-03-07` に `#36` / `#43` / `#33` を実装し、関連コンポーネントテストと型確認を通過
 - 同日 `npm run metrics:poc -- --week 2026-W12 --user-data-dir /tmp/iagent-metrics-profile --seed-sample` を実行し、W12 baseline を更新
+- 続けて P0 基盤を実装し、`flowId` / `contextSnapshot` / `autonomy-stage` を Heartbeat 経路へ導入した
+- Settings のオブザーバビリティで recent autonomy flow / trace detail を確認できる
+- Heartbeat / Feed / chat に explanation disclosure を追加し、通知本文には重要タスクのみ短い理由を入れた
+- 追加のテスト warning 整理を行い、`SettingsModal` と `useHeartbeatPanel` の代表的な `act(...)` warning を削減した
 
 参照:
 
@@ -24,9 +28,9 @@
 
 ## 2. 次にやること
 
-1. 固定プロファイルで W12 メトリクスを継続計測し、UI 改善後の数値変化を観測する
-2. PM型 / 学習者型インタビューを予定どおり実施し、必要なら情報収集型も再観測する
-3. `docs/weekly/2026-W12.md` に定性所見を反映し、次週へ回す改善タスクを最大 3 件まで整理する
+1. 固定プロファイルで W12 メトリクスを継続計測し、P0 explanation / landing 改善後の数値変化を観測する
+2. notification 本文の `重要タスクのみ理由表示` が適切かを dogfooding で確認し、必要なら対象タスク集合を再調整する
+3. interview はいったん別枠保留のまま、`docs/weekly/2026-W12.md` に P0 所見と次週判断材料を反映する
 
 ---
 
@@ -73,19 +77,56 @@
 - モーダル再表示時の再同期テストと、権限喪失時の unchecked 表示テストを追加
 - `権限を再確認` ボタン挙動との競合はなし
 
+### D. P0 自律実行観測基盤
+
+主な変更箇所:
+
+- `src/core/contextSnapshot.ts`
+- `src/core/autonomyEvent.ts`
+- `src/core/autonomyDiagnostics.ts`
+- `src/core/heartbeatCapabilities.ts`
+- `src/components/SettingsModal.tsx`
+- `src/core/heartbeat.ts`
+- `src/core/heartbeatCommon.ts`
+- `src/store/heartbeatStore.ts`
+
+実施内容:
+
+- `flowId` / `contextSnapshotId` / `autonomy-stage` を Heartbeat 経路へ追加し、flow 単位で追跡できるようにした
+- Settings に current capability summary、recent autonomy flow、trace detail を追加した
+- `autonomy-stage` は `trigger/context`、`heartbeat-run` は `decision` として役割を分離した
+
+### E. explanation UX
+
+主な変更箇所:
+
+- `src/components/ExplanationDisclosure.tsx`
+- `src/components/HeartbeatPanel.tsx`
+- `src/components/FeedPanel.tsx`
+- `src/components/MessageBubble.tsx`
+- `src/core/heartbeatNotificationText.ts`
+- `src/App.tsx`
+
+実施内容:
+
+- Heartbeat / Feed / chat に explanation disclosure を追加し、`理由を見る` から `なぜ今` を開けるようにした
+- 通知本文には context 由来の短い理由を追加した
+- 通知本文の理由付与は重要タスク（`calendar-check`, `briefing-morning`, `feed-check`, `rss-digest-daily`, `reflection`, `web-monitor-check`）のみに限定した
+
 ---
 
 ## 4. 残作業の優先順
 
-1. PM型 / 学習者型インタビュー
-2. W12 メトリクス継続計測
+1. W12 メトリクス継続計測
+2. explanation / landing の dogfooding
 3. 週次レビュー反映と次週タスク起票
+4. interview 再開判断（別枠）
 
 理由:
 
-- 実装タスクは完了したため、残る不確実性は定性検証と継続計測に移った
-- W11 の warning 解消には PM型 / 学習者型インタビュー完了が必須
-- W12 の改善継続判断は、数値と interview の両方が揃ってから行うほうが精度が高い
+- P0 の実装は完了したため、直近の不確実性は「説明量が適切か」と「数値がどう動くか」に移った
+- interview は残るが、現時点では docs / runtime / observability の整合維持を優先したい
+- W12 の次判断は、まず dogfooding と継続計測が揃ってから行うほうが精度が高い
 
 ---
 
@@ -106,7 +147,7 @@ node scripts/collect-poc-metrics.mjs --week 2026-W12 --user-data-dir /tmp/iagent
 関連テスト:
 
 ```bash
-npm test -- src/components/TaskProgress.test.tsx src/components/HeartbeatPanel.test.tsx src/components/SettingsModal.test.tsx
+npm test -- src/components/MessageBubble.test.tsx src/components/HeartbeatPanel.test.tsx src/components/FeedPanel.test.tsx src/components/SettingsModal.test.tsx src/hooks/useHeartbeatPanel.test.ts src/hooks/useFeedPanel.test.ts src/core/contextSnapshot.test.ts src/core/autonomyEvent.test.ts src/core/autonomyDiagnostics.test.ts src/core/heartbeatCapabilities.test.ts src/core/heartbeatNotificationText.test.ts src/core/notifier.test.ts src/core/swHandlers.test.ts src/store/heartbeatStore.test.ts src/core/heartbeatCommon.test.ts src/core/heartbeat.test.ts src/App.test.tsx
 ./node_modules/.bin/tsc -p tsconfig.app.json --noEmit
 ```
 
