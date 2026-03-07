@@ -43,6 +43,7 @@ describe('FeedPanel', () => {
     selectedTier: undefined as FeedItemDisplayTier | undefined,
     isLoading: false,
     unreadCount: 0,
+    explanation: null,
     onToggle: vi.fn(),
     onClose: vi.fn(),
     onChangeTier: vi.fn(),
@@ -118,5 +119,18 @@ describe('FeedPanel', () => {
   it('読み込み中の表示', () => {
     render(<FeedPanel {...baseProps} isLoading={true} />);
     expect(screen.getByText('読み込み中...')).toBeDefined();
+  });
+
+  it('panel-level explanation を表示する', () => {
+    render(<FeedPanel
+      {...baseProps}
+      explanation={{
+        title: 'フィードの新着を確認した結果',
+        whyNow: 'Push 通知に確認し、朝 / 予定が近い / 通常モードとして扱いました。',
+        outcome: '通知から開きました。',
+      }}
+    />);
+
+    expect(screen.getByRole('button', { name: '理由を見る' })).toBeInTheDocument();
   });
 });

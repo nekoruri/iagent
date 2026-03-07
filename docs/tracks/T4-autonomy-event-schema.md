@@ -26,6 +26,7 @@
 
 現行 `ops-events` は次を記録している。
 
+- `autonomy-stage`
 - `notification-shown`
 - `notification-clicked`
 - `heartbeat-run`
@@ -113,6 +114,7 @@ KPI / SLO / interview の集約結果。
 ### ops-events に残すもの
 
 - `trigger`
+- `context`
 - `delivery`
 - `reaction`
 - `heartbeat-run` の結果サマリ
@@ -167,6 +169,15 @@ KPI / SLO / interview の集約結果。
 - token usage
 - network / push / worker failure
 - retry / fallback detail
+
+current implementation:
+
+- Settings の `オブザーバビリティ` で recent autonomy flows を一覧表示
+- `traceId` がある flow は `trace を表示` で root span / spans / events / attributes を開ける
+- Heartbeat パネルでは `flowId` に紐づく explanation を折りたたみで `なぜ今` として表示する
+- Feed パネルでも latest feed-related flow を折りたたみで `なぜ今` として表示する
+- chat 内の Heartbeat proactive message にも explanation card を折りたたみで表示する
+- 通知本文には context snapshot 由来の短い explanation を表示するが、重要タスクのみに限定する
 
 この 2 つを混ぜない。  
 同じ flow を参照していても、見せる粒度は分離する。

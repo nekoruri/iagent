@@ -142,6 +142,9 @@ iOS Safari かつ未インストール時は、ホーム画面追加の案内バ
 Heartbeat は定期チェック機能です。設定項目:
 
 - `有効` トグル
+- `現在の自律実行 capability`
+  - 現在の端末 / ブラウザ条件における `通知表示` / `Push 購読` / `タブ閉鎖後の wake-up` / `Periodic Sync 補助` の成立性を表示
+  - `推奨経路` として、`Push + Service Worker` か `Foreground のみ` かを確認可能
 - デスクトップ通知
   - 通知権限ステータス表示（未設定 / ブロック中 / 許可済み / 非対応）
   - `権限を再確認` ボタン（ブラウザ設定変更後の再チェック）
@@ -172,6 +175,11 @@ Heartbeat は定期チェック機能です。設定項目:
 
 - `focusMode` が ON の間は通知実行を停止
 - 実行結果は Heartbeat パネルに蓄積
+- 通知からアプリを開いた場合、Heartbeat 結果は自動でパネル表示される
+- Heartbeat パネルでは各結果に `理由を見る` から `なぜ今` の説明を開ける
+- FeedPanel でも `理由を見る` から最新の `feed-check` / `rss-digest-daily` flow に基づく説明を開ける
+- chat 内に入る Heartbeat proactive message にも explanation card を折りたたみで表示
+- 通知本文の短い理由（例: `朝 / 予定が近い`）は重要タスクのみ付与
 - `dismissed` はパネル非表示、`snoozed` は期限まで非表示
 
 ### 4.5 バックグラウンド Push
@@ -206,6 +214,10 @@ RSS フィード取得と Web 監視で利用します。
 ### 4.7 オブザーバビリティ（OTel）
 
 - `有効` トグル
+- `最近の自律実行フロー`
+  - `flowId` 単位で直近の自律実行を集約表示
+  - `decision -> delivery -> reaction` の stage、context snapshot、reason、trace 参照を確認可能
+  - `trace を表示` から developer-facing trace detail（root span / spans / events / attributes）を確認可能
 - OTLP エンドポイント
 - 送信ヘッダー（JSON）
 

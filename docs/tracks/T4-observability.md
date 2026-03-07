@@ -7,8 +7,16 @@
 ## 現在地
 
 - OTel 互換 tracer、IndexedDB traces、OTLP export はある
-- ただし、自律実行の trigger / decision / delivery / reaction を一連で追う統一スキーマはまだ弱い
-- user-facing explanation log と developer-facing trace も未分離
+- `flowId` / `stage` / `contextSnapshotId` の基礎イベントは実装済み
+- `autonomy-stage` で `trigger/context` を残せるようになった
+- Settings のオブザーバビリティで recent autonomy flows を確認できるようになった
+- `traceId` がある flow から developer-facing trace detail を開ける
+- Heartbeat パネルでは同じ flow を user-facing explanation として折りたたみ表示できる
+- Feed パネルでも latest feed-related flow を user-facing explanation として折りたたみ表示できる
+- chat 内の Heartbeat proactive message でも explanation card を折りたたみ表示できる
+- 通知本文にも context 由来の短い explanation を入れられるが、重要タスクのみに限定している
+- ただし、自律実行の trigger / decision / delivery / reaction を完全に埋め切れてはいない
+- user-facing explanation log と developer-facing trace もまだ分離途上
 
 ## 具体タスク
 

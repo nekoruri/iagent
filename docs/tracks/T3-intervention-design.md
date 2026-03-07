@@ -7,7 +7,9 @@
 ## 現在地
 
 - Heartbeat 通知、バッジ、パネル、chat suggestion が混在している
-- 介入レベルの階層設計と、notification から開いた後の landing はまだ固定されていない
+- 介入レベル taxonomy 文書は作成済み
+- Heartbeat 通知から開いた後の landing は、パネル自動表示まで実装済み
+- ただし介入レベルの横断設計と suppression の運用はまだ固定しきれていない
 
 ## 具体タスク
 

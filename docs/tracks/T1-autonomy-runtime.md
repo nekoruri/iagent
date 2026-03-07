@@ -8,7 +8,9 @@
 
 - Heartbeat 3 層構成は実装済み
 - Push / Periodic Sync / Worker / main thread の実行経路はある
-- ただし、端末・ブラウザ・権限状態ごとの capability matrix はまだ固定されていない
+- capability matrix 文書は作成済み
+- Settings の Heartbeat セクションに current capability summary を表示する土台は入った
+- ただし、wake-up state machine と failure path の回帰整理はまだ未完了
 
 ## 具体タスク
 

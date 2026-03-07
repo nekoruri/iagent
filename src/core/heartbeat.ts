@@ -4,8 +4,12 @@ import OpenAI from 'openai';
 import type { MCPServer } from '@openai/agents';
 import { createHeartbeatAgent } from './agent';
 import { getConfig } from './config';
+import { createAutonomyEventMetadata, createAutonomyFlowId, createContextSnapshotId } from './autonomyEvent';
+import { createDeviceContextSnapshot } from './contextSnapshot';
+import { buildHeartbeatNotificationReason, shouldIncludeNotificationReason } from './heartbeatNotificationText';
 import { tracer } from '../telemetry/tracer';
 import { LLM_ATTRS, HEARTBEAT_ATTRS } from '../telemetry/semantics';
+import { getDB } from '../store/db';
 import {
   addHeartbeatResult,
   getAllTaskLastRun,
@@ -26,7 +30,7 @@ import {
   type HeartbeatTokenBudgetState,
   type HeartbeatTokenUsage,
 } from './heartbeatCost';
-import type { HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
+import type { CalendarEvent, HeartbeatConfig, HeartbeatResult, HeartbeatTask } from '../types';
 
 export type HeartbeatNotification = {
   results: HeartbeatResult[];
@@ -279,11 +283,49 @@ export class HeartbeatEngine {
   ): Promise<void> {
     this.isExecuting = true;
     const startedAt = Date.now();
+    const flowId = createAutonomyFlowId(startedAt);
+    const contextSnapshotId = createContextSnapshotId(flowId);
+    const logStage = async (stage: 'trigger' | 'context') => {
+      await appendOpsEvent({
+        ...createAutonomyEventMetadata({
+          flowId,
+          stage,
+          interventionLevel: 'L0',
+          contextSnapshotId,
+          nowTs: Date.now(),
+        }),
+        type: 'autonomy-stage',
+        timestamp: Date.now(),
+        source: 'tab',
+        contextSnapshot: stage === 'context' ? contextSnapshot : undefined,
+      }).catch(() => {});
+    };
+    const runtimeConfig = getConfig().heartbeat;
+    const db = await getDB();
+    const calendarEvents = await db.getAll('calendar') as CalendarEvent[];
+    const contextSnapshot = createDeviceContextSnapshot({
+      now: new Date(startedAt),
+      calendarEvents,
+      focusMode: runtimeConfig?.focusMode,
+      isQuietPeriod: runtimeConfig ? isQuietHours(runtimeConfig, new Date(startedAt)) : false,
+    });
+    const notificationReason = buildHeartbeatNotificationReason(contextSnapshot);
+    await logStage('trigger');
+    await logStage('context');
     const logRun = async (status: 'success' | 'failure' | 'skipped', extras: Record<string, unknown> = {}) => {
       await appendOpsEvent({
+        ...createAutonomyEventMetadata({
+          flowId,
+          stage: 'decision',
+          interventionLevel: 'L0',
+          contextSnapshotId,
+          traceId: typeof extras.traceId === 'string' ? extras.traceId : undefined,
+          nowTs: Date.now(),
+        }),
         type: 'heartbeat-run',
         timestamp: Date.now(),
         source: 'tab',
+        contextSnapshot,
         status,
         durationMs: Date.now() - startedAt,
         taskCount: tasks.length,
@@ -307,7 +349,7 @@ export class HeartbeatEngine {
       const apiKey = getConfig().openaiApiKey;
       if (!apiKey) {
         trace.rootSpan.addEvent('heartbeat.skip', { reason: 'no_api_key' });
-        await logRun('skipped', { reason: 'no_api_key' });
+        await logRun('skipped', { reason: 'no_api_key', traceId: trace.traceId });
         return;
       }
 
@@ -332,6 +374,9 @@ export class HeartbeatEngine {
             trace,
             executionGroup.model,
             executionGroup.maxCompletionTokens,
+            flowId,
+            contextSnapshotId,
+            notificationReason,
           );
           allHeartbeatResults.push(...groupResult.results);
           mergeHeartbeatTokenUsage(usage, groupResult.usage);
@@ -348,6 +393,7 @@ export class HeartbeatEngine {
       await logRun('success', {
         resultCount: allHeartbeatResults.length,
         changedCount: trimmed.length,
+        traceId: trace.traceId,
         requestCount: usage.requests,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
@@ -358,6 +404,7 @@ export class HeartbeatEngine {
       console.error('[Heartbeat] チェック実行エラー:', error);
       trace.rootSpan.endWithError(error);
       await logRun('failure', {
+        traceId: trace.traceId,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       // エラー時も taskLastRun を更新して即リトライを防止
@@ -376,6 +423,9 @@ export class HeartbeatEngine {
     trace: ReturnType<typeof tracer.startTrace>,
     model: HeartbeatModelName,
     maxCompletionTokens: number,
+    flowId: string,
+    contextSnapshotId: string,
+    notificationReason?: string,
   ): Promise<{ results: HeartbeatResult[]; usage: HeartbeatTokenUsage }> {
     const agent = await createHeartbeatAgent(
       mcpServers,
@@ -445,6 +495,9 @@ export class HeartbeatEngine {
         hasChanges: Boolean(item.hasChanges),
         summary: item.summary || '',
         pinned: item.taskId.startsWith('briefing-') || item.taskId === 'reflection',
+        flowId,
+        contextSnapshotId,
+        notificationReason: shouldIncludeNotificationReason(item.taskId) ? notificationReason : undefined,
       };
       await addHeartbeatResult(hbResult);
       await updateTaskLastRun(item.taskId, now);

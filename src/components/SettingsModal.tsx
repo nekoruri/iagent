@@ -16,6 +16,13 @@ import { getNotificationPermission, requestNotificationPermission } from '../cor
 import { subscribePush, unsubscribePush, getPushSubscription, registerPeriodicSync, unregisterPeriodicSync } from '../core/pushSubscription';
 import { loadActionLog, type ActionLogEntry } from '../store/heartbeatStore';
 import { registerProxyToken } from '../core/corsProxy';
+import { loadRecentAutonomyFlows, type AutonomyFlowSummary } from '../core/autonomyDiagnostics';
+import {
+  loadHeartbeatCapabilitySnapshot,
+  type CapabilityLevel,
+  type HeartbeatCapabilitySnapshot,
+} from '../core/heartbeatCapabilities';
+import { getTrace } from '../telemetry/store';
 import { getUrlValidationError } from '../core/urlValidation';
 import { isReadOnlyTool } from '../core/toolUtils';
 import { isIOSSafari, isStandaloneMode } from '../core/installDetect';
@@ -48,6 +55,7 @@ import type {
   SuggestionFrequency,
   WebSpeechConfig,
 } from '../types';
+import type { Span, TraceRecord } from '../telemetry/types';
 
 interface Props {
   open: boolean;
@@ -152,6 +160,67 @@ function statusLabel(status: MCPConnectionStatus): { text: string; className: st
     default:
       return { text: '未接続', className: 'mcp-status-disconnected' };
   }
+}
+
+function capabilityStatusLabel(level: CapabilityLevel): { text: string; className: string } {
+  switch (level) {
+    case 'yes':
+      return { text: '利用可', className: 'mcp-status-connected' };
+    case 'conditional':
+      return { text: '条件付き', className: 'mcp-status-warning' };
+    case 'no':
+      return { text: '不可', className: 'mcp-status-error' };
+    default:
+      return { text: '未検証', className: 'mcp-status-disconnected' };
+  }
+}
+
+const AUTONOMY_STAGE_LABELS = {
+  trigger: 'trigger',
+  context: 'context',
+  decision: 'decision',
+  delivery: 'delivery',
+  reaction: 'reaction',
+} as const;
+
+function autonomyOutcomeLabel(
+  outcome: AutonomyFlowSummary['latestOutcome'],
+): { text: string; className: string } | null {
+  switch (outcome) {
+    case 'success':
+    case 'accepted':
+    case 'shown':
+    case 'clicked':
+      return { text: outcome, className: 'mcp-status-connected' };
+    case 'skipped':
+    case 'dismissed':
+    case 'snoozed':
+      return { text: outcome, className: 'mcp-status-warning' };
+    case 'failure':
+      return { text: outcome, className: 'mcp-status-error' };
+    default:
+      return null;
+  }
+}
+
+function formatContextSnapshotSummary(flow: AutonomyFlowSummary): string {
+  if (!flow.contextSnapshot) return 'context snapshot なし';
+  return [
+    flow.contextSnapshot.timeOfDay,
+    flow.contextSnapshot.calendarState,
+    flow.contextSnapshot.focusState,
+    flow.contextSnapshot.deviceMode,
+  ].join(' / ');
+}
+
+function formatTraceDuration(startTime: number, endTime?: number): string {
+  if (!endTime || endTime < startTime) return '実行中';
+  return `${endTime - startTime}ms`;
+}
+
+function formatSpanDuration(span: Span): string {
+  if (!span.endTimeUnixNano || span.endTimeUnixNano < span.startTimeUnixNano) return '実行中';
+  return `${Math.round((span.endTimeUnixNano - span.startTimeUnixNano) / 1_000_000)}ms`;
 }
 
 function formatPortabilitySummary(counts: DataPortabilityCounts): string {
@@ -272,6 +341,7 @@ export function SettingsModal({ open, onClose }: Props) {
     quota: number;
   } | null>(null);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
+  const [capabilitySnapshot, setCapabilitySnapshot] = useState<HeartbeatCapabilitySnapshot | null>(null);
   const [mcpPresetMessage, setMcpPresetMessage] = useState('');
   const [mcpPresetMessageStatus, setMcpPresetMessageStatus] = useState<'success' | 'warning'>('success');
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<ApiKeyField, string>>(initApiKeyDrafts);
@@ -283,6 +353,13 @@ export function SettingsModal({ open, onClose }: Props) {
   const [actionLogEntries, setActionLogEntries] = useState<ActionLogEntry[]>([]);
   const [actionLogError, setActionLogError] = useState('');
   const [actionLogRefreshing, setActionLogRefreshing] = useState(false);
+  const [autonomyFlows, setAutonomyFlows] = useState<AutonomyFlowSummary[]>([]);
+  const [autonomyFlowsError, setAutonomyFlowsError] = useState('');
+  const [autonomyFlowsRefreshing, setAutonomyFlowsRefreshing] = useState(false);
+  const [selectedTrace, setSelectedTrace] = useState<TraceRecord | null>(null);
+  const [selectedTraceId, setSelectedTraceId] = useState<string>('');
+  const [selectedTraceError, setSelectedTraceError] = useState('');
+  const [selectedTraceLoading, setSelectedTraceLoading] = useState(false);
   const [portabilityStatus, setPortabilityStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
   const [portabilityMessage, setPortabilityMessage] = useState('');
   const [needsReloadAfterImport, setNeedsReloadAfterImport] = useState(false);
@@ -302,12 +379,45 @@ export function SettingsModal({ open, onClose }: Props) {
   const proxy: ProxyConfig = config.proxy ?? getDefaultProxyConfig();
   const otel = config.otel ?? getDefaultOtelConfig();
   const webSpeech: WebSpeechConfig = config.webSpeech ?? getDefaultWebSpeechConfig();
+  const pushServerConfigured = push.serverUrl.trim().length > 0;
+  const pushServerUrl = push.serverUrl;
 
   // Push Subscription 状態を初期化
   useEffect(() => {
     if (!open) return;
     getPushSubscription().then((sub) => setHasPushSubscription(!!sub));
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void loadHeartbeatCapabilitySnapshot({
+      notificationPermission,
+      heartbeatEnabled: heartbeat.enabled,
+      pushEnabled: push.enabled,
+      pushServerConfigured,
+      hasPushSubscription,
+    }).then((snapshot) => {
+      if (active) {
+        setCapabilitySnapshot(snapshot);
+      }
+    }).catch(() => {
+      if (active) {
+        setCapabilitySnapshot(null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    open,
+    notificationPermission,
+    heartbeat.enabled,
+    push.enabled,
+    pushServerConfigured,
+    hasPushSubscription,
+  ]);
 
   const refreshNotificationPermission = useCallback(() => {
     setNotificationPermission(getNotificationPermission());
@@ -349,6 +459,40 @@ export function SettingsModal({ open, onClose }: Props) {
     }
   }, []);
 
+  const loadAutonomyFlows = useCallback(async () => {
+    setAutonomyFlowsRefreshing(true);
+    try {
+      const flows = await loadRecentAutonomyFlows(10);
+      setAutonomyFlows(flows);
+      setAutonomyFlowsError('');
+    } catch {
+      setAutonomyFlows([]);
+      setAutonomyFlowsError('自律実行フローの読み込みに失敗しました。');
+    } finally {
+      setAutonomyFlowsRefreshing(false);
+    }
+  }, []);
+
+  const loadTraceDetail = useCallback(async (traceId: string) => {
+    setSelectedTraceId(traceId);
+    setSelectedTraceLoading(true);
+    try {
+      const trace = await getTrace(traceId);
+      if (!trace) {
+        setSelectedTrace(null);
+        setSelectedTraceError('trace が見つかりませんでした。');
+        return;
+      }
+      setSelectedTrace(trace);
+      setSelectedTraceError('');
+    } catch {
+      setSelectedTrace(null);
+      setSelectedTraceError('trace の読み込みに失敗しました。');
+    } finally {
+      setSelectedTraceLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const refreshId = window.setTimeout(() => {
@@ -359,6 +503,14 @@ export function SettingsModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    const refreshId = window.setTimeout(() => {
+      void loadAutonomyFlows();
+    }, 0);
+    return () => window.clearTimeout(refreshId);
+  }, [open, loadAutonomyFlows]);
+
+  useEffect(() => {
+    if (!open) return;
     const resetId = window.setTimeout(() => {
       setApiKeyDrafts(initApiKeyDrafts());
       setApiKeyClearFlags(initApiKeyClearFlags());
@@ -366,6 +518,10 @@ export function SettingsModal({ open, onClose }: Props) {
       setSecurityPresetPushRetryNeeded(false);
       setPersonaPresetStatus('idle');
       setPersonaPresetMessage('');
+      setSelectedTrace(null);
+      setSelectedTraceId('');
+      setSelectedTraceError('');
+      setSelectedTraceLoading(false);
     }, 0);
     return () => window.clearTimeout(resetId);
   }, [open]);
@@ -571,7 +727,7 @@ export function SettingsModal({ open, onClose }: Props) {
     return '未設定。必要な場合のみ入力してください。';
   };
 
-  const runLeastPrivilegePushCleanup = useCallback(async (): Promise<{
+  const runLeastPrivilegePushCleanup = async (): Promise<{
     hadSubscription: boolean;
     serverError: string;
     localError: string;
@@ -585,9 +741,9 @@ export function SettingsModal({ open, onClose }: Props) {
     setPushStatus('unsubscribing');
     setPushError('');
 
-    if (activeSubscription && push.serverUrl) {
+    if (activeSubscription && pushServerUrl) {
       try {
-        await unsubscribePush(push.serverUrl);
+        await unsubscribePush(pushServerUrl);
         localUnsubscribeHandled = true;
       } catch (error) {
         serverError = error instanceof Error ? error.message : String(error);
@@ -622,7 +778,7 @@ export function SettingsModal({ open, onClose }: Props) {
     setPushError(mergedError);
 
     return { hadSubscription, serverError, localError };
-  }, [hasPushSubscription, push.serverUrl]);
+  };
 
   const handleRetryLeastPrivilegePushCleanup = async () => {
     const result = await runLeastPrivilegePushCleanup();
@@ -1273,6 +1429,30 @@ export function SettingsModal({ open, onClose }: Props) {
             <div className="settings-section-content">
               <p className="mcp-hint">定期的にバックグラウンドチェックを実行し、変化があればチャットに通知します。</p>
 
+              {capabilitySnapshot && (
+                <div className="hb-capability-section">
+                  <div className="hb-capability-summary">
+                    <h4>現在の自律実行 capability</h4>
+                    <span className="mcp-status mcp-status-disconnected">{capabilitySnapshot.environmentLabel}</span>
+                  </div>
+                  <p className="mcp-hint">推奨経路: {capabilitySnapshot.recommendedPath}</p>
+                  <div className="hb-capability-list">
+                    {capabilitySnapshot.items.map((item) => {
+                      const capabilityLabel = capabilityStatusLabel(item.level);
+                      return (
+                        <div key={item.id} className="hb-capability-item">
+                          <div className="hb-capability-row">
+                            <span className="hb-capability-name">{item.label}</span>
+                            <span className={`mcp-status ${capabilityLabel.className}`}>{capabilityLabel.text}</span>
+                          </div>
+                          <p className="hb-capability-detail">{item.detail}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="hb-notification-row">
                 <label className="mcp-toggle-label">
                   <input
@@ -1907,6 +2087,171 @@ export function SettingsModal({ open, onClose }: Props) {
             </summary>
             <div className="settings-section-content">
               <p className="mcp-hint">トレースデータをIndexedDBに保存し、OTLP/HTTPで外部バックエンドに送信できます。</p>
+
+              <div className="autonomy-flow-section">
+                <div className="autonomy-flow-header">
+                  <h4>最近の自律実行フロー</h4>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    onClick={loadAutonomyFlows}
+                    disabled={autonomyFlowsRefreshing}
+                  >
+                    {autonomyFlowsRefreshing ? '更新中...' : '再読み込み'}
+                  </button>
+                </div>
+                <p className="mcp-hint">
+                  `flowId` ごとに最近の自律実行を集約して表示します。stage 進行、文脈 snapshot、skip/failure reason を確認できます。
+                </p>
+                {autonomyFlowsError && <p className="mcp-error-text">{autonomyFlowsError}</p>}
+                {autonomyFlows.length === 0 ? (
+                  <p className="mcp-hint">自律実行フローはまだありません。</p>
+                ) : (
+                  <div className="autonomy-flow-list">
+                    {autonomyFlows.map((flow) => {
+                      const outcomeLabel = autonomyOutcomeLabel(flow.latestOutcome);
+                      return (
+                        <div key={flow.flowId} className="autonomy-flow-card">
+                          <div className="autonomy-flow-meta">
+                            <span className="mcp-status mcp-status-disconnected">{flow.source}</span>
+                            {flow.interventionLevel && (
+                              <span className="mcp-status mcp-status-warning">{flow.interventionLevel}</span>
+                            )}
+                            {outcomeLabel && (
+                              <span className={`mcp-status ${outcomeLabel.className}`}>{outcomeLabel.text}</span>
+                            )}
+                            <span className="autonomy-flow-time">
+                              {new Date(flow.endedAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="autonomy-flow-id">{flow.flowId}</p>
+                          <div className="autonomy-flow-stages">
+                            {Object.entries(AUTONOMY_STAGE_LABELS).map(([stage, label]) => (
+                              <span
+                                key={stage}
+                                className={`autonomy-flow-stage${flow.stages.includes(stage as keyof typeof AUTONOMY_STAGE_LABELS) ? ' autonomy-flow-stage-active' : ''}`}
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="autonomy-flow-detail">
+                            context: {formatContextSnapshotSummary(flow)}
+                          </p>
+                          {flow.taskIds.length > 0 && (
+                            <p className="autonomy-flow-detail">
+                              tasks: {flow.taskIds.join(', ')}
+                            </p>
+                          )}
+                          {flow.channels.length > 0 && (
+                            <p className="autonomy-flow-detail">
+                              channels: {flow.channels.join(', ')}
+                            </p>
+                          )}
+                          {flow.latestReason && (
+                            <p className="autonomy-flow-detail autonomy-flow-detail-alert">
+                              reason: {flow.latestReason}
+                            </p>
+                          )}
+                          {flow.traceId && (
+                            <div className="autonomy-flow-trace-row">
+                              <p className="autonomy-flow-detail">trace: {flow.traceId}</p>
+                              <button
+                                type="button"
+                                className="btn-secondary btn-small"
+                                onClick={() => void loadTraceDetail(flow.traceId!)}
+                                disabled={selectedTraceLoading && selectedTraceId === flow.traceId}
+                              >
+                                {selectedTraceLoading && selectedTraceId === flow.traceId ? 'trace 読み込み中...' : 'trace を表示'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {(selectedTraceLoading || selectedTrace || selectedTraceError) && (
+                  <div className="autonomy-trace-section">
+                    <div className="autonomy-flow-header">
+                      <h4>選択中の trace</h4>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-small"
+                        onClick={() => {
+                          setSelectedTrace(null);
+                          setSelectedTraceId('');
+                          setSelectedTraceError('');
+                          setSelectedTraceLoading(false);
+                        }}
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                    {selectedTraceLoading && (
+                      <p className="mcp-hint">trace を読み込み中です。</p>
+                    )}
+                    {selectedTraceError && (
+                      <p className="mcp-error-text">{selectedTraceError}</p>
+                    )}
+                    {selectedTrace && (
+                      <div className="autonomy-trace-card">
+                        <div className="autonomy-flow-meta">
+                          <span className={`mcp-status ${selectedTrace.status === 'error' ? 'mcp-status-error' : 'mcp-status-connected'}`}>
+                            {selectedTrace.status}
+                          </span>
+                          <span className="mcp-status mcp-status-disconnected">{selectedTrace.rootSpanName}</span>
+                          <span className="autonomy-flow-time">
+                            duration: {formatTraceDuration(selectedTrace.startTime, selectedTrace.endTime)}
+                          </span>
+                        </div>
+                        <p className="autonomy-flow-id">{selectedTrace.traceId}</p>
+                        <p className="autonomy-flow-detail">
+                          spans: {selectedTrace.spans.length} / exported: {selectedTrace.exported ? 'yes' : 'no'}
+                        </p>
+                        <div className="autonomy-trace-span-list">
+                          {selectedTrace.spans.map((span) => (
+                            <div key={span.spanId} className="autonomy-trace-span-card">
+                              <div className="autonomy-flow-meta">
+                                <span className={`mcp-status ${span.status === 'error' ? 'mcp-status-error' : 'mcp-status-disconnected'}`}>
+                                  {span.status}
+                                </span>
+                                <span className="mcp-status mcp-status-warning">{span.kind}</span>
+                                <span className="autonomy-flow-time">{formatSpanDuration(span)}</span>
+                              </div>
+                              <p className="autonomy-trace-span-name">{span.name}</p>
+                              {Object.keys(span.attributes).length > 0 && (
+                                <dl className="autonomy-trace-attributes">
+                                  {Object.entries(span.attributes).map(([key, value]) => (
+                                    <div key={key} className="autonomy-trace-attribute">
+                                      <dt>{key}</dt>
+                                      <dd>{String(value)}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              )}
+                              {span.events.length > 0 && (
+                                <div className="autonomy-trace-events">
+                                  {span.events.map((event, index) => (
+                                    <div key={`${span.spanId}-${event.name}-${index}`} className="autonomy-trace-event">
+                                      <span className="mcp-status mcp-status-disconnected">{event.name}</span>
+                                      {event.attributes && Object.keys(event.attributes).length > 0 && (
+                                        <span className="autonomy-flow-detail">
+                                          {Object.entries(event.attributes).map(([key, value]) => `${key}=${String(value)}`).join(', ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <label>
                 OTLP エンドポイント

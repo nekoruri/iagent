@@ -2,6 +2,89 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsModal } from './SettingsModal';
+import type { TraceRecord } from '../telemetry/types';
+
+function createMockCapabilitySnapshot() {
+  return {
+    environmentLabel: 'Desktop browser',
+    recommendedPath: 'Push + Service Worker',
+    items: [
+      {
+        id: 'foreground-heartbeat',
+        label: 'タブ表示中の実行',
+        level: 'yes',
+        detail: 'この環境では利用できます。アプリ表示中はメインスレッドで実行されます。',
+      },
+      {
+        id: 'desktop-notification',
+        label: '通知表示',
+        level: 'conditional',
+        detail: '通知権限を許可すると desktop notification を利用できます。',
+      },
+    ],
+  };
+}
+
+function createMockAutonomyFlow() {
+  return {
+    flowId: 'flow-1',
+    startedAt: 100,
+    endedAt: 200,
+    source: 'push',
+    stages: ['decision', 'delivery', 'reaction'],
+    eventCount: 3,
+    taskIds: ['calendar-check'],
+    channels: ['push'],
+    traceId: 'trace-1',
+    contextSnapshot: {
+      capturedAt: 90,
+      timeOfDay: 'morning',
+      calendarState: 'upcoming-soon',
+      onlineState: 'online',
+      focusState: 'normal',
+      deviceMode: 'desktop-browser',
+      installState: 'browser',
+    },
+    latestOutcome: 'clicked',
+    latestReason: 'daily_quota_reached',
+    interventionLevel: 'L3',
+  };
+}
+
+function createMockTrace(): TraceRecord {
+  return {
+    traceId: 'trace-1',
+    rootSpanName: 'heartbeat.check',
+    startTime: 100,
+    endTime: 180,
+    status: 'ok',
+    exported: false,
+    spans: [
+      {
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        name: 'heartbeat.check',
+        kind: 'internal',
+        startTimeUnixNano: 100_000_000,
+        endTimeUnixNano: 180_000_000,
+        status: 'ok',
+        attributes: {
+          'gen_ai.system': 'openai',
+          'heartbeat.task.count': 2,
+        },
+        events: [
+          {
+            name: 'heartbeat.skip',
+            timeUnixNano: 120_000_000,
+            attributes: {
+              reason: 'token_budget_deferred',
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
 
 function createMockConfig() {
   return {
@@ -136,6 +219,27 @@ vi.mock('../core/notifier', () => ({
   requestNotificationPermission: vi.fn(async () => 'granted'),
 }));
 
+const { mockLoadHeartbeatCapabilitySnapshot } = vi.hoisted(() => ({
+  mockLoadHeartbeatCapabilitySnapshot: vi.fn(),
+}));
+vi.mock('../core/heartbeatCapabilities', () => ({
+  loadHeartbeatCapabilitySnapshot: mockLoadHeartbeatCapabilitySnapshot,
+}));
+
+const { mockLoadRecentAutonomyFlows } = vi.hoisted(() => ({
+  mockLoadRecentAutonomyFlows: vi.fn(),
+}));
+vi.mock('../core/autonomyDiagnostics', () => ({
+  loadRecentAutonomyFlows: mockLoadRecentAutonomyFlows,
+}));
+
+const { mockGetTrace } = vi.hoisted(() => ({
+  mockGetTrace: vi.fn(),
+}));
+vi.mock('../telemetry/store', () => ({
+  getTrace: mockGetTrace,
+}));
+
 // pushSubscription モック
 vi.mock('../core/pushSubscription', () => ({
   subscribePush: vi.fn(async () => ({})),
@@ -205,8 +309,14 @@ describe('SettingsModal', () => {
     vi.clearAllMocks();
     const { getConfig } = await import('../core/config');
     const { getPushSubscription } = await import('../core/pushSubscription');
+    const { getNotificationPermission, requestNotificationPermission } = await import('../core/notifier');
     vi.mocked(getConfig).mockImplementation(() => createMockConfig());
     vi.mocked(getPushSubscription).mockResolvedValue(null);
+    vi.mocked(getNotificationPermission).mockReturnValue('default');
+    vi.mocked(requestNotificationPermission).mockResolvedValue('granted');
+    mockLoadHeartbeatCapabilitySnapshot.mockResolvedValue(createMockCapabilitySnapshot());
+    mockLoadRecentAutonomyFlows.mockResolvedValue([]);
+    mockGetTrace.mockResolvedValue(undefined);
     // App.tsx の OS テーマリスナーが matchMedia を使用するためモックが必要
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false,
@@ -682,7 +792,9 @@ describe('SettingsModal', () => {
     render(<SettingsModal open={true} onClose={vi.fn()} />);
 
     await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole('button', { name: '再読み込み' }));
+    const actionLogSection = screen.getByText('自動実行ログ（Action Planning）').closest('.hb-action-log-section');
+    expect(actionLogSection).not.toBeNull();
+    await userEvent.click(within(actionLogSection as HTMLElement).getByRole('button', { name: '再読み込み' }));
     await waitFor(() => expect(loadActionLog).toHaveBeenCalledTimes(2));
     expect(screen.getByText('再取得ログ')).toBeInTheDocument();
     expect(screen.getByText('静寂曜日')).toBeInTheDocument();
@@ -966,11 +1078,109 @@ describe('SettingsModal', () => {
     });
   });
 
-  describe('通知権限回復導線', () => {
-    it('default の場合は未設定ガイドが表示され、Push 有効化は無効化される', () => {
+  describe('Heartbeat capability summary', () => {
+    it('現在の実行 capability を表示する', async () => {
       render(<SettingsModal open={true} onClose={vi.fn()} />);
 
-      expect(screen.getByText('通知権限: 未設定')).toBeInTheDocument();
+      expect(await screen.findByText('現在の自律実行 capability')).toBeInTheDocument();
+      expect(screen.getByText('Desktop browser')).toBeInTheDocument();
+      expect(screen.getByText('推奨経路: Push + Service Worker')).toBeInTheDocument();
+      expect(screen.getByText('タブ表示中の実行')).toBeInTheDocument();
+      expect(screen.getByText('通知表示')).toBeInTheDocument();
+    });
+
+    it('capability snapshot 生成に現在設定を渡す', async () => {
+      const { getConfig } = await import('../core/config');
+      const { getPushSubscription } = await import('../core/pushSubscription');
+      const { getNotificationPermission } = await import('../core/notifier');
+      vi.mocked(getConfig).mockReturnValue({
+        ...createMockConfig(),
+        heartbeat: {
+          ...createMockConfig().heartbeat,
+          enabled: true,
+        },
+        push: {
+          enabled: true,
+          serverUrl: 'https://push.example.com',
+        },
+      });
+      vi.mocked(getPushSubscription).mockResolvedValue({} as PushSubscription);
+      vi.mocked(getNotificationPermission).mockReturnValue('granted');
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(mockLoadHeartbeatCapabilitySnapshot).toHaveBeenCalledWith(expect.objectContaining({
+          notificationPermission: 'granted',
+          heartbeatEnabled: true,
+          pushEnabled: true,
+          pushServerConfigured: true,
+          hasPushSubscription: true,
+        }));
+      });
+    });
+  });
+
+  describe('自律実行 diagnostics', () => {
+    it('最近の自律実行フローを表示する', async () => {
+      mockLoadRecentAutonomyFlows.mockResolvedValue([createMockAutonomyFlow()]);
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('最近の自律実行フロー')).toBeInTheDocument();
+      expect(await screen.findByText('flow-1')).toBeInTheDocument();
+      expect(screen.getByText('context: morning / upcoming-soon / normal / desktop-browser')).toBeInTheDocument();
+      expect(screen.getByText('reason: daily_quota_reached')).toBeInTheDocument();
+      expect(screen.getByText('trace: trace-1')).toBeInTheDocument();
+    });
+
+    it('再読み込みで最新の flow 一覧を取得する', async () => {
+      mockLoadRecentAutonomyFlows
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([createMockAutonomyFlow()]);
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+      expect(await screen.findByText('自律実行フローはまだありません。')).toBeInTheDocument();
+
+      const diagnosticsSection = screen.getByText('最近の自律実行フロー').closest('.autonomy-flow-section');
+      expect(diagnosticsSection).not.toBeNull();
+      await userEvent.click(within(diagnosticsSection as HTMLElement).getByRole('button', { name: '再読み込み' }));
+
+      expect(await screen.findByText('flow-1')).toBeInTheDocument();
+      expect(mockLoadRecentAutonomyFlows).toHaveBeenCalledTimes(2);
+    });
+
+    it('trace を表示すると developer-facing trace detail を確認できる', async () => {
+      mockLoadRecentAutonomyFlows.mockResolvedValue([createMockAutonomyFlow()]);
+      mockGetTrace.mockResolvedValue(createMockTrace());
+
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      const flowIdNode = await screen.findByText('flow-1');
+      const flowCard = flowIdNode.closest('.autonomy-flow-card');
+      expect(flowCard).not.toBeNull();
+      await userEvent.click(within(flowCard as HTMLElement).getByRole('button', { name: 'trace を表示' }));
+
+      expect(await screen.findByText('選択中の trace')).toBeInTheDocument();
+      const traceSection = screen.getByText('選択中の trace').closest('.autonomy-trace-section');
+      expect(traceSection).not.toBeNull();
+      const traceScope = within(traceSection as HTMLElement);
+      expect(traceScope.getAllByText('heartbeat.check').length).toBeGreaterThanOrEqual(2);
+      expect(traceScope.getByText('duration: 80ms')).toBeInTheDocument();
+      expect(traceScope.getByText('spans: 1 / exported: no')).toBeInTheDocument();
+      expect(traceScope.getByText('gen_ai.system')).toBeInTheDocument();
+      expect(traceScope.getByText('openai')).toBeInTheDocument();
+      expect(traceScope.getByText('heartbeat.skip')).toBeInTheDocument();
+      expect(traceScope.getByText('reason=token_budget_deferred')).toBeInTheDocument();
+      expect(mockGetTrace).toHaveBeenCalledWith('trace-1');
+    });
+  });
+
+  describe('通知権限回復導線', () => {
+    it('default の場合は未設定ガイドが表示され、Push 有効化は無効化される', async () => {
+      render(<SettingsModal open={true} onClose={vi.fn()} />);
+
+      expect(await screen.findByText('通知権限: 未設定')).toBeInTheDocument();
       expect(screen.getByText(/通知権限は未設定です/)).toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: 'Push 通知を有効化' })).toBeDisabled();
     });

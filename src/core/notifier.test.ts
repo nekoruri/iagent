@@ -143,12 +143,12 @@ describe('sendHeartbeatNotifications', () => {
 
   it('permission が granted のとき通知を作成する', () => {
     const results: HeartbeatResult[] = [
-      { taskId: 'test-1', timestamp: 1000, hasChanges: true, summary: 'テスト通知' },
+      { taskId: 'test-1', timestamp: 1000, hasChanges: true, summary: 'テスト通知', notificationReason: '朝 / 予定が近い' },
     ];
     sendHeartbeatNotifications(results);
 
     expect(Notification).toHaveBeenCalledWith('iAgent Heartbeat', {
-      body: 'テスト通知',
+      body: 'テスト通知\n朝 / 予定が近い',
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
       tag: 'heartbeat-test-1-1000',

@@ -117,4 +117,21 @@ describe('HeartbeatPanel', () => {
     expect(screen.getByText('明日')).toBeDefined();
     expect(screen.getByText('来週')).toBeDefined();
   });
+
+  it('user-facing explanation を表示する', () => {
+    const results = [
+      {
+        taskId: 'task-1',
+        timestamp: 1000,
+        hasChanges: true,
+        summary: 'テスト',
+        explanationWhyNow: 'Push 通知に確認し、朝 / 予定が近い / 通常モードとして扱いました。',
+        explanationOutcome: '通知から開きました。',
+      },
+    ];
+
+    render(<HeartbeatPanel {...baseProps} results={results} />);
+
+    expect(screen.getByRole('button', { name: '理由を見る' })).toBeInTheDocument();
+  });
 });

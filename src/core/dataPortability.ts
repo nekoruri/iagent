@@ -37,6 +37,9 @@ const chatMessageSchema = z.object({
   source: z.enum(['chat', 'heartbeat']).optional(),
   conversationId: z.string().optional(),
   attachmentIds: z.array(z.string()).optional(),
+  explanationTitle: z.string().optional(),
+  explanationWhyNow: z.string().optional(),
+  explanationOutcome: z.string().optional(),
 }).passthrough();
 
 const conversationSchema = z.object({

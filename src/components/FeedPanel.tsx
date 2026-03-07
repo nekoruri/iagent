@@ -1,5 +1,12 @@
 import { useRef, useEffect } from 'react';
 import type { FeedItem, Feed, FeedItemDisplayTier } from '../types';
+import { ExplanationDisclosure } from './ExplanationDisclosure';
+
+interface FeedPanelExplanation {
+  title: string;
+  whyNow: string;
+  outcome?: string;
+}
 
 interface FeedPanelProps {
   isOpen: boolean;
@@ -8,6 +15,7 @@ interface FeedPanelProps {
   selectedTier: FeedItemDisplayTier | undefined;
   isLoading: boolean;
   unreadCount: number;
+  explanation?: FeedPanelExplanation | null;
   onToggle: () => void;
   onClose: () => void;
   onChangeTier: (tier: FeedItemDisplayTier | undefined) => void;
@@ -47,6 +55,7 @@ export function FeedPanel({
   selectedTier,
   isLoading,
   unreadCount,
+  explanation,
   onToggle,
   onClose,
   onChangeTier,
@@ -82,6 +91,19 @@ export function FeedPanel({
             フィード記事
             <span className="feed-dropdown-count">{items.length}件</span>
           </div>
+          {explanation && (
+            <ExplanationDisclosure
+              className="feed-panel-explanation"
+              toggleClassName="explanation-disclosure-toggle"
+              bodyClassName="feed-panel-explanation-body"
+              titleClassName="feed-panel-explanation-title"
+              textClassName="feed-panel-explanation-text"
+              labelClassName="feed-panel-explanation-label"
+              title={explanation.title}
+              whyNow={explanation.whyNow}
+              outcome={explanation.outcome}
+            />
+          )}
           <div className="feed-tier-tabs">
             {FILTER_TIERS.map((tier) => (
               <button

@@ -516,6 +516,19 @@ describe('HeartbeatEngine - executeCheck', () => {
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockAddEvent).toHaveBeenCalledWith('heartbeat.skip', { reason: 'no_api_key' });
     expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'autonomy-stage',
+      stage: 'trigger',
+      source: 'tab',
+    }));
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'autonomy-stage',
+      stage: 'context',
+      source: 'tab',
+      contextSnapshot: expect.objectContaining({
+        timeOfDay: expect.any(String),
+      }),
+    }));
+    expect(mockAppendOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
       type: 'heartbeat-run',
       source: 'tab',
       status: 'skipped',

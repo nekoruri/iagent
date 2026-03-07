@@ -81,10 +81,12 @@ docs 全体の読み方: [README.md](README.md)
 - Heartbeat 3 層構成
 - Push / Periodic Sync / Worker / main thread の経路は実装済み
 - closed-state の現実的な capability は browser / install state 依存
+- capability matrix 文書は作成済み
+- Settings の Heartbeat セクションで current capability summary を表示できる状態まで進めている
 
 次にやること:
 
-- capability matrix を source of truth 化する
+- capability matrix を docs / UI / test で同期し続ける
 - wake-up state machine と fallback 優先順位を固定する
 - runtime failure path の回帰テスト棚卸し
 
@@ -116,12 +118,14 @@ docs 全体の読み方: [README.md](README.md)
 現在地:
 
 - notification / badge / panel / digest はある
-- ただし介入レベルと landing UX の共通設計が弱い
+- intervention taxonomy 文書は作成済み
+- Heartbeat 通知からの landing はパネル自動表示まで入った
+- ただし介入レベルの横断運用と個別結果 deep link はまだ弱い
 
 次にやること:
 
 - intervention taxonomy v1 を起点に既存機能を再分類する
-- landing UX の基本パターンを固定する
+- landing UX の基本パターンをさらに詰める
 - suppression rule を明文化する
 
 ### T4 オブザーバビリティ基盤
@@ -134,12 +138,20 @@ docs 全体の読み方: [README.md](README.md)
 現在地:
 
 - OTel tracer、ops-events、weekly metrics はある
-- ただし trigger -> reaction を一連で追う標準スキーマはまだない
+- `flowId` / `stage` / `contextSnapshotId` の基礎配線は入った
+- `autonomy-stage` で `trigger/context` を記録できる
+- Settings のオブザーバビリティで recent autonomy flows を確認できる
+- `traceId` がある flow から developer-facing trace detail を開ける
+- Heartbeat パネルでは user-facing explanation (`なぜ今`) を折りたたみ表示できる
+- Feed パネルでも latest feed-related flow に基づく `なぜ今` を折りたたみ表示できる
+- chat 内の Heartbeat proactive message にも explanation card を折りたたみ表示できる
+- 通知本文にも context 由来の短い理由を表示できるが、重要タスクのみに限定している
+- ただし trigger -> reaction を完全に埋め切る標準スキーマと user/dev の責務分離は未完了
 
 次にやること:
 
 - autonomy event schema v1 を標準化する
-- flow correlation 方針を決める
+- flow correlation 方針をさらに具体化する
 - user-facing log と developer trace の境界を固定する
 
 ### T5 信頼・安全・可視化

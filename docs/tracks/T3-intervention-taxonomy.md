@@ -57,6 +57,13 @@
 | Heartbeat パネル | `L4 opened detail` | 実行結果の第一詳細面 |
 | Feed パネル | `L4 opened detail` | 情報収集系の第二詳細面 |
 
+current implementation:
+
+- Heartbeat パネルでは `理由を見る` から各結果の `なぜ今` を開ける
+- Feed パネルでも `理由を見る` から panel-level explanation を開ける
+- chat 内の Heartbeat proactive message にも explanation card を折りたたみで表示する
+- 通知本文の短い explanation は重要タスクのみに付ける
+
 ---
 
 ## 4. landing UX v1
@@ -64,11 +71,11 @@
 notification click 後の current landing pattern は次です。
 
 1. 通知クリックで app root (`/`) を開く、または既存タブへ focus を戻す
-2. 結果そのものは `heartbeat` store に残っている
-3. ユーザーはベルアイコンから Heartbeat パネルを開いて詳細を見る
+2. Heartbeat 通知の場合は Heartbeat パネルを自動で開く
+3. 結果そのものは `heartbeat` store に残っている
 4. 必要なら Feed パネルや chat に移動して次アクションへ進む
 
-これは**deep link ではなく state retention 型**の landing です。
+これは**state retention + opened detail 自動表示型**の landing です。
 
 ### landing UX v1 の意図
 
@@ -78,8 +85,8 @@ notification click 後の current landing pattern は次です。
 
 ### landging UX v1 の弱点
 
-- 通知を開いた直後に「次に何をすればよいか」が即時には見えない
-- deep link ではないため、結果への到達に 1 手かかる
+- deep link ではないため、個別結果へのピンポイント遷移ではない
+- Heartbeat パネル内で複数結果がある場合、どの結果を先に見るべきかはまだ弱い
 
 ---
 

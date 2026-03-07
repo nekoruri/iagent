@@ -551,6 +551,38 @@ describe('ops events', () => {
     }));
   });
 
+  it('autonomy-stage イベントを保存・読み込みできる', async () => {
+    const now = Date.now();
+    await appendOpsEvent({
+      type: 'autonomy-stage',
+      timestamp: now,
+      source: 'worker',
+      flowId: 'flow-1',
+      stage: 'context',
+      interventionLevel: 'L0',
+      contextSnapshotId: 'flow-1-context',
+      contextSnapshot: {
+        capturedAt: now,
+        timeOfDay: 'daytime',
+        calendarState: 'empty',
+        onlineState: 'online',
+        focusState: 'normal',
+        deviceMode: 'desktop-browser',
+        installState: 'browser',
+      },
+    });
+
+    const events = await loadOpsEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(expect.objectContaining({
+      type: 'autonomy-stage',
+      flowId: 'flow-1',
+      stage: 'context',
+      source: 'worker',
+      contextSnapshotId: 'flow-1-context',
+    }));
+  });
+
   it('setup-wizard イベントを保存・読み込みできる', async () => {
     const now = Date.now();
     await appendOpsEvent({

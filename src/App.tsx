@@ -24,6 +24,7 @@ import { useViewportHeight } from './hooks/useViewportHeight';
 import { applyTheme, getStoredThemeMode } from './core/theme';
 import { isConfigured, getConfig, getDefaultWebSpeechConfig } from './core/config';
 import { mcpManager } from './core/mcpManager';
+import { buildHeartbeatChatMessage, loadAutonomyFlowsByIds } from './core/autonomyDiagnostics';
 import { saveMessage } from './store/conversationStore';
 import type { HeartbeatNotification } from './core/heartbeat';
 import type { ChatMessage } from './types';
@@ -93,18 +94,27 @@ export default function App() {
 
   const handleHeartbeatNotification = useCallback((notification: HeartbeatNotification) => {
     if (!activeConversationId) return;
-    for (const result of notification.results) {
-      const msg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: `[Heartbeat] ${result.summary}`,
-        timestamp: Date.now(),
-        source: 'heartbeat',
-        conversationId: activeConversationId,
-      };
-      setMessages((prev) => [...prev, msg]);
-      saveMessage(msg);
-    }
+
+    void (async () => {
+      try {
+        const flowIds = notification.results
+          .map((result) => result.flowId)
+          .filter((flowId): flowId is string => typeof flowId === 'string');
+        const flowMap = await loadAutonomyFlowsByIds(flowIds);
+        const nextMessages = notification.results.map((result) => (
+          buildHeartbeatChatMessage(
+            result,
+            activeConversationId,
+            result.flowId ? flowMap[result.flowId] : undefined,
+          )
+        ));
+        setMessages((prev) => [...prev, ...nextMessages]);
+        await Promise.all(nextMessages.map((message) => saveMessage(message)));
+      } catch (error) {
+        console.warn('[iAgent] Heartbeat proactive message の保存に失敗しました:', error);
+      }
+    })();
+
     heartbeatPanel.refresh();
     if (notification.results.some((r) => r.taskId === 'feed-check')) {
       feedPanel.refresh(feedPanel.selectedTier);
@@ -229,6 +239,9 @@ export default function App() {
     if (!speechOutput.isSupported) return;
     speechOutput.speak(content);
   });
+  const openHeartbeatPanelFromLanding = useEffectEvent(() => {
+    heartbeatPanel.open();
+  });
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = isStreaming;
@@ -238,6 +251,31 @@ export default function App() {
       autoSpeakAssistantMessage(lastMsg.content);
     }
   }, [isStreaming, webSpeech.ttsAutoRead, messages]);
+
+  useEffect(() => {
+    const openHeartbeatFromUrl = () => {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get('heartbeat') !== 'open') return;
+
+      openHeartbeatPanelFromLanding();
+      currentUrl.searchParams.delete('heartbeat');
+      const nextSearch = currentUrl.searchParams.toString();
+      const nextUrl = `${currentUrl.pathname}${nextSearch ? `?${nextSearch}` : ''}${currentUrl.hash}`;
+      window.history.replaceState({}, '', nextUrl);
+    };
+
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'heartbeat-open') {
+        openHeartbeatPanelFromLanding();
+      }
+    };
+
+    openHeartbeatFromUrl();
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, []);
 
   // メッセージ送信時にタイトル自動設定 & touch
   const handleSend = useCallback(async (text: string, attachments?: PendingAttachment[]) => {
@@ -407,6 +445,7 @@ export default function App() {
               selectedTier={feedPanel.selectedTier}
               isLoading={feedPanel.isLoading}
               unreadCount={feedPanel.unreadCount}
+              explanation={feedPanel.explanation}
               onToggle={feedPanel.toggle}
               onClose={feedPanel.close}
               onChangeTier={feedPanel.changeTier}
