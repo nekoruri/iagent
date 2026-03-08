@@ -89,6 +89,7 @@ PoC の観測・週次運用に使う文書です。
 | [PROPOSAL-proactive-engine.md](PROPOSAL-proactive-engine.md) | 介入設計とペルソナ駆動の詳細 |
 | [PROPOSAL-test-infrastructure.md](PROPOSAL-test-infrastructure.md) | テスト基盤強化の履歴 |
 | [PROPOSAL-multimodal-review-fixes.md](PROPOSAL-multimodal-review-fixes.md) | マルチモーダル review 対応履歴 |
+| [PROPOSAL-document-driven-agent-architecture.md](PROPOSAL-document-driven-agent-architecture.md) | ドキュメント駆動再実装の方針整理 |
 | [NOTE-declarative-web-push-2026-03.md](NOTE-declarative-web-push-2026-03.md) | Declarative Push の技術メモ |
 
 ---
