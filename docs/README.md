@@ -6,13 +6,15 @@
 
 1. ミッションと長期方針  
    [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md)
-2. 実装と計画の現在値  
+2. 判断原則とレビュー姿勢  
+   [ADR-exploration-first-technical-direction.md](ADR-exploration-first-technical-direction.md)
+3. 実装と計画の現在値  
    [ROADMAP.md](ROADMAP.md)
-3. 構造と運用方法  
+4. 構造と運用方法  
    [ARCHITECTURE.md](ARCHITECTURE.md) / [USER-GUIDE.md](USER-GUIDE.md) / [OPERATIONS.md](OPERATIONS.md)
-4. PoC 運用と週次記録  
+5. PoC 運用と週次記録  
    [POC-KPI.md](POC-KPI.md) / [POC-SLO.md](POC-SLO.md) / [POC-USER-VALIDATION.md](POC-USER-VALIDATION.md) / [POC-EXIT-CRITERIA.md](POC-EXIT-CRITERIA.md) / `weekly/`
-5. 長期トラックごとの具体タスク  
+6. 長期トラックごとの具体タスク  
    [tracks/README.md](tracks/README.md)
 
 ---
@@ -24,6 +26,7 @@
 | 文書 | 役割 |
 |---|---|
 | [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md) | 研究ミッションと長期トラック T1〜T9 |
+| [ADR-exploration-first-technical-direction.md](ADR-exploration-first-technical-direction.md) | 提案・レビュー・設計判断での探索優先 / 重大度重み付けの原則 |
 | [ROADMAP.md](ROADMAP.md) | 実装済み / 未実装を含む全体ロードマップ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 現在のアーキテクチャとデータ構造 |
 | [USER-GUIDE.md](USER-GUIDE.md) | 利用者目線の現在仕様 |
@@ -34,6 +37,7 @@
 補足:
 
 - 実装の現在値は `ROADMAP` と `ARCHITECTURE` を優先する
+- 提案やレビューの判断前提は `ADR-exploration-first-technical-direction` を優先する
 - 古い proposal は背景理解には使うが、現在状態の source of truth にはしない
 
 ---
