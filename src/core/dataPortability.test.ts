@@ -211,4 +211,25 @@ describe('dataPortability', () => {
     expect(result.counts.archivedMemories).toBe(0);
     expect(result.counts.attachments).toBe(0);
   });
+
+  it('importDataPortabilityFromJson は mimeType と dataUri の不整合を拒否する', async () => {
+    const payload = {
+      format: DATA_PORTABILITY_FORMAT,
+      schemaVersion: DATA_PORTABILITY_SCHEMA_VERSION,
+      exportedAt: 1_700_000_000_000,
+      config: makeConfig(),
+      conversationMeta: [makeConversation('conv-1', 1)],
+      conversations: [makeMessage('msg-1', 2, 'conv-1')],
+      memories: [makeMemory('mem-1', 3)],
+      attachments: [
+        {
+          ...makeAttachment('att-1', 4, 'msg-1', 'conv-1'),
+          mimeType: 'image/png',
+          dataUri: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+        },
+      ],
+    };
+
+    await expect(importDataPortabilityFromJson(JSON.stringify(payload))).rejects.toThrow();
+  });
 });
