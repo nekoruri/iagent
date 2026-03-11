@@ -1,165 +1,313 @@
 # PROPOSAL: ドキュメント駆動 AI エージェント再実装アーキテクチャ
 
+> 位置づけ: 長期探索向け proposal
+> 関連: [ADR-exploration-first-technical-direction.md](ADR-exploration-first-technical-direction.md) / [PROPOSAL-device-agent-research-roadmap.md](PROPOSAL-device-agent-research-roadmap.md) / [PROPOSAL-autonomous-agent-evolution.md](PROPOSAL-autonomous-agent-evolution.md) / [PROPOSAL-external-integration.md](PROPOSAL-external-integration.md)
+
 ## 背景
 
 現状は、個別機能が AI エージェント本体に直接実装されており、
-新機能追加時に以下の課題が出やすい。
+新機能追加時に次の課題が出やすい。
 
 - 仕様差分がコード差分に埋もれ、レビューで意図を追いにくい
 - 機能横展開時に、再実装コストが高い
 - ドメイン変更時に、同種の処理を複数箇所で修正する必要がある
+- planner / executor / tool runtime を差し替えると、蓄積した手順や制約も一緒に作り直しやすい
 
-このため、仕様を先行資産化し、LLM が仕様文書を解釈して実行振る舞いを構成する
-「ドキュメント駆動ソフトウェア」へ段階的に移行する技術検証方針を整理する。
+このため、仕様を先行資産化し、LLM や runtime の入れ替わりに耐える
+**agent の control plane / knowledge plane** を外出しする方向を整理する。
+
+ここでいう「ドキュメント駆動」は、
+単に YAML を増やすことではない。  
+仕様、契約、スキル、評価例、実行履歴を
+コード本体から切り離して持ち、複数の runtime がそれを読み替えられる状態を目指す。
+
+---
+
+## この提案の本質
+
+この proposal は、既存コードを文書へ安全に写すだけの移行計画ではない。  
+本質は、**エージェントの振る舞いを支える知識資産を first-class artifact にすること**にある。
+
+これにより、将来的に次が可能になる。
+
+- planner 主導の runtime と rule-first runtime を同じ資産で比較する
+- human-authored skill と learned skill を同じ registry 上で扱う
+- 安定した経路だけを playbook 化、compile 化する
+- 実行結果や失敗から skill / policy / examples を更新し、次の方式へ持ち越す
+
+したがって、長期の北極星は「安全な再実装」よりも
+**差し替え可能な artifact の体系化**に置く。
 
 ---
 
 ## 目標
 
-- 機能追加の主作業を「コード実装」から「仕様ドキュメント拡張」へ寄せる
-- 複数ユースケースへの横展開を、テンプレート化された仕様差し替えで実現する
-- 実行時の判断根拠を、参照した仕様バージョンに紐づけて追跡可能にする
+- 機能追加の主作業を「コード実装」から「artifact 拡張」へ寄せる
+- 複数ユースケースへの横展開を、capability / skill / policy の再利用で実現する
+- planner / executor / compiler を差し替えても、手順知識と制約を持ち越せるようにする
+- human-authored skill と learned skill を同じ系で扱えるようにする
+- 実行時の判断根拠を、参照した artifact バージョンに紐づけて追跡可能にする
 
-非目標（初期 PoC）:
+非目標（初期段階）:
 
 - 全機能の一括置換
+- 単一 DSL への早期収束
 - 完全自律な自己改変
 
 ---
 
-## 方針パターン
+## 共有する artifact model
+
+この提案の中心は、1 つの YAML schema ではなく、
+次の artifact を分離して扱うことにある。
+
+### 1. Capability Contract
+
+何ができるかを定義する契約。
+
+- 入力 / 出力 schema
+- 前提条件
+- 失敗モード
+- 期待する副作用
+
+### 2. Policy / Boundary Contract
+
+何をしてよく、何をしてはいけないかを定義する契約。
+
+- permission
+- confirmation policy
+- read / suggest / prepare / execute の境界
+- allowed tool / denied tool
+
+### 3. Skill Package
+
+再利用単位としての手順知識。
+
+- `SKILL.md`
+- `contract.json`
+- `examples/`
+- 必要に応じて fallback / explanation
+
+Skill は、human-authored でも learned でもよい。  
+ただし両者を同列には扱わず、trust level を持たせる。
+
+### 4. Examples / Eval Corpus
+
+artifact の意味を固定するための参照例。
+
+- good / bad example
+- edge case
+- expected plan
+- expected explanation
+
+### 5. Outcome / Reflection History
+
+実行結果から得た学びを保持する履歴。
+
+- success / failure
+- user reaction
+- reflection
+- promotion candidate
+
+これは procedural memory へつながる層でもある。
+
+### 6. Trust Level
+
+artifact は出自に応じて区別する。
+
+- `authored`
+- `candidate`
+- `approved`
+- `compiled`
+
+この区別がないと、探索性と安全性の両方を失う。
+
+---
+
+## A/B/C/D は「実行モード」の違い
+
+以下の 4 パターンは、別々の最終形ではなく、
+共有 artifact をどう実行するかの違いとして捉える。
 
 ### パターン A: 宣言的プレイブック実行（Rule-first）
 
-最小リスクで始めるための段階移行。
+- artifact のうち、安定した経路を決定木として固定する
+- LLM は不足パラメータ補完や曖昧条件の正規化に限定する
+- 説明性と再現性が必要な領域に向く
 
-- ドキュメントを `intent / precondition / steps / fallback / audit` の定型 YAML で管理
-- ランタイムはプレイブックを読み、決定木として実行
-- LLM は不足パラメータ補完・曖昧条件の正規化に限定利用
+**役割**
 
-**向くケース**
+- 安定パスの fallback
+- 安全に固定したい処理の表現
+- planner runtime と比較するための基準線
 
-- 現行機能を壊さずに移行したい
-- 再現性と説明可能性を重視したい
+**注意点**
 
-**利点**
-
-- 監査ログと仕様の 1:1 対応が作りやすい
-- 失敗時の切り戻しが容易
-
-**弱み**
-
-- 非定型タスクには表現力が不足しやすい
+- これを中心に据えすぎると、探索が YAML 設計へ引っ張られやすい
 
 ---
 
 ### パターン B: ドキュメント駆動 Planner-Executor（Plan-first）
 
-LLM を計画生成に使い、実行は厳格に制約する構成。
+- capability / constraint / success criteria / tool contract を参照して計画を作る
+- Executor は artifact に定義された contract と policy に従って実行する
+- 失敗結果は reflection として次へ返す
 
-- 仕様文書を `capabilities / constraints / success_criteria / tool_contract` で分割
-- Planner LLM が仕様を参照して実行計画を生成
-- Executor は tool contract 準拠のみ許可（schema validation + policy check）
-- Replanner が失敗ログを受けて計画を再構成
+**役割**
 
-**向くケース**
+- 探索ランタイムの中心
+- skill の組み合わせ検証
+- 新しい planner / model / prompting 方式の比較
 
-- 複数ツール連携があり、順序最適化の余地が大きい
-- 仕様更新で振る舞いを変えたい
+**注意点**
 
-**利点**
-
-- 複雑タスクへの適応力が高い
-- 仕様拡張のレバレッジが大きい
-
-**弱み**
-
-- 計画品質の評価基盤（テストシナリオ/ゴール判定）が必須
+- planner 側に知性を寄せすぎず、artifact 設計を first-class に保つ
 
 ---
 
 ### パターン C: スキルレジストリ型（Capability-first）
 
-機能を「スキル」単位でドキュメント化し、動的ロードする構成。
+- capability / skill / policy / examples を registry で管理する
+- user request や heartbeat task を、registry 上の skill へ解決する
+- learned skill の昇格先にもなる
 
-- 各スキルは `SKILL.md + contract.json + examples/` を持つ
-- レジストリがスキルの互換性（version, input/output schema）を管理
-- ルータがユーザー要求をスキルへマッチング
-- 追加機能は新規スキル文書の投入で有効化
+**役割**
 
-**向くケース**
+- 長期的な北極星
+- human-authored skill と learned skill の統合点
+- planner / rule / compile の共通基盤
 
-- チーム/プロダクト横断で再利用したい
-- 機能境界を明確化したい
+**注意点**
 
-**利点**
-
-- 横展開と委譲がしやすい
-- 段階的な独立リリースが可能
-
-**弱み**
-
-- スキル間競合解決（優先度・依存関係）が設計難所
+- skill 間競合解決だけでなく、trust level と promotion 流れを設計する必要がある
 
 ---
 
 ### パターン D: 仕様→コード生成ハイブリッド（Compile-first）
 
-実行時解釈を減らし、仕様から静的成果物を生成する構成。
+- 安定した artifact から orchestrator / validator / policy adapter を生成する
+- 実行時解釈を減らし、レイテンシ・コスト・安定性を最適化する
+- 高頻度パスや低リスクの定型処理から適用する
 
-- 仕様 DSL から TypeScript の orchestrator / validator / policy を生成
-- 実行時は生成物中心で動かし、LLM は例外時のみ使用
-- 生成パイプラインに静的検査を組み込む
+**役割**
 
-**向くケース**
+- 収束先
+- hot path の hardening
+- runtime 多様性を保ったままの最適化
 
-- レイテンシ・コスト・安定性を優先したい
-- 本番運用の変更管理を厳格化したい
+**注意点**
 
-**利点**
-
-- 実行の予測可能性が高い
-- パフォーマンスを安定化しやすい
-
-**弱み**
-
-- DSL 設計とジェネレータ保守コストがかかる
+- DSL を早く固定しすぎると、探索余地を失う
 
 ---
 
-## 推奨する進め方（段階導入）
+## 推奨する進め方
 
-1. **Phase 1: A で現行機能を写像**
-   - 既存機能をプレイブック化し、挙動差分を可視化
-2. **Phase 2: B を限定ドメインへ導入**
-   - 失敗許容なユースケースで Planner-Executor を試験
-3. **Phase 3: C で再利用単位を固定化**
-   - 成熟機能をスキルとして分離し、レジストリ管理へ
-4. **Phase 4: D で高頻度パスをコンパイル化**
-   - ホットパスのみ生成コードへ移してコスト最適化
+直列の `A -> B -> C -> D` よりも、
+次の 2 つのループを回す方が長期方向に合う。
 
-この順序により、
-「説明可能性（A）→適応性（B）→拡張性（C）→運用効率（D）」を
-段階的に獲得できる。
+### 1. 探索ループ
+
+- capability / skill / examples を増やす
+- Planner-Executor で skill の組み合わせを試す
+- runtime や model を差し替えて比較する
+- outcome / reflection を蓄積し、candidate skill を作る
+
+### 2. 収束ループ
+
+- 成功率が高く、説明しやすい経路を playbook 化する
+- 高頻度パスを compile 化する
+- policy と permission boundary を固定する
+- approved artifact のみを本流へ昇格させる
+
+この 2 ループを前提にすると、
+各パターンの位置づけは次の通り。
+
+- C: 共通基盤
+- B: 探索ランタイム
+- A: 決定的 fallback
+- D: hardening と最適化
 
 ---
 
-## PoC で最低限検証すべき評価指標
+## 長期ロードマップとの接続
 
-- **変更容易性**: 新機能追加に必要なコード行数 / ドキュメント行数
-- **横展開性**: 既存仕様流用率（新規作成 vs 再利用）
+この proposal は 1 つの feature の提案ではなく、
+複数トラックを横断する基盤案である。
+
+- T4: reasoning lineage を残し、「なぜその判断か」を追えるようにする
+- T5: explanation と permission / kill switch を policy artifact として分離する
+- T6: learned skill や reflection を procedural memory として扱う
+- T7: action boundary を feature 実装ではなく contract 側へ寄せる
+
+とくに C の skill registry は、
+長期記憶 proposal における procedural memory の受け皿として重要である。  
+これは単なる横展開の仕組みではなく、
+エージェントが学習した手順を昇格・再利用する基盤になりうる。
+
+---
+
+## 防御的に見るべき論点
+
+探索優先で進めるとしても、次は早い段階で防御的に指摘する。
+
+- tool contract が現行 runtime や特定ベンダー前提に固定されること
+- policy が playbook や skill ごとに埋まり、行動境界が散らばること
+- `docs/specs/` の単一 schema に寄せすぎて artifact の多様性を失うこと
+- human-authored と learned artifact の trust level を区別しないこと
+- 実行履歴が trace だけに閉じ、skill promotion や reflection へつながらないこと
+
+ここを誤ると、文書駆動が「コードの置き換え」にはなっても、
+将来の探索を広げる基盤にはならない。
+
+---
+
+## 評価指標
+
+評価は「コード行数が減ったか」だけでは弱い。  
+最低限、次を見たい。
+
+- **artifact 再利用性**: 同じ capability / skill が複数 surface やユースケースで使えるか
+- **runtime 可搬性**: planner / executor / compiler を差し替えても artifact を持ち越せるか
+- **skill 昇格性**: outcome / reflection から candidate / approved skill へ昇格できるか
+- **境界の安定性**: permission / confirmation policy が feature 実装に散らばらないか
+- **reasoning lineage**: 実行結果を参照した artifact バージョンまで追えるか
 - **安全性**: policy 違反検知率、危険アクションのブロック率
-- **再現性**: 同一入力に対する計画差分率
-- **運用性**: デバッグ時間、失敗原因の特定時間
+
+補助指標として、次は引き続き有用である。
+
+- 変更容易性
+- 横展開性
+- 再現性
+- 運用性
 
 ---
 
 ## 直近の実装タスク案
 
-- `docs/specs/` に仕様スキーマ（YAML/JSON Schema）を新設
-- 現行の主要 2〜3 機能を、仕様ファイルへマッピング
-- 仕様バージョンを実行ログへ埋め込むトレーサを追加
-- 既存 E2E のうち代表シナリオを、仕様起点テストに置換
+最初から大きな DSL を作るのではなく、artifact の分離を先に試す。
 
-これにより「文書を編集すると振る舞いが変わる」最小ループを
-短期間で評価できる。
+- `docs/agent-artifacts/` を新設し、`capabilities/`, `policies/`, `skills/`, `evals/` に分ける
+- 現行の代表機能を 1 つ選び、capability contract / policy / examples を分けて記述する
+- その 1 機能に対して、Planner-Executor で artifact を読む最小ランタイムを作る
+- 実行ログに artifact version と trust level を埋め込み、reflection の保存先も決める
+- 成功率の高い経路だけを playbook 候補として抽出する
+
+この順序なら、
+探索の幅を保ったまま「artifact が本当に資産になるか」を見られる。
+
+---
+
+## 結論
+
+この proposal の価値は、現行コードを文書へ移すこと自体にはない。  
+価値があるのは、**spec / skill / policy / examples / outcome を
+runtime から独立した永続資産として持てるようにすること**にある。
+
+長期方向としては、
+Rule-first を出発点に置くよりも、
+Capability-first を中核に据え、
+Planner-Executor、Playbook、Compile-first をその周囲の実行モードとして扱う方が強い。
+
+そう見ることで、この proposal は単なる再実装方針ではなく、
+iAgent の将来の control plane / knowledge plane を形作る提案になる。

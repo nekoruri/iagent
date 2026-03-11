@@ -19,6 +19,7 @@
 - timing / channel / wording の学習対象を明示する
 - memory 品質管理と suggestion optimization の責務分離を整理する
 - 学習結果をユーザーが確認できる summary の形式を決める
+- reflection / learned skill をどの artifact に昇格させるかの条件を決める
 
 ## Issue 粒度の分解
 
@@ -38,6 +39,7 @@
 - 「この提案はどの学習結果に基づくか」を辿れるようにする
 - stale / noisy / duplicate memory が提案に与える影響を可視化する
 - 学習結果の rollback 方針を決める
+- candidate / approved skill への promotion flow を定義する
 
 ### Later
 
@@ -54,4 +56,5 @@
 
 - [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md)
 - [../PROPOSAL-autonomous-agent-evolution.md](../PROPOSAL-autonomous-agent-evolution.md)
+- [../PROPOSAL-document-driven-agent-architecture.md](../PROPOSAL-document-driven-agent-architecture.md)
 - [T6-learning-scope.md](T6-learning-scope.md)

@@ -31,6 +31,7 @@
 - foreground / worker / service worker / push を跨ぐ trace correlation 方針を決める
 - ops-events / traces / weekly metrics の役割分担を固定する
 - user-facing explanation log と developer-facing trace の境界を定義する
+- artifact version / trust level / reasoning lineage を flow と結び付ける方針を決める
 
 ## Issue 粒度の分解
 
@@ -75,6 +76,7 @@
 - notification / heartbeat / suggestion のイベント schema を揃える
 - diagnostics UI で現在の動作状態と直近の自律実行履歴を確認できるようにする
 - export 先がない環境でも local-only で解析可能な導線を整える
+- capability / skill / policy artifact を参照した判断根拠を観測できるようにする
 
 ### Later
 
@@ -90,6 +92,7 @@
 ## 関連
 
 - [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md)
+- [../PROPOSAL-document-driven-agent-architecture.md](../PROPOSAL-document-driven-agent-architecture.md)
 - [../ARCHITECTURE.md](../ARCHITECTURE.md)
 - [../POC-SLO.md](../POC-SLO.md)
 - [../ROADMAP.md](../ROADMAP.md)

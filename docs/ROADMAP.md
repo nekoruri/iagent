@@ -56,7 +56,9 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
    参照: [tracks/T6-learning-personalization.md](tracks/T6-learning-personalization.md)
 3. `P2-2` action boundary
    参照: [tracks/T7-action-boundaries.md](tracks/T7-action-boundaries.md)
-4. W12 の継続計測と scenario evidence 蓄積
+4. `P2-3` agent artifact model
+   参照: [tracks/BACKLOG.md](tracks/BACKLOG.md), [PROPOSAL-document-driven-agent-architecture.md](PROPOSAL-document-driven-agent-architecture.md)
+5. W12 の継続計測と scenario evidence 蓄積
    参照: [weekly/2026-W12.md](weekly/2026-W12.md)
 
 横断バックログ全体: [tracks/BACKLOG.md](tracks/BACKLOG.md)
@@ -145,13 +147,14 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - chat 内の Heartbeat proactive message にも explanation card を折りたたみ表示できる
 - 通知本文にも context 由来の短い理由を表示できるが、重要タスクのみに限定している
 - network / latency / permission / no-change の suppression reason を flow 上で追える
-- ただし trigger -> reaction を完全に埋め切る標準スキーマと user/dev の責務分離は未完了
+- ただし trigger -> reaction を完全に埋め切る標準スキーマ、artifact lineage、user/dev の責務分離は未完了
 
 次にやること:
 
 - autonomy event schema v1 を標準化する
 - flow correlation 方針をさらに具体化する
 - user-facing log と developer trace の境界を固定する
+- artifact version / trust level を reasoning lineage に結び付ける
 
 ### T5 信頼・安全・可視化
 
@@ -184,12 +187,14 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - feedback loop、pattern recognition、suggestion optimization はある
 - learning scope v1 を docs と Settings summary で確認できる
 - 学習対象と rollback / 監査の考え方はまだ弱い
+- learned skill や procedural memory の昇格導線はまだ未整理
 
 次にやること:
 
 - learning scope を weekly の evidence とつなぐ
 - 学習前後の差分を weekly で比較できる形にする
 - memory quality と提案品質の接続を強める
+- reflection / learned skill を artifact として昇格させる流れを定義する
 
 ### T7 行動実行の境界設計
 
@@ -203,12 +208,14 @@ P0-1 〜 P1-3 の初期成果物は一通り揃ったため、直近は次を優
 - Action Planning によるローカル設定変更はある
 - action taxonomy v1 を docs と Settings summary で確認できる
 - advisory / action の境界はまだ曖昧
+- 権限境界はまだ feature 実装側に散在している
 
 次にやること:
 
 - confirmation 必須 / 不要の判定基準をより厳密にする
 - 自動実行可能な低リスク操作を限定し続ける
 - MCP / Web / OS 連携を taxonomy 上のどこに置くか決める
+- action boundary を policy contract として切り出す
 
 ### T8 端末制約最適化
 

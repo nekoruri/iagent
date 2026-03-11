@@ -3,6 +3,8 @@
 長期研究トラック `T1〜T9` を、実行可能な具体タスクへ分解した文書群です。
 
 上位方針は [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md) を参照してください。  
+artifact / skill / policy を横断資産として扱う長期 proposal は
+[../PROPOSAL-document-driven-agent-architecture.md](../PROPOSAL-document-driven-agent-architecture.md) を参照してください。  
 このディレクトリでは、各トラックごとに
 
 - 目的
@@ -47,6 +49,7 @@
 読み方:
 
 1. まず [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md) で上位ミッションを確認する  
-2. 次に [BACKLOG.md](BACKLOG.md) で全体の優先順位を確認する  
-3. その上で担当するトラック文書を開き、`Now` のタスクから着手する  
-4. 実装や意思決定が進んだら [../ROADMAP.md](../ROADMAP.md) と整合させる
+2. artifact / skill / policy の横断設計が絡む場合は [../PROPOSAL-document-driven-agent-architecture.md](../PROPOSAL-document-driven-agent-architecture.md) を確認する  
+3. 次に [BACKLOG.md](BACKLOG.md) で全体の優先順位を確認する  
+4. その上で担当するトラック文書を開き、`Now` のタスクから着手する  
+5. 実装や意思決定が進んだら [../ROADMAP.md](../ROADMAP.md) と整合させる
