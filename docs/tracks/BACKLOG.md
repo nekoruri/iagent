@@ -98,6 +98,15 @@
 - トラック: `T7`
 - 目的: suggest / prepare / execute の境界と confirmation policy を固定する
 
+### P2-3. agent artifact model の最小形を作る
+
+- トラック: `T4 / T6 / T7`
+- 目的: capability / policy / skill / eval / outcome を runtime から分離した共有資産として扱えるようにする
+- 成果物:
+  - artifact model の最小構成
+  - trust level と promotion flow の定義
+  - policy contract と action boundary の接続方針
+
 ---
 
 ## 推奨順
@@ -112,6 +121,7 @@
 8. `P1-4` PoC exit criteria
 9. `P2-1` learning scope
 10. `P2-2` action boundary
+11. `P2-3` agent artifact model
 
 この順番にしている理由:
 
@@ -119,3 +129,4 @@
 - trust は observability と intervention taxonomy の上に乗る
 - exit criteria は KPI / SLO / interview / scenario の接続が揃ってから固定する
 - action boundary は context / trust / observability が揃ってからのほうが設計しやすい
+- artifact model は observability / learning / action boundary の接続点なので、その 3 つの下地が見えてから詰める

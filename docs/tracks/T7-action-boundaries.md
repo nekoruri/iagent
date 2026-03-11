@@ -22,6 +22,7 @@
 - confirmation 必須 / 不要の判定基準を決める
 - 既存の自動設定変更を action boundary 上で位置づける
 - MCP / Web / OS 連携の権限境界を一覧化する
+- action boundary を feature 実装ではなく policy contract 側へ寄せる方針を決める
 
 ## Issue 粒度の分解
 
@@ -37,7 +38,7 @@
 
 ### Next
 
-- action mode を feature flag / permission model と紐づける
+- action mode を feature flag / permission model / policy contract と紐づける
 - rollback 不可能な操作を明示的に分離する
 - 実行前 explanation と実行後 audit log を接続する
 - 自動実行の対象を安全な低リスク操作に限定する
@@ -56,5 +57,6 @@
 ## 関連
 
 - [../PROPOSAL-device-agent-research-roadmap.md](../PROPOSAL-device-agent-research-roadmap.md)
+- [../PROPOSAL-document-driven-agent-architecture.md](../PROPOSAL-document-driven-agent-architecture.md)
 - [../PROPOSAL-external-integration.md](../PROPOSAL-external-integration.md)
 - [T7-action-taxonomy.md](T7-action-taxonomy.md)
