@@ -5,6 +5,7 @@ import { saveConfigToIDB } from '../store/configStore';
 import { normalizeStoredAttachment, toStoredAttachmentRow, type StoredAttachmentRow } from '../store/attachmentStore';
 import type { AppConfig, ChatMessage, Conversation, Memory, ArchivedMemory } from '../types';
 import type { Attachment } from '../types/attachment';
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE, SUPPORTED_IMAGE_TYPES } from '../types/attachment';
 
 export const DATA_PORTABILITY_FORMAT = 'iagent-data-export';
 export const DATA_PORTABILITY_SCHEMA_VERSION = 1 as const;
@@ -70,6 +71,11 @@ const archivedMemorySchema = baseMemorySchema.extend({
   archiveReason: z.enum(['low-score', 'manual', 'consolidation']).optional().default('low-score'),
 }).passthrough();
 
+function extractDataUriMimeType(dataUri: string): string | null {
+  const match = dataUri.match(/^data:([^;,]+)(?:;[^,]*)?,/);
+  return match?.[1] ?? null;
+}
+
 const attachmentSchema = z.object({
   id: z.string(),
   messageId: z.string(),
@@ -80,7 +86,43 @@ const attachmentSchema = z.object({
   dataUri: z.string(),
   thumbnailUri: z.string().optional(),
   createdAt: z.number().finite(),
-}).passthrough();
+}).passthrough().superRefine((attachment, ctx) => {
+  if (!ALLOWED_MIME_TYPES.includes(attachment.mimeType)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['mimeType'],
+      message: `Unsupported MIME type: ${attachment.mimeType}`,
+    });
+  }
+
+  if (attachment.size === 0 || attachment.size > MAX_FILE_SIZE) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['size'],
+      message: `Attachment size must be 1-${MAX_FILE_SIZE} bytes`,
+    });
+  }
+
+  const dataUriMimeType = extractDataUriMimeType(attachment.dataUri);
+  if (dataUriMimeType !== attachment.mimeType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dataUri'],
+      message: 'dataUri MIME type must match attachment mimeType',
+    });
+  }
+
+  if (attachment.thumbnailUri) {
+    const thumbnailMimeType = extractDataUriMimeType(attachment.thumbnailUri);
+    if (!thumbnailMimeType || !SUPPORTED_IMAGE_TYPES.includes(thumbnailMimeType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['thumbnailUri'],
+        message: 'thumbnailUri must be a supported image data URI',
+      });
+    }
+  }
+});
 
 const taskScheduleSchema = z.object({
   type: z.enum(['global', 'interval', 'fixed-time']),
